@@ -1,139 +1,66 @@
-# Production ERP
+# Agarwal Flexible Packaging ERP Frontend
 
-A production ERP web application for managing operations including transport, vehicles, bilty, and party management.
+Frontend for the internal ERP system used by Agarwal Flexible Packaging. The app provides authenticated access to operational modules and a data-heavy UI for managing core records.
 
-## Features
-
-### 🔐 Authentication
-- Secure login system with JWT tokens
-- User session management
-- Protected routes
-
-### 📊 Dashboard Overview
-- Real-time statistics and metrics
-- Recent activity tracking
-- Quick access to all modules
-
-### 🚛 Transport Management
-- Add new transport companies
-- View all transports in a table format
-- Edit and delete transport records
-- GSTIN tracking
-
-### 🚗 Vehicle Management (Coming Soon)
-- Vehicle registration and tracking
-- Vehicle number management
-- Vehicle-transport associations
-
-### 📋 Bilty Management (Coming Soon)
-- Create and manage bilty documents
-- Link transports and vehicles
-- Date and station tracking
-
-### 👥 Party Management (Coming Soon)
-- Customer and supplier management
-- Address and SAP code tracking
-- Party-transaction history
+## Highlights
+- JWT-based login with protected routes
+- Sidebar layout with module navigation
+- Data tables for users, transports, parties, and requisitions
+- Themed UI components built on Radix primitives
 
 ## Tech Stack
+- React 19 + TypeScript
+- React Router (v7)
+- Vite
+- Tailwind CSS
+- Radix UI + TanStack Table
+- Axios
 
-### Frontend
-- **React 19** with TypeScript
-- **React Router DOM** for navigation
-- **Tailwind CSS** for styling
-- **Axios** for API communication
-- **Vite** for build tooling
+## Requirements
+- Node.js 18+
+- npm
 
-### Backend
-- **FastAPI** with Python
-- **SQLModel** for database ORM
-- **JWT** for authentication
-- **SQLite** database
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- Python (v3.8 or higher)
-- npm or yarn
-
-### Frontend Setup
+## Setup
 ```bash
-cd frontend/agarwal
+cd frontend/agarwal-front
 npm install
-npm install react-router-dom @types/react-router-dom
+```
+
+### Configure API base URL
+The API base URL is controlled via `VITE_API_BASE_URL`. If not set, the app falls back to the production API URL.
+
+Create `.env.local` in `frontend/agarwal-front`:
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Run locally
+```bash
 npm run dev
 ```
 
-### Backend Setup
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
+Open `http://localhost:5173`.
+
+## Scripts
+- `npm run dev` - start Vite dev server
+- `npm run build` - typecheck and build
+- `npm run preview` - preview production build
+- `npm run lint` - run ESLint
+
+## Project Structure
+```
+src/
+├── components/         # Reusable UI and table components
+├── conf/               # App configuration (API base URL)
+├── contexts/           # Auth and theme contexts
+├── lib/                # API clients, enums, utils
+├── pages/              # Route-level pages
+├── App.tsx             # Routes and app shell
+└── main.tsx            # Entry point
 ```
 
-### Access the Application
-- Frontend: http://localhost:5173
-- Login: http://localhost:5173/login
-- Dashboard: http://localhost:5173/dashboard
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
-
-## Usage
-
-1. **Login**: Use your credentials to access the ERP
-   - If already logged in, you'll be automatically redirected to dashboard
-2. **Dashboard**: View overview statistics and recent activities
-3. **Transport Management**: Add and manage transport companies
-4. **Navigation**: Use the tab navigation to switch between modules
-
-## API Endpoints
-
-### Authentication
-- `POST /login/` - User login
-- `GET /user/me` - Get current user info
-
-### Transport Management
-- `GET /transport/` - Get all transports
-- `POST /transport/` - Create new transport
-- `PUT /transport/` - Update transport
-
-## Development
-
-### Project Structure
-```
-frontend/agarwal/
-├── src/
-│   ├── components/
-│   │   └── Navigation.tsx # Reusable navigation component
-│   ├── pages/
-│   │   ├── Login.tsx      # Login component
-│   │   └── dashboard.tsx  # Main dashboard
-│   ├── App.tsx           # Main app component with routing
-│   └── main.tsx          # Entry point
-└── package.json
-
-backend/
-├── routers/              # API route handlers
-├── model.py             # Database models
-├── main.py              # FastAPI app
-└── requirements.txt     # Python dependencies
-```
-
-### Adding New Features
-1. Create new components in `src/pages/`
-2. Add API endpoints in backend routers
-3. Update the dashboard navigation
-4. Test the integration
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## Backend
+This frontend expects a FastAPI backend. See the backend repository in `backend/agarwal-api` for API setup and documentation.
 
 ## License
-
-This project is proprietary software for Agaarwal Flexible Packaging.
+Proprietary software for Agarwal Flexible Packaging.
