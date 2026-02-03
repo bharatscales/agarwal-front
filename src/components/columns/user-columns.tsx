@@ -1,5 +1,7 @@
 import { type ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
+import { ColumnHeader } from "@/components/column-header"
+import { ColumnHeaderSelect } from "@/components/column-header-select"
 import { MoreVertical, Edit, Trash2, UserCheck, UserX } from "lucide-react"
 import {
   DropdownMenu,
@@ -9,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { useAuth } from "@/contexts/AuthContext"
 
 // Backend User model structure
 export interface User {
@@ -24,10 +25,22 @@ export interface User {
   created_at: string
 }
 
-export const userColumns: ColumnDef<User>[] = [
+type UserColumnHandlers = {
+  onEdit: (user: User) => void
+  onToggleStatus: (user: User) => void
+  canManage: boolean
+}
+
+export const getUserColumns = ({
+  onEdit,
+  onToggleStatus,
+  canManage,
+}: UserColumnHandlers): ColumnDef<User>[] => [
   {
     accessorKey: "username",
-    header: "Username",
+    header: ({ column }) => (
+      <ColumnHeader title="USERNAME" column={column} placeholder="Filter username..." />
+    ),
     cell: ({ row }) => {
       const username = row.getValue("username") as string
       return (
@@ -39,7 +52,9 @@ export const userColumns: ColumnDef<User>[] = [
   },
   {
     accessorKey: "firstname",
-    header: "First Name",
+    header: ({ column }) => (
+      <ColumnHeader title="FIRST NAME" column={column} placeholder="Filter first name..." />
+    ),
     cell: ({ row }) => {
       const firstname = row.getValue("firstname") as string
       return (
@@ -51,7 +66,9 @@ export const userColumns: ColumnDef<User>[] = [
   },
   {
     accessorKey: "lastname",
-    header: "Last Name",
+    header: ({ column }) => (
+      <ColumnHeader title="LAST NAME" column={column} placeholder="Filter last name..." />
+    ),
     cell: ({ row }) => {
       const lastname = row.getValue("lastname") as string
       return (
@@ -63,7 +80,11 @@ export const userColumns: ColumnDef<User>[] = [
   },
   {
     accessorKey: "role",
-    header: "Role",
+    filterFn: (row, columnId, filterValue: string[]) => {
+      if (!Array.isArray(filterValue) || filterValue.length === 0) return true
+      const rowValue = row.getValue<string>(columnId)
+      return filterValue.includes(rowValue)
+    },
     cell: ({ row }) => {
       const role = row.getValue("role") as string
       const getRoleVariant = (role: string) => {
@@ -85,11 +106,22 @@ export const userColumns: ColumnDef<User>[] = [
         </Badge>
       )
     },
+    header: ({ column }) => (
+      <ColumnHeaderSelect
+        title="ROLE"
+        column={column}
+        options={["user", "admin", "superuser"]}
+      />
+    ),
   },
 
   {
     accessorKey: "isEnable",
-    header: "Status",
+    filterFn: (row, columnId, filterValue: string[]) => {
+      if (!Array.isArray(filterValue) || filterValue.length === 0) return true
+      const rowValue = row.getValue<boolean>(columnId) ? "active" : "inactive"
+      return filterValue.includes(rowValue)
+    },
     cell: ({ row }) => {
       const isEnable = row.getValue("isEnable") as boolean
       return (
@@ -105,10 +137,19 @@ export const userColumns: ColumnDef<User>[] = [
         </div>
       )
     },
+    header: ({ column }) => (
+      <ColumnHeaderSelect
+        title="STATUS"
+        column={column}
+        options={["active", "inactive"]}
+      />
+    ),
   },
   {
     accessorKey: "created_at",
-    header: "Created",
+    header: ({ column }) => (
+      <ColumnHeader title="CREATED" column={column} placeholder="Filter created date..." />
+    ),
     cell: ({ row }) => {
       const date = new Date(row.getValue("created_at"))
       return (
@@ -123,7 +164,6 @@ export const userColumns: ColumnDef<User>[] = [
     
     cell: ({ row }) => {
       const user = row.original
-      const { user: currentUser } = useAuth()
 
       return (
         <DropdownMenu>
@@ -140,12 +180,15 @@ export const userColumns: ColumnDef<User>[] = [
             >
               Copy user ID
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(user)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit user
             </DropdownMenuItem>
-            {(currentUser?.role === "admin" || currentUser?.role === "superuser") && (
-              <DropdownMenuItem className="text-red-600">
+            {canManage && (
+              <DropdownMenuItem
+                className={user.isEnable ? "text-red-600" : "text-green-600"}
+                onClick={() => onToggleStatus(user)}
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
                 {user.isEnable ? "Deactivate" : "Activate"} user
               </DropdownMenuItem>

@@ -22,7 +22,7 @@ export function ColumnHeader({ title, column, placeholder }: ColumnHeaderProps) 
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="flex items-center h-3 w-3 p-1 dark:text-zinc-600 text-zinc-300 focus:outline-none focus:ring-0 focus-visible:ring-0"
+          className="flex items-center h-3 w-3 p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-transparent dark:hover:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0"
         >
           <ArrowUpDown className="h-1 w-1" />
         </Button>
@@ -30,9 +30,9 @@ export function ColumnHeader({ title, column, placeholder }: ColumnHeaderProps) 
           <DropdownMenuTrigger asChild>
             <Button 
               variant="ghost" 
-              className={`h-3 w-3 p-1 focus:outline-none focus:ring-0 focus-visible:ring-0 ${
+              className={`h-3 w-3 p-1 hover:bg-transparent dark:hover:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 ${
                 column.getFilterValue() ? 'text-black dark:text-zinc-300' : 'text-zinc-300 dark:text-zinc-600'
-              }`}
+              } hover:text-zinc-900 dark:hover:text-zinc-100`}
             >
               <span className="sr-only">Open menu</span>
               <FilterIcon className="h-1 w-1" />

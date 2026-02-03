@@ -41,6 +41,27 @@ export const createUser = async (userData: {
   }
 }
 
+// Update user details (admin/superuser only)
+export const updateUser = async (
+  userId: number,
+  userData: Partial<{
+    firstname: string
+    lastname: string
+    username: string
+    password: string
+    role: "superuser" | "admin" | "user"
+    isEnable: boolean
+  }>
+): Promise<User> => {
+  try {
+    const response = await api.patch(`/user/${userId}`, userData)
+    return response.data
+  } catch (error) {
+    console.error("Error updating user:", error)
+    throw error
+  }
+}
+
 // Update user theme preference
 export const updateUserTheme = async (theme: "light" | "dark"): Promise<User> => {
   try {
@@ -55,10 +76,7 @@ export const updateUserTheme = async (theme: "light" | "dark"): Promise<User> =>
 // Update user status (activate/deactivate)
 export const updateUserStatus = async (userId: number, isEnable: boolean): Promise<User> => {
   try {
-    // Note: This endpoint doesn't exist yet in your backend
-    // You'll need to create it in the backend
-    const response = await api.patch(`/user/${userId}/status`, { isEnable })
-    return response.data
+    return await updateUser(userId, { isEnable })
   } catch (error) {
     console.error('Error updating user status:', error)
     throw error

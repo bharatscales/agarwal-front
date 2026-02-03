@@ -1,7 +1,7 @@
 
 export default function Home() {
   return (
-    <div className="p-6">
+    <div className="px-6 pt-2 pb-6">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>

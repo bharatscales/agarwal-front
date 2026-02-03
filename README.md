@@ -1,6 +1,6 @@
-# Agarwal Flexible Packaging ERP Frontend
+# Agaarwal Flexible Packaging ERP Frontend
 
-Frontend for the internal ERP system used by Agarwal Flexible Packaging. The app provides authenticated access to operational modules and a data-heavy UI for managing core records.
+Frontend for the internal ERP system used by Agaarwal Flexible Packaging. The app provides authenticated access to operational modules and a data-heavy UI for managing core records.
 
 ## Highlights
 - JWT-based login with protected routes
@@ -22,14 +22,14 @@ Frontend for the internal ERP system used by Agarwal Flexible Packaging. The app
 
 ## Setup
 ```bash
-cd frontend/agarwal-front
+cd frontend/agaarwal-front
 npm install
 ```
 
 ### Configure API base URL
 The API base URL is controlled via `VITE_API_BASE_URL`. If not set, the app falls back to the production API URL.
 
-Create `.env.local` in `frontend/agarwal-front`:
+Create `.env.local` in `frontend/agaarwal-front`:
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
 ```
@@ -60,7 +60,7 @@ src/
 ```
 
 ## Backend
-This frontend expects a FastAPI backend. See the backend repository in `backend/agarwal-api` for API setup and documentation.
+This frontend expects a FastAPI backend. See the backend repository in `backend/agaarwal-api` for API setup and documentation.
 
 ## License
-Proprietary software for Agarwal Flexible Packaging.
+Proprietary software for Agaarwal Flexible Packaging.

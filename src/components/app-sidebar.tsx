@@ -8,7 +8,12 @@ import {
   Moon,
   ChevronDown,
   ChevronRight,
+  PanelLeftClose,
   X,
+  PersonStanding,
+  Factory,
+  Box,
+  BarChart3,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -31,6 +36,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import logo from "../assets/logo.svg";
 
 interface MenuItem {
@@ -46,7 +57,29 @@ const items: MenuItem[] = [
     icon: Home,
     path: "/home",
   },
-  
+];
+
+const manufacturingItems: MenuItem[] = [
+  {
+    title: "Work Order",
+    icon: Factory,
+    path: "/manufacturing/work-order",
+  },
+  {
+    title: "Job Card",
+    icon: PersonStanding,
+    path: "/manufacturing/job-card",
+  },
+  {
+    title: "Stock Entry",
+    icon: Box,
+    path: "/manufacturing/stock-entry",
+  },
+  {
+    title: "Reports",
+    icon: BarChart3,
+    path: "/manufacturing/reports",
+  },
 ];
 
 
@@ -58,6 +91,21 @@ const masterItems: MenuItem[] = [
     icon: UserCheck,
     path: "/users",
   },
+  {
+    title: "Item",
+    icon: Building2,
+    path: "/masters/item",
+  },
+  {
+    title: "Warehouse",
+    icon: Building2,
+    path: "/masters/warehouse",
+  },
+  {
+    title: "Operation",
+    icon: Building2,
+    path: "/masters/operation",
+  },
 ];
 
 
@@ -66,7 +114,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, state, toggleSidebar } = useSidebar();
   const [currentUser, setCurrentUser] = useState<{
     username: string;
     role: string;
@@ -88,6 +136,12 @@ export function AppSidebar() {
   const toggleMasters = () => {
     setIsMastersOpen(!isMastersOpen);
   };
+
+  useEffect(() => {
+    if (state === "collapsed") {
+      setIsMastersOpen(false);
+    }
+  }, [state]);
 
 
   // Fetch current user info
@@ -129,10 +183,10 @@ export function AppSidebar() {
                   <img
                     src={logo}
                     alt="Production ERP Logo"
-                    className="h-12 w-12"
+                    className="h-8 w-8"
                   />
                   <div>
-                    <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-sm font-bold text-gray-900 dark:text-white">
                       PRODUCTION ERP
                     </h1>
                   </div>
@@ -173,10 +227,10 @@ export function AppSidebar() {
                 <img
                   src={logo}
                   alt="Production ERP Logo"
-                  className="h-12 w-12"
+                  className="h-8 w-8"
                 />
                 <div>
-                  <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                  <h1 className="text-sm font-bold text-gray-900 dark:text-white">
                     PRODUCTION ERP
                   </h1>
                 </div>
@@ -197,23 +251,6 @@ export function AppSidebar() {
           </Button>
         </div>
       </SidebarHeader>
-
-      {/* Theme Toggle Button */}
-      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleTheme}
-          className="w-full justify-center"
-          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        >
-          {theme === 'dark' ? (
-            <Sun className="h-4 w-4" />
-          ) : (
-            <Moon className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
 
       <SidebarContent>
         <SidebarGroup>
@@ -236,7 +273,7 @@ export function AppSidebar() {
                     isActive={isActive(item.path)}
                     onClick={() => handleNavigation(item.path)}
                   >
-                    <item.icon />
+                    {item.path === "/home" && <Home className="mr-2 h-4 w-4" />}
                     <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -245,6 +282,29 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Separator */}
+        <div className="px-4 py-2">
+          <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Manufacturing</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {manufacturingItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  isActive={isActive(item.path)}
+                  onClick={() => handleNavigation(item.path)}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         {/* Separator */}
         <div className="px-4 py-2">
@@ -290,7 +350,6 @@ export function AppSidebar() {
                         onClick={() => handleNavigation(item.path)}
                         className="w-full pl-8"
                       >
-                        <item.icon />
                         <span>{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -310,8 +369,18 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="min-h-15">
-              <a>
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              className={`w-full ${state === "collapsed" ? "justify-center" : ""}`}
+            >
+              <PanelLeftClose className="h-4 w-4" />
+              {state !== "collapsed" && <span>Collapse</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton className="min-h-15">
                 <User2 />
                 <div>
                   <div>
@@ -323,8 +392,26 @@ export function AppSidebar() {
                     </span>
                   </div>
                 </div>
-              </a>
             </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start">
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    toggleTheme();
+                  }}
+                >
+                  {theme === "dark" ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                  <span>
+                    Switch to {theme === "dark" ? "light" : "dark"} mode
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <SidebarMenuAction
               asChild
               className="min-h-10 min-w-10 m-2 p-3"
