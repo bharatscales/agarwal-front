@@ -119,7 +119,9 @@ export function CreatableCombobox({
             role="combobox"
             aria-expanded={open}
             disabled={disabled || loading}
-            placeholder={loading ? "Loading..." : placeholder}
+            placeholder={
+              loading ? "Loading..." : open ? searchPlaceholder : placeholder
+            }
             value={displayValue}
             onChange={(event) => {
               setSearchValue(event.target.value)
