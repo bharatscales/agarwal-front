@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 
 export default function StockEntryItems() {
   const { voucherId } = useParams<{ voucherId: string }>()
   const navigate = useNavigate()
-  const [voucher, setVoucher] = useState<any>(null)
+  const [, setVoucher] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

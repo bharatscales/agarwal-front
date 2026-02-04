@@ -37,7 +37,7 @@ export default function StockEntry() {
   const [stockVouchers, setStockVouchers] = useState<StockVoucher[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([])
+  const [, setVendorOptions] = useState<VendorOption[]>([])
   const [vendorSelectOptions, setVendorSelectOptions] = useState<CreatableOption[]>([])
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
