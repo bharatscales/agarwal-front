@@ -26,11 +26,13 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -96,7 +98,19 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="border-b border-zinc-600"
+                  className={`border-b border-zinc-600 ${onRowClick ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on actions dropdown or button
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest("button") ||
+                      target.closest("[role='menuitem']") ||
+                      target.closest("[data-radix-popper-content-wrapper]")
+                    ) {
+                      return;
+                    }
+                    onRowClick?.(row.original);
+                  }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

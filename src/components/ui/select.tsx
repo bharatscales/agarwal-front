@@ -22,16 +22,16 @@ function SelectValue({
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
-function SelectTrigger({
-  className,
-  size = "default",
-  children,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
+const SelectTrigger = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default"
-}) {
+    icon?: React.ComponentType<{ className?: string }>
+  }
+>(({ className, size = "default", icon: Icon = ChevronDownIcon, children, ...props }, ref) => {
   return (
     <SelectPrimitive.Trigger
+      ref={ref}
       data-slot="select-trigger"
       data-size={size}
       className={cn(
@@ -42,11 +42,12 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
+        <Icon className="size-4 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
-}
+})
+SelectTrigger.displayName = "SelectTrigger"
 
 function SelectContent({
   className,

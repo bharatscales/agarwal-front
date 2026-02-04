@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { ArrowRight, Check, Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Command,
   CommandEmpty,
@@ -139,7 +138,7 @@ export function CreatableCombobox({
             onKeyDown={onInputKeyDown}
             className="pr-9"
           />
-          <ChevronsUpDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+          <ArrowRight className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
         </div>
       </PopoverAnchor>
       <PopoverContent
@@ -160,7 +159,7 @@ export function CreatableCombobox({
       >
         <Command>
           {/* Search input is the trigger field; no input inside list */}
-          <ScrollArea className="max-h-64" type="auto" scrollHideDelay={0}>
+          <div className="max-h-64 overflow-y-auto">
             {filteredOptions.length === 0 && <CommandEmpty>{emptyMessage}</CommandEmpty>}
             {filteredOptions.length > 0 && (
               <CommandGroup>
@@ -180,12 +179,14 @@ export function CreatableCombobox({
                     disabled={option.disabled}
                     className={tickable ? "data-[selected=true]:bg-transparent" : undefined}
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
+                    {tickable && (
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    )}
                     <div className="flex flex-col">
                       <span>{option.label}</span>
                       {option.description && (
@@ -218,7 +219,7 @@ export function CreatableCombobox({
                 {footerText}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>

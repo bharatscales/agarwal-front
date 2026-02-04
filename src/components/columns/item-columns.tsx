@@ -16,7 +16,6 @@ export type Item = {
   itemName: string
   itemGroup: string
   uom: string
-  openingStock: string
 }
 
 type ItemColumnHandlers = {
@@ -59,16 +58,6 @@ export const getItemColumns = ({
     header: ({ column }) => (
       <ColumnHeader title="UOM" column={column} placeholder="Filter UOM..." />
     ),
-  },
-  {
-    accessorKey: "openingStock",
-    header: ({ column }) => (
-      <ColumnHeader title="OPENING STOCK" column={column} placeholder="Filter opening stock..." />
-    ),
-    cell: ({ row }) => {
-      const openingStock = row.getValue("openingStock") as string
-      return <div className="text-sm text-gray-600 dark:text-gray-400">{openingStock || "-"}</div>
-    },
   },
   {
     id: "actions",

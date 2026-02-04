@@ -19,6 +19,7 @@ export interface User {
   lastname: string
   username: string
   role: "superuser" | "admin" | "user"
+  department?: "Stock" | "Printing" | "Inspection" | "Slitter" | "ECL" | "Lamination" | "Dispatch" | "Floor"
   theme: "light" | "dark"
   isEnable: boolean
   created_by?: number
@@ -28,12 +29,14 @@ export interface User {
 type UserColumnHandlers = {
   onEdit: (user: User) => void
   onToggleStatus: (user: User) => void
+  onDelete: (user: User) => void
   canManage: boolean
 }
 
 export const getUserColumns = ({
   onEdit,
   onToggleStatus,
+  onDelete,
   canManage,
 }: UserColumnHandlers): ColumnDef<User>[] => [
   {
@@ -114,6 +117,20 @@ export const getUserColumns = ({
       />
     ),
   },
+  {
+    accessorKey: "department",
+    header: ({ column }) => (
+      <ColumnHeader title="DEPARTMENT" column={column} placeholder="Filter department..." />
+    ),
+    cell: ({ row }) => {
+      const department = row.getValue("department") as string | undefined
+      return (
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          {department || "-"}
+        </div>
+      )
+    },
+  },
 
   {
     accessorKey: "isEnable",
@@ -186,11 +203,24 @@ export const getUserColumns = ({
             </DropdownMenuItem>
             {canManage && (
               <DropdownMenuItem
-                className={user.isEnable ? "text-red-600" : "text-green-600"}
+                className={user.isEnable ? "text-yellow-600" : "text-green-600"}
                 onClick={() => onToggleStatus(user)}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                {user.isEnable ? (
+                  <UserX className="mr-2 h-4 w-4" />
+                ) : (
+                  <UserCheck className="mr-2 h-4 w-4" />
+                )}
                 {user.isEnable ? "Deactivate" : "Activate"} user
+              </DropdownMenuItem>
+            )}
+            {canManage && (
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => onDelete(user)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete user
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

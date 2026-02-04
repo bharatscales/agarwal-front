@@ -30,6 +30,7 @@ export const createUser = async (userData: {
   username: string
   password: string
   role: "superuser" | "admin" | "user"
+  department?: "Stock" | "Printing" | "Inspection" | "Slitter" | "ECL" | "Lamination" | "Dispatch" | "Floor"
   theme?: "light" | "dark"
 }): Promise<User> => {
   try {

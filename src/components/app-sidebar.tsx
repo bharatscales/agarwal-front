@@ -97,14 +97,9 @@ const masterItems: MenuItem[] = [
     path: "/masters/item",
   },
   {
-    title: "Warehouse",
+    title: "Party",
     icon: Building2,
-    path: "/masters/warehouse",
-  },
-  {
-    title: "Operation",
-    icon: Building2,
-    path: "/masters/operation",
+    path: "/masters/party",
   },
 ];
 

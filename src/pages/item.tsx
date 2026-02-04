@@ -7,16 +7,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
+import api from "@/lib/axios"
 
 type ItemForm = {
   itemCode: string
   itemName: string
   itemGroup: string
   uom: string
-  openingStock: string
 }
 
 export default function Item() {
+  const fallbackItemGroups: CreatableOption[] = [
+    { value: "rm film", label: "RM film" },
+    { value: "rm ink/adhesive/chemicals", label: "RM ink/adhesive/chemicals" },
+    { value: "fg variety", label: "FG variety" },
+  ]
+  const fallbackUoms: CreatableOption[] = [{ value: "Nos", label: "Nos" }]
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   const [isEditItemOpen, setIsEditItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -24,8 +30,7 @@ export default function Item() {
     itemCode: "",
     itemName: "",
     itemGroup: "",
-    uom: "Nos",
-    openingStock: "",
+    uom: "",
   })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
   const [items, setItems] = useState<Item[]>([])
@@ -33,15 +38,11 @@ export default function Item() {
     itemCode: "",
     itemName: "",
     itemGroup: "",
-    uom: "Nos",
-    openingStock: "",
+    uom: "",
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
-  const [itemGroupOptions, setItemGroupOptions] = useState<CreatableOption[]>([
-    { value: "Raw Material", label: "Raw Material", description: "All Item Groups" },
-    { value: "Services", label: "Services", description: "All Item Groups" },
-    { value: "Sub Assemblies", label: "Sub Assemblies", description: "All Item Groups" },
-  ])
+  const [itemGroupOptions, setItemGroupOptions] = useState<CreatableOption[]>(fallbackItemGroups)
+  const [uomOptions, setUomOptions] = useState<CreatableOption[]>(fallbackUoms)
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   const handleRefresh = () => {
@@ -59,14 +60,24 @@ export default function Item() {
       itemName: item.itemName,
       itemGroup: item.itemGroup,
       uom: item.uom,
-      openingStock: item.openingStock,
     })
     setEditErrors({})
     setIsEditItemOpen(true)
   }
 
   const handleInputChange = (field: keyof ItemForm, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      if (field === "itemCode") {
+        const shouldSyncName =
+          !prev.itemName.trim() || prev.itemName === prev.itemCode
+        return {
+          ...prev,
+          itemCode: value,
+          itemName: shouldSyncName ? value : prev.itemName,
+        }
+      }
+      return { ...prev, [field]: value }
+    })
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }))
     }
@@ -85,22 +96,40 @@ export default function Item() {
   }
 
   const handleEditInputChange = (field: keyof ItemForm, value: string) => {
-    setEditFormData(prev => ({ ...prev, [field]: value }))
+    setEditFormData(prev => {
+      if (field === "itemCode") {
+        const shouldSyncName =
+          !prev.itemName.trim() || prev.itemName === prev.itemCode
+        return {
+          ...prev,
+          itemCode: value,
+          itemName: shouldSyncName ? value : prev.itemName,
+        }
+      }
+      return { ...prev, [field]: value }
+    })
     if (editErrors[field]) {
       setEditErrors(prev => ({ ...prev, [field]: undefined }))
     }
   }
 
-  const handleCreateItemGroup = (label: string) => {
-    setItemGroupOptions(prev => {
-      if (prev.some(option => option.label.toLowerCase() === label.toLowerCase())) {
-        return prev
-      }
-      return [
-        ...prev,
-        { value: label, label, description: "Custom Item Groups" },
-      ]
-    })
+  const handleCreateUom = async (label: string) => {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    try {
+      const response = await api.post<{ uom: string }>("/meta/uoms", { uom: trimmed })
+      const value = response.data.uom
+      setUomOptions(prev => {
+        if (prev.some(option => option.value.toLowerCase() === value.toLowerCase())) {
+          return prev
+        }
+        return [...prev, { value, label: value }]
+      })
+      handleInputChange("uom", value)
+      handleEditInputChange("uom", value)
+    } catch (error) {
+      console.error("Failed to create UOM:", error)
+    }
   }
 
   const validateForm = (): boolean => {
@@ -114,12 +143,6 @@ export default function Item() {
     }
     if (!formData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
-    }
-    if (
-      formData.openingStock &&
-      Number.isNaN(Number(formData.openingStock))
-    ) {
-      errors.openingStock = "Opening stock must be a number"
     }
     if (items.some(item => item.itemCode === formData.itemCode.trim())) {
       errors.itemCode = "Item code already exists"
@@ -140,12 +163,6 @@ export default function Item() {
     }
     if (!editFormData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
-    }
-    if (
-      editFormData.openingStock &&
-      Number.isNaN(Number(editFormData.openingStock))
-    ) {
-      errors.openingStock = "Opening stock must be a number"
     }
     if (
       items.some(
@@ -171,15 +188,13 @@ export default function Item() {
       itemName: formData.itemName.trim(),
       itemGroup: formData.itemGroup.trim(),
       uom: formData.uom.trim(),
-      openingStock: formData.openingStock.trim(),
     }
     setItems(prev => [newItem, ...prev])
     setFormData({
       itemCode: "",
       itemName: "",
       itemGroup: "",
-      uom: "Nos",
-      openingStock: "",
+      uom: "",
     })
     setFormErrors({})
     setIsAddItemOpen(false)
@@ -198,7 +213,6 @@ export default function Item() {
               itemName: editFormData.itemName.trim(),
               itemGroup: editFormData.itemGroup.trim(),
               uom: editFormData.uom.trim(),
-              openingStock: editFormData.openingStock.trim(),
             }
           : item
       )
@@ -216,8 +230,7 @@ export default function Item() {
       itemCode: "",
       itemName: "",
       itemGroup: "",
-      uom: "Nos",
-      openingStock: "",
+      uom: "",
     })
     setFormErrors({})
   }
@@ -230,6 +243,48 @@ export default function Item() {
     }
   }, [isAddItemOpen])
 
+  useEffect(() => {
+    const fetchItemGroups = async () => {
+      try {
+        const response = await api.get<string[]>("/meta/item-groups")
+        const options = response.data.map((value) => ({
+          value,
+          label: value
+            .replace(/^rm\b/i, "RM")
+            .replace(/^fg\b/i, "FG"),
+        }))
+        if (options.length > 0) {
+          setItemGroupOptions(options)
+        }
+      } catch (error) {
+        console.error("Failed to load item groups:", error)
+        setItemGroupOptions(fallbackItemGroups)
+      }
+    }
+
+    fetchItemGroups()
+  }, [])
+
+  useEffect(() => {
+    const fetchUoms = async () => {
+      try {
+        const response = await api.get<string[]>("/meta/uoms")
+        const options = response.data.map((value) => ({
+          value,
+          label: value,
+        }))
+        if (options.length > 0) {
+          setUomOptions(options)
+        }
+      } catch (error) {
+        console.error("Failed to load UOMs:", error)
+        setUomOptions(fallbackUoms)
+      }
+    }
+
+    fetchUoms()
+  }, [])
+
   const handleCloseEditModal = () => {
     setIsEditItemOpen(false)
     setEditItemId(null)
@@ -237,8 +292,7 @@ export default function Item() {
       itemCode: "",
       itemName: "",
       itemGroup: "",
-      uom: "Nos",
-      openingStock: "",
+      uom: "",
     })
     setEditErrors({})
   }
@@ -353,12 +407,8 @@ export default function Item() {
                       onValueChange={(value) =>
                         handleInputChange("itemGroup", value ?? "")
                       }
-                      onCreateOption={handleCreateItemGroup}
                       placeholder="Select item group"
                       searchPlaceholder="Search item group..."
-                      createLabel="Create a new Item Group"
-                      footerText="Filtered by: Is Group is disabled."
-                      tickable
                       onInputKeyDown={(e) => handleEnterKey(e, 2)}
                       triggerRef={(el) => {
                         addFieldRefs.current[2] = el
@@ -371,16 +421,20 @@ export default function Item() {
 
                   <div className="space-y-2">
                     <Label htmlFor="uom">Default Unit of Measure *</Label>
-                    <Input
-                      id="uom"
-                      ref={(el) => {
+                    <CreatableCombobox
+                      options={uomOptions}
+                      value={formData.uom || null}
+                      onValueChange={(value) =>
+                        handleInputChange("uom", value ?? "")
+                      }
+                      onCreateOption={handleCreateUom}
+                      placeholder="Select unit of measure"
+                      searchPlaceholder="Search unit of measure..."
+                      createLabel="Create a new UOM"
+                      onInputKeyDown={(e) => handleEnterKey(e, 3)}
+                      triggerRef={(el) => {
                         addFieldRefs.current[3] = el
                       }}
-                      value={formData.uom}
-                      onChange={(e) => handleInputChange("uom", e.target.value)}
-                      onKeyDown={(e) => handleEnterKey(e, 3)}
-                      placeholder="Enter unit of measure"
-                      className={formErrors.uom ? "border-red-500" : ""}
                     />
                     {formErrors.uom && (
                       <p className="text-sm text-red-500">{formErrors.uom}</p>
@@ -388,25 +442,6 @@ export default function Item() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="openingStock">Opening Stock</Label>
-                    <Input
-                      id="openingStock"
-                      ref={(el) => {
-                        addFieldRefs.current[4] = el
-                      }}
-                      value={formData.openingStock}
-                      onChange={(e) => handleInputChange("openingStock", e.target.value)}
-                      onKeyDown={(e) => handleEnterKey(e, 4)}
-                      placeholder="Enter opening stock"
-                      className={formErrors.openingStock ? "border-red-500" : ""}
-                    />
-                    {formErrors.openingStock && (
-                      <p className="text-sm text-red-500">{formErrors.openingStock}</p>
-                    )}
-                  </div>
-                </div>
               </CardContent>
 
               <CardContent className="flex gap-2 mt-6">
@@ -488,12 +523,9 @@ export default function Item() {
                       onValueChange={(value) =>
                         handleEditInputChange("itemGroup", value ?? "")
                       }
-                      onCreateOption={handleCreateItemGroup}
                       placeholder="Select item group"
                       searchPlaceholder="Search item group..."
-                      createLabel="Create a new Item Group"
                       footerText="Filtered by: Is Group is disabled."
-                      tickable
                     />
                     {editErrors.itemGroup && (
                       <p className="text-sm text-red-500">{editErrors.itemGroup}</p>
@@ -502,12 +534,16 @@ export default function Item() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-uom">Default Unit of Measure *</Label>
-                    <Input
-                      id="edit-uom"
-                      value={editFormData.uom}
-                      onChange={(e) => handleEditInputChange("uom", e.target.value)}
-                      placeholder="Enter unit of measure"
-                      className={editErrors.uom ? "border-red-500" : ""}
+                    <CreatableCombobox
+                      options={uomOptions}
+                      value={editFormData.uom || null}
+                      onValueChange={(value) =>
+                        handleEditInputChange("uom", value ?? "")
+                      }
+                      onCreateOption={handleCreateUom}
+                      placeholder="Select unit of measure"
+                      searchPlaceholder="Search unit of measure..."
+                      createLabel="Create a new UOM"
                     />
                     {editErrors.uom && (
                       <p className="text-sm text-red-500">{editErrors.uom}</p>
@@ -515,21 +551,6 @@ export default function Item() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-openingStock">Opening Stock</Label>
-                    <Input
-                      id="edit-openingStock"
-                      value={editFormData.openingStock}
-                      onChange={(e) => handleEditInputChange("openingStock", e.target.value)}
-                      placeholder="Enter opening stock"
-                      className={editErrors.openingStock ? "border-red-500" : ""}
-                    />
-                    {editErrors.openingStock && (
-                      <p className="text-sm text-red-500">{editErrors.openingStock}</p>
-                    )}
-                  </div>
-                </div>
               </CardContent>
 
               <CardContent className="flex gap-2 mt-6">

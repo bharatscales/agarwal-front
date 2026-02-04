@@ -29,6 +29,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/masters/party" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/masters/warehouse" element={
               <ProtectedRoute>
                 <Layout />
@@ -50,6 +55,11 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/manufacturing/stock-entry" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/stock-entry/:voucherId/stock" element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>

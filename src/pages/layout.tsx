@@ -3,11 +3,13 @@ import { AppSidebar } from "@/components/app-sidebar"
 import Home from "./home"
 import Users from "./users"
 import Item from "./item"
+import Party from "./party"
 import Warehouse from "./warehouse"
 import Operation from "./operation"
 import WorkOrder from "./work-order"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
+import StockEntryItems from "./stock-entry-items"
 import Reports from "./reports"
 import { useLocation } from "react-router-dom"
 
@@ -23,6 +25,8 @@ export default function Layout() {
         return <Users />;
       case "/masters/item":
         return <Item />;
+      case "/masters/party":
+        return <Party />;
       case "/masters/warehouse":
         return <Warehouse />;
       case "/masters/operation":
@@ -33,9 +37,13 @@ export default function Layout() {
         return <JobCard />;
       case "/manufacturing/stock-entry":
         return <StockEntry />;
-      case "/manufacturing/reports":
-        return <Reports />;
       default:
+        if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname.endsWith("/stock")) {
+          return <StockEntryItems />;
+        }
+        if (location.pathname === "/manufacturing/reports") {
+          return <Reports />;
+        }
         return <Home />;
     }
   };

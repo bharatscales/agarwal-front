@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react"
 import { DataTable } from "@/components/data-table"
 import { getUserColumns, type User } from "@/components/columns/user-columns"
-import { createUser, getAllUsers, updateUser, updateUserStatus } from "@/lib/user-api"
+import { createUser, deleteUser, getAllUsers, updateUser, updateUserStatus } from "@/lib/user-api"
 import { Button } from "@/components/ui/button"
-import { Eye, EyeOff, Plus, RefreshCw, X } from "lucide-react"
+import api from "@/lib/axios"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ArrowRight, Eye, EyeOff, Plus, RefreshCw, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,12 +24,15 @@ interface CreateUserForm {
   password: string
   confirmPassword: string
   role: "superuser" | "admin" | "user"
+  department: "Stock" | "Printing" | "Inspection" | "Slitter" | "ECL" | "Lamination" | "Dispatch" | "Floor" | ""
 }
 
 interface EditUserForm {
   firstname: string
   lastname: string
   username: string
+  password: string
+  confirmPassword: string
   role: "superuser" | "admin" | "user"
 }
 
@@ -39,6 +50,8 @@ export default function Users() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showEditPassword, setShowEditPassword] = useState(false)
+  const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false)
   const [formData, setFormData] = useState<CreateUserForm>({
     firstname: "",
     lastname: "",
@@ -46,16 +59,21 @@ export default function Users() {
     password: "",
     confirmPassword: "",
     role: "user",
+    department: "",
   })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CreateUserForm, string>>>({})
+  const [departmentOptions, setDepartmentOptions] = useState<CreateUserForm["department"][]>([])
+  const [roleOptions, setRoleOptions] = useState<CreateUserForm["role"][]>([])
   const [editFormData, setEditFormData] = useState<EditUserForm>({
     firstname: "",
     lastname: "",
     username: "",
+    password: "",
+    confirmPassword: "",
     role: "user",
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditUserForm, string>>>({})
-  const addFieldRefs = useRef<Array<HTMLInputElement | HTMLSelectElement | null>>([])
+  const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   const fetchUsers = async () => {
     try {
@@ -91,6 +109,8 @@ export default function Users() {
       firstname: user.firstname || "",
       lastname: user.lastname || "",
       username: user.username || "",
+      password: "",
+      confirmPassword: "",
       role: user.role,
     })
     setEditErrors({})
@@ -110,7 +130,7 @@ export default function Users() {
   }
 
   const handleEnterKey = (
-    event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>,
     index: number
   ) => {
     if (event.key !== "Enter") return
@@ -151,6 +171,9 @@ export default function Users() {
     } else if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = "Passwords do not match"
     }
+    if (formData.role === "user" && !formData.department.trim()) {
+      errors.department = "Department is required for users"
+    }
     
 
 
@@ -167,6 +190,17 @@ export default function Users() {
     if (!editFormData.username.trim()) {
       errors.username = "Username is required"
     }
+    if (editFormData.password.trim() && editFormData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters"
+    }
+    if (editFormData.password.trim() && !editFormData.confirmPassword.trim()) {
+      errors.confirmPassword = "Please confirm the password"
+    } else if (
+      editFormData.password.trim() &&
+      editFormData.password !== editFormData.confirmPassword
+    ) {
+      errors.confirmPassword = "Passwords do not match"
+    }
 
     setEditErrors(errors)
     return Object.keys(errors).length === 0
@@ -182,7 +216,13 @@ export default function Users() {
     try {
       setIsSubmitting(true)
       // Remove confirmPassword before sending to API
-      const { confirmPassword, ...userDataForAPI } = formData
+      const { confirmPassword, ...userDataForAPI } = {
+        ...formData,
+        department: formData.department || undefined,
+      }
+      if (userDataForAPI.role !== "user") {
+        delete (userDataForAPI as Partial<typeof userDataForAPI>).department
+      }
       await createUser(userDataForAPI)
       
       // Close modal and refresh users
@@ -194,6 +234,7 @@ export default function Users() {
         password: "",
         confirmPassword: "",
         role: "user",
+        department: "",
       })
       setFormErrors({})
       
@@ -222,6 +263,7 @@ export default function Users() {
       password: "",
       confirmPassword: "",
       role: "user",
+      department: "",
     })
     setFormErrors({})
   }
@@ -233,9 +275,13 @@ export default function Users() {
       firstname: "",
       lastname: "",
       username: "",
+      password: "",
+      confirmPassword: "",
       role: "user",
     })
     setEditErrors({})
+    setShowEditPassword(false)
+    setShowEditConfirmPassword(false)
   }
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -247,7 +293,16 @@ export default function Users() {
 
     try {
       setIsUpdating(true)
-      const updatedUser = await updateUser(editUserId, editFormData)
+      const updatePayload: Parameters<typeof updateUser>[1] = {
+        firstname: editFormData.firstname,
+        lastname: editFormData.lastname,
+        username: editFormData.username,
+        role: editFormData.role,
+      }
+      if (editFormData.password.trim()) {
+        updatePayload.password = editFormData.password.trim()
+      }
+      const updatedUser = await updateUser(editUserId, updatePayload)
       setUsers(prev =>
         prev.map(user => (user.id === updatedUser.id ? updatedUser : user))
       )
@@ -273,6 +328,20 @@ export default function Users() {
     }
   }
 
+  const handleDeleteUser = async (user: User) => {
+    if (!window.confirm(`Delete user "${user.username}"? This cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await deleteUser(user.id)
+      setUsers(prev => prev.filter(item => item.id !== user.id))
+    } catch (err) {
+      console.error("Error deleting user:", err)
+      setError("Failed to delete user. Please try again.")
+    }
+  }
+
   useEffect(() => {
     fetchUsers()
   }, [skip, limit])
@@ -284,6 +353,36 @@ export default function Users() {
       })
     }
   }, [isAddUserOpen])
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await api.get<string[]>("/meta/departments")
+        const options = response.data.filter(Boolean) as CreateUserForm["department"][]
+        setDepartmentOptions(options)
+      } catch (error) {
+        console.error("Failed to load departments:", error)
+        setDepartmentOptions([])
+      }
+    }
+
+    fetchDepartments()
+  }, [])
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const response = await api.get<string[]>("/meta/roles")
+        const options = response.data.filter(Boolean) as CreateUserForm["role"][]
+        setRoleOptions(options)
+      } catch (error) {
+        console.error("Failed to load roles:", error)
+        setRoleOptions([])
+      }
+    }
+
+    fetchRoles()
+  }, [])
 
   if (isLoading && users.length === 0) {
     return (
@@ -364,6 +463,7 @@ export default function Users() {
           columns={getUserColumns({
             onEdit: handleEditUserOpen,
             onToggleStatus: handleToggleStatus,
+            onDelete: handleDeleteUser,
             canManage: currentUser?.role === "admin" || currentUser?.role === "superuser",
           })}
           data={users}
@@ -530,21 +630,72 @@ export default function Users() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="role">Role *</Label>
-                    <select
-                      id="role"
-                      ref={(el) => {
-                        addFieldRefs.current[5] = el
-                      }}
+                    <Select
                       value={formData.role}
-                      onChange={(e) => handleInputChange('role', e.target.value as "superuser" | "admin" | "user")}
-                      onKeyDown={(e) => handleEnterKey(e, 5)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      onValueChange={(value) => {
+                        const nextRole = value as CreateUserForm["role"]
+                        handleInputChange("role", nextRole)
+                        if (nextRole !== "user") {
+                          handleInputChange("department", "")
+                        }
+                      }}
                     >
-                      <option value="user">User</option>
-                      <option value="admin">Admin</option>
-                      <option value="superuser">Superuser</option>
-                    </select>
+                      <SelectTrigger
+                        id="role"
+                        ref={(el) => {
+                          addFieldRefs.current[5] = el
+                        }}
+                        onKeyDown={(e) => handleEnterKey(e, 5)}
+                        className="w-full"
+                        icon={ArrowRight}
+                      >
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roleOptions.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  {formData.role === "user" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department *</Label>
+                      <Select
+                        value={formData.department}
+                        onValueChange={(value) =>
+                          handleInputChange(
+                            "department",
+                            value as CreateUserForm["department"]
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          id="department"
+                          ref={(el) => {
+                            addFieldRefs.current[6] = el
+                          }}
+                          onKeyDown={(e) => handleEnterKey(e, 6)}
+                          className="w-full"
+                          icon={ArrowRight}
+                        >
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departmentOptions.map((department) => (
+                            <SelectItem key={department} value={department}>
+                              {department}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formErrors.department && (
+                        <p className="text-sm text-red-500">{formErrors.department}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
 
@@ -641,6 +792,68 @@ export default function Users() {
                   />
                   {editErrors.username && (
                     <p className="text-sm text-red-500">{editErrors.username}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-password"
+                      type={showEditPassword ? "text" : "password"}
+                      value={editFormData.password}
+                      onChange={(e) => handleEditInputChange("password", e.target.value)}
+                      placeholder="Enter new password"
+                      className={`pr-10 ${editErrors.password ? "border-red-500" : ""}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowEditPassword((prev) => !prev)}
+                      className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 p-0"
+                      aria-label={showEditPassword ? "Hide password" : "Show password"}
+                    >
+                      {showEditPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {editErrors.password && (
+                    <p className="text-sm text-red-500">{editErrors.password}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-confirmPassword">Confirm New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-confirmPassword"
+                      type={showEditConfirmPassword ? "text" : "password"}
+                      value={editFormData.confirmPassword}
+                      onChange={(e) => handleEditInputChange("confirmPassword", e.target.value)}
+                      placeholder="Confirm new password"
+                      className={`pr-10 ${editErrors.confirmPassword ? "border-red-500" : ""}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowEditConfirmPassword((prev) => !prev)}
+                      className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 p-0"
+                      aria-label={showEditConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    >
+                      {showEditConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {editErrors.confirmPassword && (
+                    <p className="text-sm text-red-500">{editErrors.confirmPassword}</p>
                   )}
                 </div>
 
