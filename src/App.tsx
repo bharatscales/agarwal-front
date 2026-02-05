@@ -59,7 +59,7 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
-            <Route path="/manufacturing/stock-entry/:voucherId/stock" element={
+            <Route path="/manufacturing/stock-entry/:voucherId" element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>

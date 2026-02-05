@@ -7,14 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import api from "@/lib/axios"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
-import { createStockVoucher, deleteStockVoucher, getStockVouchers } from "@/lib/stock-voucher-api"
+import { createStockVoucher, deleteStockVoucher, getStockVouchers, updateStockVoucher } from "@/lib/stock-voucher-api"
+import { STOCK_TYPE_OPTIONS } from "@/lib/enums"
 
 type StockVoucherForm = {
   vendorId: string
   invoiceNo: string
   invoiceDate: string
+  stockType: string
 }
 
 type VendorOption = {
@@ -27,11 +30,14 @@ type VendorOption = {
 export default function StockEntry() {
   const navigate = useNavigate()
   const [isAddVoucherOpen, setIsAddVoucherOpen] = useState(false)
+  const [isEditVoucherOpen, setIsEditVoucherOpen] = useState(false)
+  const [editingVoucher, setEditingVoucher] = useState<StockVoucher | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<StockVoucherForm>({
     vendorId: "",
     invoiceNo: "",
     invoiceDate: "",
+    stockType: "",
   })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof StockVoucherForm, string>>>({})
   const [stockVouchers, setStockVouchers] = useState<StockVoucher[]>([])
@@ -96,6 +102,9 @@ export default function StockEntry() {
     if (!formData.invoiceDate.trim()) {
       errors.invoiceDate = "Invoice date is required"
     }
+    if (!formData.stockType.trim()) {
+      errors.stockType = "Stock type is required"
+    }
 
     setFormErrors(errors)
     return Object.keys(errors).length === 0
@@ -106,21 +115,35 @@ export default function StockEntry() {
     if (!validateForm()) return
 
     setIsSubmitting(true)
-    createStockVoucher({
+    const payload = {
       vendorId: Number(formData.vendorId),
       invoiceNo: formData.invoiceNo.trim(),
       invoiceDate: formData.invoiceDate,
-    })
-      .then((newVoucher) => {
-        setStockVouchers(prev => [newVoucher, ...prev])
+      stockType: formData.stockType.trim(),
+    }
+
+    const promise = editingVoucher
+      ? updateStockVoucher(editingVoucher.id, payload)
+      : createStockVoucher(payload)
+
+    promise
+      .then((voucher) => {
+        if (editingVoucher) {
+          setStockVouchers(prev => prev.map(v => v.id === voucher.id ? voucher : v))
+          setIsEditVoucherOpen(false)
+        } else {
+          setStockVouchers(prev => [voucher, ...prev])
+          setIsAddVoucherOpen(false)
+          navigate(`/manufacturing/stock-entry/${voucher.id}`)
+        }
         setFormData({
           vendorId: "",
           invoiceNo: "",
           invoiceDate: "",
+          stockType: "",
         })
         setFormErrors({})
-        setIsAddVoucherOpen(false)
-        navigate(`/manufacturing/stock-entry/${newVoucher.id}/stock`)
+        setEditingVoucher(null)
       })
       .catch((err) => {
         console.error("Error creating stock voucher:", err)
@@ -135,8 +158,20 @@ export default function StockEntry() {
       vendorId: "",
       invoiceNo: "",
       invoiceDate: "",
+      stockType: "",
     })
     setFormErrors({})
+  }
+
+  const handleEditVoucher = (voucher: StockVoucher) => {
+    setFormData({
+      vendorId: voucher.vendorId.toString(),
+      invoiceNo: voucher.invoiceNo,
+      invoiceDate: voucher.invoiceDate,
+      stockType: voucher.stockType,
+    })
+    setEditingVoucher(voucher)
+    setIsEditVoucherOpen(true)
   }
 
   const handleDeleteVoucher = (voucher: StockVoucher) => {
@@ -146,11 +181,24 @@ export default function StockEntry() {
     deleteStockVoucher(voucher.id)
       .then(() => {
         setStockVouchers(prev => prev.filter(row => row.id !== voucher.id))
+        setError(null)
       })
       .catch((err) => {
         console.error("Error deleting stock voucher:", err)
         setError("Failed to delete stock voucher. Please try again.")
       })
+  }
+
+  const handleCloseEditModal = () => {
+    setIsEditVoucherOpen(false)
+    setEditingVoucher(null)
+    setFormData({
+      vendorId: "",
+      invoiceNo: "",
+      invoiceDate: "",
+      stockType: "",
+    })
+    setFormErrors({})
   }
 
   const fetchStockVouchers = async () => {
@@ -227,12 +275,12 @@ export default function StockEntry() {
         <div>
           <DataTable
             columns={getStockVoucherColumns({
-              onEdit: () => {},
+              onEdit: handleEditVoucher,
               onDelete: handleDeleteVoucher,
             })}
             data={stockVouchers}
             onRowClick={(voucher) => {
-              navigate(`/manufacturing/stock-entry/${voucher.id}/stock`)
+              navigate(`/manufacturing/stock-entry/${voucher.id}`)
             }}
           />
         </div>
@@ -246,20 +294,20 @@ export default function StockEntry() {
         </div>
       )}
 
-      {isAddVoucherOpen && (
+      {(isAddVoucherOpen || isEditVoucherOpen) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-2xl">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Add Stock Voucher</CardTitle>
+                <CardTitle>{editingVoucher ? "Edit Stock Voucher" : "Add Stock Voucher"}</CardTitle>
                 <CardDescription>
-                  Create a new stock voucher entry.
+                  {editingVoucher ? "Update stock voucher entry." : "Create a new stock voucher entry."}
                 </CardDescription>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleCloseModal}
+                onClick={isEditVoucherOpen ? handleCloseEditModal : handleCloseModal}
                 className="h-8 w-8 p-0"
               >
                 <X className="h-4 w-4" />
@@ -324,6 +372,35 @@ export default function StockEntry() {
                       <p className="text-sm text-red-500">{formErrors.invoiceDate}</p>
                     )}
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="stockType">Stock Type *</Label>
+                    <Select
+                      value={formData.stockType ? formData.stockType : undefined}
+                      onValueChange={(value) => handleInputChange("stockType", value || "")}
+                    >
+                      <SelectTrigger
+                        id="stockType"
+                        ref={(el) => {
+                          addFieldRefs.current[3] = el
+                        }}
+                        onKeyDown={(e) => handleEnterKey(e, 3)}
+                        className={`w-full ${formErrors.stockType ? "border-red-500" : ""}`}
+                      >
+                        <SelectValue placeholder="Select stock type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STOCK_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formErrors.stockType && (
+                      <p className="text-sm text-red-500">{formErrors.stockType}</p>
+                    )}
+                  </div>
                 </div>
               </CardContent>
 
@@ -331,14 +408,14 @@ export default function StockEntry() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleCloseModal}
+                  onClick={isEditVoucherOpen ? handleCloseEditModal : handleCloseModal}
                   className="flex-1"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                  Create Voucher
+                  {editingVoucher ? "Update Voucher" : "Create Voucher"}
                 </Button>
               </CardFooter>
             </form>

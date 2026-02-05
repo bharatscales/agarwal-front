@@ -12,10 +12,11 @@ import {
 
 export type StockVoucher = {
   id: number
+  vendorId: number
   vendor: string
   invoiceNo: string
   invoiceDate: string
-  createdAt: string
+  stockType: string
 }
 
 type StockVoucherHandlers = {
@@ -54,15 +55,28 @@ export const getStockVoucherColumns = ({
     ),
   },
   {
-    accessorKey: "invoiceDate",
+    accessorKey: "stockType",
     header: ({ column }) => (
-      <ColumnHeader title="INVOICE DATE" column={column} placeholder="Filter invoice date..." />
+      <ColumnHeader title="STOCK TYPE" column={column} placeholder="Filter stock type..." />
     ),
+    cell: ({ row }) => {
+      const stockType = row.getValue("stockType") as string
+      if (!stockType) {
+        return <div className="text-sm text-gray-400 dark:text-gray-500">-</div>
+      }
+      // Format the display: "rolls" -> "Rolls", "ink/adhesive/chemical" -> "Ink/Adhesive/Chemical"
+      const formatted = stockType === "rolls" 
+        ? "Rolls" 
+        : stockType === "ink/adhesive/chemical"
+        ? "Ink/Adhesive/Chemical"
+        : stockType
+      return <div className="text-sm">{formatted}</div>
+    },
   },
   {
-    accessorKey: "createdAt",
+    accessorKey: "invoiceDate",
     header: ({ column }) => (
-      <ColumnHeader title="CREATED AT" column={column} placeholder="Filter created date..." />
+      <ColumnHeader title="DATE" column={column} placeholder="Filter date..." />
     ),
   },
   {

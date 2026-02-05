@@ -38,7 +38,7 @@ export default function Layout() {
       case "/manufacturing/stock-entry":
         return <StockEntry />;
       default:
-        if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname.endsWith("/stock")) {
+        if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname !== "/manufacturing/stock-entry") {
           return <StockEntryItems />;
         }
         if (location.pathname === "/manufacturing/reports") {

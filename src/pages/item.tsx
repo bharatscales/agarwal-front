@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 import api from "@/lib/axios"
+import { getItems, createItem, updateItem, deleteItem, type ItemPayload } from "@/lib/item-api"
 
 type ItemForm = {
   itemCode: string
@@ -18,9 +19,9 @@ type ItemForm = {
 
 export default function Item() {
   const fallbackItemGroups: CreatableOption[] = [
-    { value: "rm film", label: "RM film" },
-    { value: "rm ink/adhesive/chemicals", label: "RM ink/adhesive/chemicals" },
-    { value: "fg variety", label: "FG variety" },
+    { value: "rm film", label: "RM Film" },
+    { value: "rm ink/adhesive/chemicals", label: "RM Ink/Adhesive/Chemicals" },
+    { value: "fg variety", label: "FG Variety" },
   ]
   const fallbackUoms: CreatableOption[] = [{ value: "Nos", label: "Nos" }]
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
@@ -43,10 +44,47 @@ export default function Item() {
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
   const [itemGroupOptions, setItemGroupOptions] = useState<CreatableOption[]>(fallbackItemGroups)
   const [uomOptions, setUomOptions] = useState<CreatableOption[]>(fallbackUoms)
+  const [uomMap, setUomMap] = useState<Map<string, number>>(new Map()) // Map UOM name to ID
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
+  const fetchItems = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await getItems()
+      setItems(data)
+    } catch (err: any) {
+      console.error("Error fetching items:", err)
+      setError("Failed to load items. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchUomsWithIds = async () => {
+    try {
+      const response = await api.get<Array<{ id: number; uom: string }>>("/meta/uoms-with-ids")
+      const uoms = response.data
+      setUomMap(new Map(uoms.map(u => [u.uom, u.id])))
+      setUomOptions(uoms.map(u => ({ value: u.uom, label: u.uom })))
+    } catch (error) {
+      console.error("Failed to load UOMs:", error)
+      // Fallback to string-only endpoint
+      const uomsResponse = await api.get<string[]>("/meta/uoms")
+      setUomOptions(uomsResponse.data.map(u => ({ value: u, label: u })))
+    }
+  }
+
+  const getUomId = (uomName: string): number | undefined => {
+    if (!uomName.trim()) return undefined
+    return uomMap.get(uomName.trim())
+  }
+
   const handleRefresh = () => {
-    setItems(prev => [...prev])
+    fetchItems()
   }
 
   const handleAddItem = () => {
@@ -117,8 +155,12 @@ export default function Item() {
     const trimmed = label.trim()
     if (!trimmed) return
     try {
-      const response = await api.post<{ uom: string }>("/meta/uoms", { uom: trimmed })
+      const response = await api.post<{ id: number; uom: string }>("/meta/uoms", { uom: trimmed })
       const value = response.data.uom
+      const id = response.data.id
+      if (id) {
+        setUomMap(prev => new Map(prev).set(value, id))
+      }
       setUomOptions(prev => {
         if (prev.some(option => option.value.toLowerCase() === value.toLowerCase())) {
           return prev
@@ -144,9 +186,7 @@ export default function Item() {
     if (!formData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
     }
-    if (items.some(item => item.itemCode === formData.itemCode.trim())) {
-      errors.itemCode = "Item code already exists"
-    }
+    // Item code uniqueness will be checked by API
 
     setFormErrors(errors)
     return Object.keys(errors).length === 0
@@ -164,64 +204,101 @@ export default function Item() {
     if (!editFormData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
     }
-    if (
-      items.some(
-        item =>
-          item.itemCode === editFormData.itemCode.trim() &&
-          item.id !== editItemId
-      )
-    ) {
-      errors.itemCode = "Item code already exists"
-    }
+    // Item code uniqueness will be checked by API
 
     setEditErrors(errors)
     return Object.keys(errors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
 
-    const newItem: Item = {
-      id: Date.now(),
-      itemCode: formData.itemCode.trim(),
-      itemName: formData.itemName.trim(),
-      itemGroup: formData.itemGroup.trim(),
-      uom: formData.uom.trim(),
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const uomId = getUomId(formData.uom)
+      const payload: ItemPayload = {
+        itemCode: formData.itemCode.trim(),
+        itemName: formData.itemName.trim() || formData.itemCode.trim(),
+        itemGroup: formData.itemGroup.trim(),
+        uomId: uomId,
+      }
+
+      const newItem = await createItem(payload)
+      setItems(prev => [newItem, ...prev])
+      setFormData({
+        itemCode: "",
+        itemName: "",
+        itemGroup: "",
+        uom: "",
+      })
+      setFormErrors({})
+      setIsAddItemOpen(false)
+    } catch (err: any) {
+      console.error("Error creating item:", err)
+      const errorMsg = err.response?.data?.detail || "Failed to create item. Please try again."
+      setError(errorMsg)
+      if (err.response?.status === 400 && err.response?.data?.detail?.includes("already exists")) {
+        setFormErrors({ itemCode: "Item code already exists" })
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-    setItems(prev => [newItem, ...prev])
-    setFormData({
-      itemCode: "",
-      itemName: "",
-      itemGroup: "",
-      uom: "",
-    })
-    setFormErrors({})
-    setIsAddItemOpen(false)
   }
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editItemId || !validateEditForm()) return
 
-    setItems(prev =>
-      prev.map(item =>
-        item.id === editItemId
-          ? {
-              ...item,
-              itemCode: editFormData.itemCode.trim(),
-              itemName: editFormData.itemName.trim(),
-              itemGroup: editFormData.itemGroup.trim(),
-              uom: editFormData.uom.trim(),
-            }
-          : item
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const uomId = getUomId(editFormData.uom)
+      const payload: Partial<ItemPayload> = {
+        itemCode: editFormData.itemCode.trim(),
+        itemName: editFormData.itemName.trim() || editFormData.itemCode.trim(),
+        itemGroup: editFormData.itemGroup.trim(),
+        uomId: uomId,
+      }
+
+      const updatedItem = await updateItem(editItemId, payload)
+      setItems(prev =>
+        prev.map(item =>
+          item.id === editItemId ? updatedItem : item
+        )
       )
-    )
-    handleCloseEditModal()
+      handleCloseEditModal()
+    } catch (err: any) {
+      console.error("Error updating item:", err)
+      const errorMsg = err.response?.data?.detail || "Failed to update item. Please try again."
+      setError(errorMsg)
+      if (err.response?.status === 400 && err.response?.data?.detail?.includes("already exists")) {
+        setEditErrors({ itemCode: "Item code already exists" })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleDeleteItem = (item: Item) => {
-    setItems(prev => prev.filter(row => row.id !== item.id))
+  const handleDeleteItem = async (item: Item) => {
+    if (!window.confirm(`Delete item "${item.itemCode}"? This cannot be undone.`)) {
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await deleteItem(item.id)
+      setItems(prev => prev.filter(row => row.id !== item.id))
+      setError(null)
+    } catch (err: any) {
+      console.error("Error deleting item:", err)
+      setError("Failed to delete item. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleCloseModal = () => {
@@ -247,11 +324,15 @@ export default function Item() {
     const fetchItemGroups = async () => {
       try {
         const response = await api.get<string[]>("/meta/item-groups")
+        // Map backend values to display labels (matching backend enum values exactly)
+        const labelMap: Record<string, string> = {
+          "rm film": "RM Film",
+          "rm ink/adhesive/chemicals": "RM Ink/Adhesive/Chemicals",
+          "fg variety": "FG Variety",
+        }
         const options = response.data.map((value) => ({
-          value,
-          label: value
-            .replace(/^rm\b/i, "RM")
-            .replace(/^fg\b/i, "FG"),
+          value, // Use exact backend value (e.g., "rm film")
+          label: labelMap[value] || value.replace(/^rm\b/i, "RM").replace(/^fg\b/i, "FG"),
         }))
         if (options.length > 0) {
           setItemGroupOptions(options)
@@ -266,19 +347,29 @@ export default function Item() {
   }, [])
 
   useEffect(() => {
+    fetchItems()
+    fetchUomsWithIds()
+  }, [])
+
+  useEffect(() => {
     const fetchUoms = async () => {
       try {
-        const response = await api.get<string[]>("/meta/uoms")
-        const options = response.data.map((value) => ({
-          value,
-          label: value,
-        }))
-        if (options.length > 0) {
-          setUomOptions(options)
-        }
+        await fetchUomsWithIds()
       } catch (error) {
         console.error("Failed to load UOMs:", error)
-        setUomOptions(fallbackUoms)
+        // Fallback to string-only endpoint
+        try {
+          const response = await api.get<string[]>("/meta/uoms")
+          const options = response.data.map((value) => ({
+            value,
+            label: value,
+          }))
+          if (options.length > 0) {
+            setUomOptions(options)
+          }
+        } catch (err) {
+          setUomOptions(fallbackUoms)
+        }
       }
     }
 
@@ -320,17 +411,32 @@ export default function Item() {
         </div>
       </div>
 
-      <div>
-        <DataTable
-          columns={getItemColumns({
-            onEdit: handleEditItemOpen,
-            onDelete: handleDeleteItem,
-          })}
-          data={items}
-        />
-      </div>
+      {error && (
+        <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-600 dark:text-red-300 text-sm">{error}</p>
+        </div>
+      )}
 
-      {items.length === 0 && (
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading items...</p>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <DataTable
+            columns={getItemColumns({
+              onEdit: handleEditItemOpen,
+              onDelete: handleDeleteItem,
+            })}
+            data={items}
+          />
+        </div>
+      )}
+
+      {items.length === 0 && !isLoading && (
         <div className="text-center py-8">
           <p className="text-gray-500 dark:text-gray-400">
             No items found. Create your first item to get started.
@@ -450,11 +556,12 @@ export default function Item() {
                   variant="outline"
                   onClick={handleCloseModal}
                   className="flex-1"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1">
-                  Save Item
+                <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Item"}
                 </Button>
               </CardContent>
             </form>
@@ -559,11 +666,12 @@ export default function Item() {
                   variant="outline"
                   onClick={handleCloseEditModal}
                   className="flex-1"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1">
-                  Save Changes
+                <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Changes"}
                 </Button>
               </CardContent>
             </form>
