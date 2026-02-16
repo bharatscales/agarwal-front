@@ -1,9 +1,10 @@
-import { SidebarProvider } from "@/components/ui/sidebar"
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import Home from "./home"
 import Users from "./users"
 import Item from "./item"
 import Party from "./party"
+import Template from "./template"
 import Warehouse from "./warehouse"
 import Operation from "./operation"
 import WorkOrder from "./work-order"
@@ -12,6 +13,27 @@ import StockEntry from "./stock-entry"
 import StockEntryItems from "./stock-entry-items"
 import Reports from "./reports"
 import { useLocation } from "react-router-dom"
+import { Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+function MobileMenuToggle() {
+  const { toggleSidebar, isMobile } = useSidebar();
+
+  if (!isMobile) {
+    return null;
+  }
+
+  return (
+    <Button
+      onClick={toggleSidebar}
+      className="fixed bottom-4 left-4 z-50 h-10 w-10 rounded-full shadow-lg md:hidden"
+      size="icon"
+      aria-label="Toggle menu"
+    >
+      <Menu className="h-5 w-5" />
+    </Button>
+  );
+}
 
 export default function Layout() {
   const location = useLocation();
@@ -27,6 +49,8 @@ export default function Layout() {
         return <Item />;
       case "/masters/party":
         return <Party />;
+      case "/masters/template":
+        return <Template />;
       case "/masters/warehouse":
         return <Warehouse />;
       case "/masters/operation":
@@ -56,6 +80,7 @@ export default function Layout() {
           {renderContent()}
         </div>
       </main>
+      <MobileMenuToggle />
     </SidebarProvider>
   )
 }

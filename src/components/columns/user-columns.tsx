@@ -2,7 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
 import { ColumnHeaderSelect } from "@/components/column-header-select"
-import { MoreVertical, Edit, Trash2, UserCheck, UserX } from "lucide-react"
+import { MoreVertical, Edit, Trash2, UserCheck, UserX, Key } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,14 +30,18 @@ type UserColumnHandlers = {
   onEdit: (user: User) => void
   onToggleStatus: (user: User) => void
   onDelete: (user: User) => void
+  onCreateApiKey?: (user: User) => void
   canManage: boolean
+  isSuperuser?: boolean
 }
 
 export const getUserColumns = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onCreateApiKey,
   canManage,
+  isSuperuser = false,
 }: UserColumnHandlers): ColumnDef<User>[] => [
   {
     accessorKey: "username",
@@ -221,6 +225,15 @@ export const getUserColumns = ({
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete user
+              </DropdownMenuItem>
+            )}
+            {isSuperuser && onCreateApiKey && (
+              <DropdownMenuItem
+                className="text-blue-600"
+                onClick={() => onCreateApiKey(user)}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                Create API Key
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

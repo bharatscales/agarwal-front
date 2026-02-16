@@ -101,6 +101,11 @@ const masterItems: MenuItem[] = [
     icon: Building2,
     path: "/masters/party",
   },
+  {
+    title: "Templates",
+    icon: Building2,
+    path: "/masters/template",
+  },
 ];
 
 

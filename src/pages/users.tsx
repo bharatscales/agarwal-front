@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { DataTable } from "@/components/data-table"
 import { getUserColumns, type User } from "@/components/columns/user-columns"
-import { createUser, deleteUser, getAllUsers, updateUser, updateUserStatus } from "@/lib/user-api"
+import { createUser, deleteUser, getAllUsers, updateUser, updateUserStatus, createUserApiKey, type ApiKey } from "@/lib/user-api"
 import { Button } from "@/components/ui/button"
 import api from "@/lib/axios"
 import {
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowRight, Eye, EyeOff, Plus, RefreshCw, X } from "lucide-react"
+import { ArrowRight, Eye, EyeOff, Plus, RefreshCw, X, Copy, Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -73,6 +73,10 @@ export default function Users() {
     role: "user",
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditUserForm, string>>>({})
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
+  const [createdApiKey, setCreatedApiKey] = useState<ApiKey | null>(null)
+  const [apiKeyCopied, setApiKeyCopied] = useState(false)
+  const [creatingApiKeyForUser, setCreatingApiKeyForUser] = useState<User | null>(null)
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   const fetchUsers = async () => {
@@ -342,6 +346,43 @@ export default function Users() {
     }
   }
 
+  const handleCreateApiKey = async (user: User) => {
+    try {
+      setCreatingApiKeyForUser(user)
+      const apiKey = await createUserApiKey(user.id)
+      setCreatedApiKey(apiKey)
+      setIsApiKeyDialogOpen(true)
+    } catch (err: any) {
+      console.error("Error creating API key:", err)
+      if (err.response?.status === 403) {
+        setError("Only superusers can create API keys for other users")
+      } else {
+        setError("Failed to create API key. Please try again.")
+      }
+    } finally {
+      setCreatingApiKeyForUser(null)
+    }
+  }
+
+  const handleCopyApiKey = async () => {
+    if (createdApiKey?.key) {
+      try {
+        await navigator.clipboard.writeText(createdApiKey.key)
+        setApiKeyCopied(true)
+        setTimeout(() => setApiKeyCopied(false), 2000)
+      } catch (err) {
+        console.error("Failed to copy API key:", err)
+      }
+    }
+  }
+
+  const handleCloseApiKeyDialog = () => {
+    setIsApiKeyDialogOpen(false)
+    setCreatedApiKey(null)
+    setApiKeyCopied(false)
+    setCreatingApiKeyForUser(null)
+  }
+
   useEffect(() => {
     fetchUsers()
   }, [skip, limit])
@@ -464,7 +505,9 @@ export default function Users() {
             onEdit: handleEditUserOpen,
             onToggleStatus: handleToggleStatus,
             onDelete: handleDeleteUser,
+            onCreateApiKey: handleCreateApiKey,
             canManage: currentUser?.role === "admin" || currentUser?.role === "superuser",
+            isSuperuser: currentUser?.role === "superuser",
           })}
           data={users}
         />
@@ -905,6 +948,82 @@ export default function Users() {
                 </Button>
               </CardFooter>
             </form>
+          </Card>
+        </div>
+      )}
+
+      {/* API Key Dialog */}
+      {isApiKeyDialogOpen && createdApiKey && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle>API Key Created</CardTitle>
+                <CardDescription>
+                  API key for {creatingApiKeyForUser?.username || "user"} has been created successfully.
+                  <br />
+                  <strong className="text-red-600 dark:text-red-400">
+                    Please copy this key now. You won't be able to see it again!
+                  </strong>
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCloseApiKeyDialog}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      value={createdApiKey.key}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyApiKey}
+                      className="shrink-0"
+                    >
+                      {apiKeyCopied ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Important:</strong> This API key provides full access to the user's account.
+                    Store it securely and never share it publicly.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                type="button"
+                onClick={handleCloseApiKeyDialog}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </CardFooter>
           </Card>
         </div>
       )}

@@ -1,14 +1,17 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
-import { ChevronRight, Trash2, Edit, X, Check } from "lucide-react"
+import { ChevronRight, Trash2, Edit, X, Check, Printer } from "lucide-react"
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 import { getRollsStockByVoucher, createRollsStock, updateRollsStock, deleteRollsStock, type RollsStockPayload } from "@/lib/rolls-stock-api"
 import { getItems, createItem, type Item } from "@/lib/item-api"
+import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
+import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
 import api from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useSidebar } from "@/components/ui/sidebar"
 
 type RollsStockRow = {
   id?: number
@@ -20,12 +23,14 @@ type RollsStockRow = {
   micron: number
   netweight: number
   grossweight: number
+  barcode?: string
   isEditing?: boolean
 }
 
 export default function StockEntryItems() {
   const { voucherId } = useParams<{ voucherId: string }>()
   const navigate = useNavigate()
+  const { state: sidebarState, isMobile } = useSidebar()
   const [isLoading, setIsLoading] = useState(true)
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([{
     itemId: 0,
@@ -43,6 +48,12 @@ export default function StockEntryItems() {
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map()) // Map UOM name to ID
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [defaultTemplate, setDefaultTemplate] = useState<TemplateMaster | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [stockVoucher, setStockVoucher] = useState<any>(null)
+  const [printerName, setPrinterName] = useState<string>("")
+  const [printStatus, setPrintStatus] = useState<"idle" | "printing" | "done">("idle")
+  const [_currentJobId, setCurrentJobId] = useState<string | null>(null)
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const rollnoInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const sizeInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -64,6 +75,7 @@ export default function StockEntryItems() {
         micron: rs.micron,
         netweight: rs.netweight,
         grossweight: rs.grossweight,
+        barcode: rs.barcode,
         isEditing: false,
       }))
       // Always add an empty editing row at the end
@@ -130,13 +142,131 @@ export default function StockEntryItems() {
     }
   }
 
+  const fetchTemplates = async () => {
+    try {
+      const data = await getAllTemplates()
+      // Find template with default_form = "stock_roll_stk"
+      const rollStockTemplate = data.find(template => template.defaultForm === "stock_roll_stk")
+      if (rollStockTemplate) {
+        setDefaultTemplate(rollStockTemplate)
+      }
+    } catch (err: any) {
+      console.error("Error fetching templates:", err)
+    }
+  }
+
+  const fetchDefaultPrinter = async () => {
+    try {
+      const response = await api.get<{ id: string; name: string; format_type: string } | null>("/printer/default/zpl")
+      if (response.data) {
+        setPrinterName(response.data.name)
+      } else {
+        setPrinterName("No printer")
+      }
+    } catch (err: any) {
+      console.error("Error fetching default printer:", err)
+      setPrinterName("No printer")
+    }
+  }
+
+  const handlePrintClick = async (row: RollsStockRow) => {
+    if (!row.id) {
+      alert("Please save the row before printing")
+      return
+    }
+
+    if (!defaultTemplate) {
+      alert("No default template found. Please create a template with default form 'Stock Roll STK'.")
+      return
+    }
+
+    setIsPrinting(true)
+    try {
+      const printData = {
+        // Roll stock details
+        itemCode: row.itemCode,
+        itemName: row.itemName,
+        rollno: row.rollno,
+        size: row.size,
+        micron: row.micron,
+        netweight: row.netweight,
+        grossweight: row.grossweight,
+        barcode: row.barcode || "",
+        // Stock voucher details
+        stockVoucher: stockVoucher ? {
+          id: stockVoucher.id,
+          vendor: stockVoucher.vendor,
+          vendorId: stockVoucher.vendorId,
+          invoiceNo: stockVoucher.invoiceNo,
+          invoiceDate: stockVoucher.invoiceDate,
+          stockType: stockVoucher.stockType,
+        } : null,
+      }
+
+      const job = await createPrintJob({
+        name: `Roll Stock - ${row.rollno || row.itemCode}`,
+        template_id: defaultTemplate.id,
+        data: printData,
+        copies: 1,
+      })
+
+      // Set status to printing and start polling
+      setCurrentJobId(job.id)
+      setPrintStatus("printing")
+      
+      // Poll for job status
+      let pollCount = 0
+      const maxPolls = 30 // 30 seconds max
+      const pollInterval = setInterval(async () => {
+        pollCount++
+        try {
+          const updatedJob = await getPrintJob(job.id)
+          if (updatedJob.status === "done") {
+            clearInterval(pollInterval)
+            setPrintStatus("done")
+            // Show "done" for 3 seconds, then set to "idle"
+            setTimeout(() => {
+              setPrintStatus("idle")
+              setCurrentJobId(null)
+            }, 3000)
+          } else if (updatedJob.status === "failed") {
+            clearInterval(pollInterval)
+            setPrintStatus("idle")
+            setCurrentJobId(null)
+          } else if (pollCount >= maxPolls) {
+            // Timeout after 30 seconds
+            clearInterval(pollInterval)
+            setPrintStatus("idle")
+            setCurrentJobId(null)
+          }
+        } catch (err) {
+          console.error("Error polling print job status:", err)
+          clearInterval(pollInterval)
+          setPrintStatus("idle")
+          setCurrentJobId(null)
+        }
+      }, 1000) // Poll every second
+    } catch (err: any) {
+      console.error("Error creating print job:", err)
+      setPrintStatus("idle")
+      setCurrentJobId(null)
+    } finally {
+      setIsPrinting(false)
+    }
+  }
+
   useEffect(() => {
     if (voucherId) {
       Promise.all([
-        getStockVoucher(Number(voucherId)),
+        getStockVoucher(Number(voucherId)).then(voucher => {
+          setStockVoucher(voucher)
+          return voucher
+        }),
         fetchUomsWithIds(),
         fetchItems(),
         fetchRollsStock(),
+        fetchTemplates(),
+        fetchDefaultPrinter(),
       ])
         .catch((err) => {
           console.error("Error fetching data:", err)
@@ -523,7 +653,7 @@ export default function StockEntryItems() {
   }
 
   return (
-    <div className="px-6 pt-2 pb-6">
+    <div className="px-6 pt-2 pb-10">
       {/* Breadcrumb */}
       <div className="mb-6">
         <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -556,8 +686,8 @@ export default function StockEntryItems() {
                 <TableHead className="bg-background py-1 px-2">Roll No</TableHead>
                 <TableHead className="bg-background py-1 px-2">Size</TableHead>
                 <TableHead className="bg-background py-1 px-2">Micron</TableHead>
-                <TableHead className="bg-background py-1 px-2">Net Weight</TableHead>
-                <TableHead className="bg-background py-1 px-2">Gross Weight</TableHead>
+                <TableHead className="bg-background py-1 px-2">Net Weight (kg)</TableHead>
+                <TableHead className="bg-background py-1 px-2">Gross Weight (kg)</TableHead>
                 <TableHead className="w-24 bg-background py-1 px-2">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -763,8 +893,19 @@ export default function StockEntryItems() {
                             onClick={() => handleEditRow(index)}
                             disabled={isSubmitting}
                             className="h-7 w-7 p-0"
+                            title="Edit"
                           >
                             <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handlePrintClick(row)}
+                            disabled={isSubmitting || !row.id || isPrinting || !defaultTemplate}
+                            className="h-7 w-7 p-0"
+                            title="Print"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
@@ -772,6 +913,7 @@ export default function StockEntryItems() {
                             onClick={() => handleDeleteRow(index)}
                             disabled={isSubmitting}
                             className="h-7 w-7 p-0"
+                            title="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -795,13 +937,39 @@ export default function StockEntryItems() {
         <div className="text-sm">
           <span className="text-gray-600 dark:text-gray-400 font-medium">Total Net Weight:</span>
           <span className="ml-2 text-gray-900 dark:text-gray-100 font-semibold">
-            {totalNetWeight.toFixed(2)}
+            {totalNetWeight.toFixed(2)} kg
           </span>
         </div>
         <div className="text-sm">
           <span className="text-gray-600 dark:text-gray-400 font-medium">Total Gross Weight:</span>
           <span className="ml-2 text-gray-900 dark:text-gray-100 font-semibold">
-            {totalGrossWeight.toFixed(2)}
+            {totalGrossWeight.toFixed(2)} kg
+          </span>
+        </div>
+      </div>
+
+      {/* Print Status Bar */}
+      <div 
+        className="fixed bottom-0 h-7 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 z-50 transition-all duration-200"
+        style={{
+          left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
+          right: 0,
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Printer:</span>
+          <span className="text-xs text-gray-900 dark:text-gray-100 font-semibold">{printerName || "Loading..."}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Status:</span>
+          <span className={`text-xs font-semibold ${
+            printStatus === "printing" 
+              ? "text-blue-600 dark:text-blue-400" 
+              : printStatus === "done" 
+              ? "text-green-600 dark:text-green-400" 
+              : "text-gray-600 dark:text-gray-400"
+          }`}>
+            {printStatus === "printing" ? "Printing..." : printStatus === "done" ? "Done" : "Idle"}
           </span>
         </div>
       </div>

@@ -34,6 +34,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/masters/template" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/masters/warehouse" element={
               <ProtectedRoute>
                 <Layout />

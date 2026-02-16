@@ -95,3 +95,21 @@ export const deleteUser = async (userId: number): Promise<void> => {
     throw error
   }
 }
+
+// Create API key for a user (superuser only)
+export interface ApiKey {
+  id: number
+  user_id: number
+  key: string
+  created_at: string
+}
+
+export const createUserApiKey = async (userId: number): Promise<ApiKey> => {
+  try {
+    const response = await api.post(`/user/${userId}/api-key`)
+    return response.data
+  } catch (error) {
+    console.error('Error creating API key:', error)
+    throw error
+  }
+}
