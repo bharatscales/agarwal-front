@@ -20,7 +20,7 @@ function App() {
             } />
 
             <Route path="/users" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="superuser">
                 <Layout />
               </ProtectedRoute>
             } />
@@ -35,7 +35,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/masters/template" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="superuser">
                 <Layout />
               </ProtectedRoute>
             } />

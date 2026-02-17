@@ -337,11 +337,15 @@ export function AppSidebar() {
                 <div className="ml-4 space-y-1">
                   {masterItems
                     .filter(item => {
-                      // Hide Users for regular users
-                      if (currentUser?.role !== 'user' || item.title !== 'Users') {
-                        return true;
+                      // Hide Users and Templates for admin users - only show for superuser
+                      if (currentUser?.role === 'admin' && (item.title === 'Users' || item.title === 'Templates')) {
+                        return false;
                       }
-                      return false;
+                      // Hide Users for regular users
+                      if (currentUser?.role === 'user' && item.title === 'Users') {
+                        return false;
+                      }
+                      return true;
                     })
                     .map((item) => (
                     <SidebarMenuItem key={item.title}>
