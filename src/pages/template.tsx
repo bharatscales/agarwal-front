@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createTemplate, deleteTemplate, getAllTemplates, updateTemplate } from "@/lib/template-api"
+import { useAuth } from "@/contexts/AuthContext"
 
 type TemplateForm = {
   name: string
@@ -132,6 +133,8 @@ const generateJsonTemplate = (type: string, fileType: string): string => {
 }
 
 export default function Template() {
+  const { user } = useAuth()
+  const isSuperUser = user?.role === "superuser"
   const [isAddTemplateOpen, setIsAddTemplateOpen] = useState(false)
   const [isEditTemplateOpen, setIsEditTemplateOpen] = useState(false)
   const [editTemplateId, setEditTemplateId] = useState<number | null>(null)
@@ -671,10 +674,12 @@ export default function Template() {
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={handleAddTemplate} size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Template</span>
-            </Button>
+            {isSuperUser && (
+              <Button onClick={handleAddTemplate} size="sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Template</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -705,6 +710,7 @@ export default function Template() {
             columns={getTemplateMasterColumns({
               onEdit: handleEditTemplateOpen,
               onDelete: handleDeleteTemplate,
+              isSuperUser: isSuperUser,
             })}
             data={templates}
           />

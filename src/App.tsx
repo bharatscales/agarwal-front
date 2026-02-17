@@ -35,7 +35,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/masters/template" element={
-              <ProtectedRoute requiredRole="superuser">
+              <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>
             } />

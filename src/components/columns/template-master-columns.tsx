@@ -21,11 +21,13 @@ export type TemplateMaster = {
 type TemplateColumnHandlers = {
   onEdit: (template: TemplateMaster) => void
   onDelete: (template: TemplateMaster) => void
+  isSuperUser?: boolean
 }
 
 export const getTemplateMasterColumns = ({
   onEdit,
   onDelete,
+  isSuperUser = false,
 }: TemplateColumnHandlers): ColumnDef<TemplateMaster>[] => [
   {
     accessorKey: "name",
@@ -70,6 +72,11 @@ export const getTemplateMasterColumns = ({
     id: "actions",
     cell: ({ row }) => {
       const template = row.original
+
+      // Only show actions menu for superusers
+      if (!isSuperUser) {
+        return null
+      }
 
       return (
         <DropdownMenu>
