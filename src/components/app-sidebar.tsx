@@ -310,8 +310,8 @@ export function AppSidebar() {
         <div className="px-4 py-2">
           <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
         </div>
-        {/* Masters Section - Only visible for superuser */}
-        {currentUser?.role === 'superuser' && (
+        {/* Masters Section - Visible for admin and superuser */}
+        {(currentUser?.role === 'admin' || currentUser?.role === 'superuser') && (
         <SidebarGroup>
           <SidebarGroupLabel>Masters</SidebarGroupLabel>
           <SidebarGroupContent>
