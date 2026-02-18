@@ -134,7 +134,12 @@ export default function StockEntry() {
         } else {
           setStockVouchers(prev => [voucher, ...prev])
           setIsAddVoucherOpen(false)
-          navigate(`/manufacturing/stock-entry/${voucher.id}`)
+          // Navigate to appropriate page based on stock type
+          if (voucher.stockType === "rolls") {
+            navigate(`/manufacturing/stock-entry/${voucher.id}`)
+          } else if (voucher.stockType === "ink/adhesive/chemical") {
+            navigate(`/manufacturing/stock-entry/${voucher.id}/chem`)
+          }
         }
         setFormData({
           vendorId: "",
@@ -280,7 +285,14 @@ export default function StockEntry() {
             })}
             data={stockVouchers}
             onRowClick={(voucher) => {
-              navigate(`/manufacturing/stock-entry/${voucher.id}`)
+              // Navigate to appropriate page based on stock type
+              if (voucher.stockType === "rolls") {
+                navigate(`/manufacturing/stock-entry/${voucher.id}`)
+              } else if (voucher.stockType === "ink/adhesive/chemical") {
+                navigate(`/manufacturing/stock-entry/${voucher.id}/chem`)
+              } else {
+                alert(`Stock type "${voucher.stockType}" is not yet supported.`)
+              }
             }}
           />
         </div>

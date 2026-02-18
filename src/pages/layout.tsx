@@ -11,6 +11,7 @@ import WorkOrder from "./work-order"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
 import StockEntryItems from "./stock-entry-items"
+import StockEntryChemItems from "./stock-entry-chem-items"
 import Reports from "./reports"
 import { useLocation } from "react-router-dom"
 import { Menu } from "lucide-react"
@@ -63,6 +64,11 @@ export default function Layout() {
         return <StockEntry />;
       default:
         if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname !== "/manufacturing/stock-entry") {
+          // Check if it's a chem stock entry page
+          if (location.pathname.endsWith("/chem")) {
+            return <StockEntryChemItems />;
+          }
+          // Default to rolls stock entry
           return <StockEntryItems />;
         }
         if (location.pathname === "/manufacturing/reports") {
