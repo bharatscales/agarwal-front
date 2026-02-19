@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 
 const homeActions = [
   { label: "Stock", icon: Box, path: "/manufacturing/stock-entry" },
+  { label: "Work Order", icon: Factory, path: "/manufacturing/work-order" },
   { label: "Printing", icon: Printer },
   { label: "Inspection", icon: ClipboardCheck },
   { label: "Slitter", icon: Scissors },

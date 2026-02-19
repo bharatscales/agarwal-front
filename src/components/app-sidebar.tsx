@@ -61,6 +61,11 @@ const items: MenuItem[] = [
 
 const manufacturingItems: MenuItem[] = [
   {
+    title: "Stock Entry",
+    icon: Box,
+    path: "/manufacturing/stock-entry",
+  },
+  {
     title: "Work Order",
     icon: Factory,
     path: "/manufacturing/work-order",
@@ -69,11 +74,6 @@ const manufacturingItems: MenuItem[] = [
     title: "Job Card",
     icon: PersonStanding,
     path: "/manufacturing/job-card",
-  },
-  {
-    title: "Stock Entry",
-    icon: Box,
-    path: "/manufacturing/stock-entry",
   },
   {
     title: "Reports",
@@ -105,6 +105,16 @@ const masterItems: MenuItem[] = [
     title: "Templates",
     icon: Building2,
     path: "/masters/template",
+  },
+  {
+    title: "Machine",
+    icon: Building2,
+    path: "/masters/machine",
+  },
+  {
+    title: "Operator",
+    icon: Building2,
+    path: "/masters/operator",
   },
 ];
 

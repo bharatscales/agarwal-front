@@ -39,12 +39,27 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/masters/machine" element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/masters/operator" element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/masters/warehouse" element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>
             } />
             <Route path="/masters/operation" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/work-order/:id" element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>

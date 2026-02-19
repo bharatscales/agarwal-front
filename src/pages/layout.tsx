@@ -5,9 +5,12 @@ import Users from "./users"
 import Item from "./item"
 import Party from "./party"
 import Template from "./template"
+import Machine from "./machine"
+import Operator from "./operator"
 import Warehouse from "./warehouse"
 import Operation from "./operation"
 import WorkOrder from "./work-order"
+import WorkOrderDetail from "./work-order-detail"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
 import StockEntryItems from "./stock-entry-items"
@@ -52,6 +55,10 @@ export default function Layout() {
         return <Party />;
       case "/masters/template":
         return <Template />;
+      case "/masters/machine":
+        return <Machine />;
+      case "/masters/operator":
+        return <Operator />;
       case "/masters/warehouse":
         return <Warehouse />;
       case "/masters/operation":
@@ -63,6 +70,9 @@ export default function Layout() {
       case "/manufacturing/stock-entry":
         return <StockEntry />;
       default:
+        if (location.pathname.startsWith("/manufacturing/work-order/") && location.pathname !== "/manufacturing/work-order") {
+          return <WorkOrderDetail />;
+        }
         if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname !== "/manufacturing/stock-entry") {
           // Check if it's a chem stock entry page
           if (location.pathname.endsWith("/chem")) {
