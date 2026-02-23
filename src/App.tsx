@@ -94,6 +94,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/reports/stock" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

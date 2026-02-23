@@ -75,10 +75,13 @@ const manufacturingItems: MenuItem[] = [
     icon: PersonStanding,
     path: "/manufacturing/job-card",
   },
+];
+
+const reportSubItems: MenuItem[] = [
   {
-    title: "Reports",
+    title: "Rm Rolls Stock",
     icon: BarChart3,
-    path: "/manufacturing/reports",
+    path: "/manufacturing/reports/stock",
   },
 ];
 
@@ -131,6 +134,7 @@ export function AppSidebar() {
   } | null>(null);
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const handleNavigation = (path: string) => {
@@ -147,11 +151,23 @@ export function AppSidebar() {
     setIsMastersOpen(!isMastersOpen);
   };
 
+  const toggleReports = () => {
+    setIsReportsOpen(!isReportsOpen);
+  };
+
   useEffect(() => {
     if (state === "collapsed") {
       setIsMastersOpen(false);
+      setIsReportsOpen(false);
     }
   }, [state]);
+
+  // Auto-expand Reports when on a report subpage
+  useEffect(() => {
+    if (location.pathname.startsWith("/manufacturing/reports/")) {
+      setIsReportsOpen(true);
+    }
+  }, [location.pathname]);
 
 
   // Fetch current user info
@@ -312,6 +328,37 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={toggleReports}
+                  className="w-full justify-between"
+                >
+                  <div className="flex items-center">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    <span>Reports</span>
+                  </div>
+                  {isReportsOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {isReportsOpen && (
+                <div className="ml-4 space-y-1">
+                  {reportSubItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        isActive={isActive(item.path)}
+                        onClick={() => handleNavigation(item.path)}
+                        className="w-full pl-8"
+                      >
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </div>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

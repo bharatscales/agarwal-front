@@ -15,6 +15,7 @@ type RollsStockResponse = {
   item_id: number | null
   item_code?: string | null
   item_name?: string | null
+  vendor_code?: string | null
   barcode?: string | null
   rollno?: string | null
   size?: number | null
@@ -29,6 +30,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   itemId: rollsStock.item_id ?? 0,
   itemCode: rollsStock.item_code ?? "",
   itemName: rollsStock.item_name ?? "",
+  vendorCode: rollsStock.vendor_code ?? "",
   barcode: rollsStock.barcode ?? "",
   rollno: rollsStock.rollno ?? "",
   size: rollsStock.size ?? 0,
@@ -41,6 +43,13 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
 export const getRollsStockByVoucher = async (voucherId: number) => {
   const response = await api.get<RollsStockResponse[]>(
     `/rolls-stock/voucher/${voucherId}`
+  )
+  return response.data.map(mapRollsStock)
+}
+
+export const getAllRollsStock = async (skip = 0, limit = 1000) => {
+  const response = await api.get<RollsStockResponse[]>(
+    `/rolls-stock/?skip=${skip}&limit=${limit}`
   )
   return response.data.map(mapRollsStock)
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useNavigate, Link, useLocation } from "react-router-dom"
 import { ChevronRight, Trash2, Edit, X, Check, ChevronDown, Printer } from "lucide-react"
+import { type ColumnDef, type ColumnFiltersState, flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from "@tanstack/react-table"
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 import { getChemStockByVoucher, createChemStock, updateChemStock, deleteChemStock, type ChemStockPayload } from "@/lib/chem-stock-api"
 import { getItems, createItem, type Item } from "@/lib/item-api"
@@ -10,6 +11,7 @@ import api from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
+import { ColumnHeader } from "@/components/column-header"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSidebar } from "@/components/ui/sidebar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -67,6 +69,7 @@ export default function StockEntryChemItems() {
   const [printStatus, setPrintStatus] = useState<"idle" | "printing" | "done">("idle")
   const [_currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const colorInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const qtyInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -753,6 +756,75 @@ export default function StockEntryChemItems() {
   const totalItems = savedRows.length
   const totalQty = savedRows.reduce((sum, row) => sum + (row.qty || 0), 0)
 
+  const filterFn = (row: any, columnId: string, filterValue: string) => {
+    if (row.original.isEditing) return true
+    const val = row.getValue(columnId)
+    return String(val ?? "").toLowerCase().includes(String(filterValue ?? "").toLowerCase())
+  }
+
+  const chemStockColumns: ColumnDef<ChemStockRow>[] = [
+    {
+      id: "checkbox",
+      header: () => (
+        <Checkbox
+          checked={(() => {
+            const saved = chemStock.filter(row => row.id && !row.isEditing)
+            return saved.length > 0 && saved.every(row => row.id && selectedRows.has(row.id))
+          })()}
+          onCheckedChange={handleSelectAll}
+        />
+      ),
+      cell: () => null,
+      enableColumnFilter: false,
+    },
+    { id: "sno", header: "S.No", cell: () => null, enableColumnFilter: false },
+    {
+      id: "item",
+      accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+      header: ({ column }) => (
+        <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "color",
+      header: ({ column }) => (
+        <ColumnHeader title="Color" column={column} placeholder="Filter color..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "qty",
+      header: ({ column }) => (
+        <ColumnHeader title="Quantity" column={column} placeholder="Filter quantity..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "uom",
+      header: ({ column }) => (
+        <ColumnHeader title="UOM" column={column} placeholder="Filter UOM..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    { id: "actions", header: "Actions", cell: () => null, enableColumnFilter: false },
+  ]
+
+  const table = useReactTable({
+    data: chemStock,
+    columns: chemStockColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    state: { columnFilters },
+  })
+
+  const filteredRows = table.getRowModel().rows
+
   if (isLoading) {
     return (
       <div className="px-6 pt-2 pb-6">
@@ -832,26 +904,26 @@ export default function StockEntryChemItems() {
         <div className="overflow-y-auto flex-1 relative">
           <table className="w-full caption-bottom text-sm">
             <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
-              <TableRow className="h-auto">
-                <TableHead className="w-12 bg-background py-1 px-2">
-                  <Checkbox
-                    checked={(() => {
-                      const savedRows = chemStock.filter(row => row.id && !row.isEditing)
-                      return savedRows.length > 0 && savedRows.every(row => row.id && selectedRows.has(row.id))
-                    })()}
-                    onCheckedChange={handleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="w-16 bg-background py-1 px-2">S.No</TableHead>
-                <TableHead className="bg-background py-1 px-2">Item</TableHead>
-                <TableHead className="bg-background py-1 px-2">Color</TableHead>
-                <TableHead className="bg-background py-1 px-2">Quantity</TableHead>
-                <TableHead className="bg-background py-1 px-2">UOM</TableHead>
-                <TableHead className="w-24 bg-background py-1 px-2">Actions</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="h-auto">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={`bg-background py-1 px-2 ${header.id === "checkbox" ? "w-12" : ""} ${header.id === "sno" ? "w-16" : ""} ${header.id === "actions" ? "w-24" : ""}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {chemStock.map((row, index) => (
+              {filteredRows.map((tableRow) => {
+                const row = tableRow.original
+                const index = chemStock.indexOf(row)
+                return (
                 <TableRow key={row.id || `new-${index}`} className="h-auto">
                   {row.isEditing ? (
                     <>
@@ -1004,7 +1076,7 @@ export default function StockEntryChemItems() {
                     </>
                   )}
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </table>
         </div>

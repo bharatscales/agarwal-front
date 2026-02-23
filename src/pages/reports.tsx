@@ -1,3 +1,5 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+
 export default function Reports() {
   return (
     <div className="px-6 pt-2 pb-6">
@@ -7,8 +9,18 @@ export default function Reports() {
           View manufacturing reports.
         </p>
       </div>
-      <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400">
-        This page is under construction.
+      <div className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Stock Report</CardTitle>
+            <CardDescription>View and analyze stock inventory reports.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Stock report content will be available here.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

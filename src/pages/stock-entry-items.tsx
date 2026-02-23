@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { ChevronRight, Trash2, Edit, X, Check, Printer, ChevronDown } from "lucide-react"
+import { type ColumnDef, type ColumnFiltersState, flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from "@tanstack/react-table"
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 import { getRollsStockByVoucher, createRollsStock, updateRollsStock, deleteRollsStock, type RollsStockPayload } from "@/lib/rolls-stock-api"
 import { getItems, createItem, type Item } from "@/lib/item-api"
@@ -10,6 +11,7 @@ import api from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
+import { ColumnHeader } from "@/components/column-header"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSidebar } from "@/components/ui/sidebar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -64,6 +66,7 @@ export default function StockEntryItems() {
   const [printStatus, setPrintStatus] = useState<"idle" | "printing" | "done">("idle")
   const [_currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const rollnoInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const sizeInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -826,6 +829,91 @@ export default function StockEntryItems() {
   const totalGrossWeight = savedRows.reduce((sum, row) => sum + (row.grossweight || 0), 0)
   const totalNetWeight = savedRows.reduce((sum, row) => sum + (row.netweight || 0), 0)
 
+  const filterFn = (row: any, columnId: string, filterValue: string) => {
+    if (row.original.isEditing) return true
+    const val = row.getValue(columnId)
+    return String(val ?? "").toLowerCase().includes(String(filterValue ?? "").toLowerCase())
+  }
+
+  const rollStockColumns: ColumnDef<RollsStockRow>[] = [
+    {
+      id: "checkbox",
+      header: () => (
+        <Checkbox
+          checked={(() => {
+            const saved = rollsStock.filter(row => row.id && !row.isEditing)
+            return saved.length > 0 && saved.every(row => row.id && selectedRows.has(row.id))
+          })()}
+          onCheckedChange={handleSelectAll}
+        />
+      ),
+      cell: () => null,
+      enableColumnFilter: false,
+    },
+    { id: "sno", header: "S.No", cell: () => null, enableColumnFilter: false },
+    {
+      id: "item",
+      accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+      header: ({ column }) => (
+        <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "rollno",
+      header: ({ column }) => (
+        <ColumnHeader title="Roll No" column={column} placeholder="Filter roll no..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "size",
+      header: ({ column }) => (
+        <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "micron",
+      header: ({ column }) => (
+        <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "netweight",
+      header: ({ column }) => (
+        <ColumnHeader title="Net Weight (kg)" column={column} placeholder="Filter net weight..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "grossweight",
+      header: ({ column }) => (
+        <ColumnHeader title="Gross Weight (kg)" column={column} placeholder="Filter gross weight..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    { id: "actions", header: "Actions", cell: () => null, enableColumnFilter: false },
+  ]
+
+  const table = useReactTable({
+    data: rollsStock,
+    columns: rollStockColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    state: { columnFilters },
+  })
+
+  const filteredRows = table.getRowModel().rows
+
   if (isLoading) {
     return (
       <div className="px-6 pt-2 pb-6">
@@ -907,28 +995,26 @@ export default function StockEntryItems() {
         <div className="overflow-y-auto flex-1 relative">
           <table className="w-full caption-bottom text-sm">
             <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
-              <TableRow className="h-auto">
-                <TableHead className="w-12 bg-background py-1 px-2">
-                  <Checkbox
-                    checked={(() => {
-                      const savedRows = rollsStock.filter(row => row.id && !row.isEditing)
-                      return savedRows.length > 0 && savedRows.every(row => row.id && selectedRows.has(row.id))
-                    })()}
-                    onCheckedChange={handleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="w-16 bg-background py-1 px-2">S.No</TableHead>
-                <TableHead className="bg-background py-1 px-2">Item</TableHead>
-                <TableHead className="bg-background py-1 px-2">Roll No</TableHead>
-                <TableHead className="bg-background py-1 px-2">Size</TableHead>
-                <TableHead className="bg-background py-1 px-2">Micron</TableHead>
-                <TableHead className="bg-background py-1 px-2">Net Weight (kg)</TableHead>
-                <TableHead className="bg-background py-1 px-2">Gross Weight (kg)</TableHead>
-                <TableHead className="w-24 bg-background py-1 px-2">Actions</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="h-auto">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={`bg-background py-1 px-2 ${header.id === "checkbox" ? "w-12" : ""} ${header.id === "sno" ? "w-16" : ""} ${header.id === "actions" ? "w-24" : ""}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-            {rollsStock.map((row, index) => (
+            {filteredRows.map((tableRow) => {
+                const row = tableRow.original
+                const index = rollsStock.indexOf(row)
+                return (
                 <TableRow key={row.id || `new-${index}`} className="h-auto">
                   {row.isEditing ? (
                     <>
@@ -1167,7 +1253,7 @@ export default function StockEntryItems() {
                     </>
                   )}
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </table>
         </div>
