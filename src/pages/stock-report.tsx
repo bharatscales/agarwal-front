@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
-import { RefreshCw, ChevronDown, FileSpreadsheet } from "lucide-react"
+import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
-import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx } from "@/lib/rolls-stock-api"
+import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx, bulkIssueRollsStock } from "@/lib/rolls-stock-api"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,6 +19,8 @@ export default function StockReport() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [isIssuing, setIsIssuing] = useState(false)
+  const [tableKey, setTableKey] = useState(0)
   const filteredRollsStock = useMemo(() => {
     if (!itemCodeFilter) return rollsStock
     return rollsStock.filter((row) => row.itemCode === itemCodeFilter)
@@ -28,7 +30,7 @@ export default function StockReport() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getAllRollsStock(0, 5000)
+      const data = await getAllRollsStock(0, 5000, false)
       setRollsStock(data)
     } catch (err: unknown) {
       console.error("Error fetching rolls stock:", err)
@@ -47,10 +49,29 @@ export default function StockReport() {
     fetchRollsStock()
   }
 
+  const handleBulkIssue = useCallback(
+    async (selectedRows: RollsStockRow[]) => {
+      if (selectedRows.length === 0) return
+      try {
+        setIsIssuing(true)
+        setError(null)
+        await bulkIssueRollsStock(selectedRows.map((r) => r.id))
+        await fetchRollsStock()
+        setTableKey((k) => k + 1)
+      } catch (err) {
+        console.error("Bulk issue failed:", err)
+        setError("Failed to issue selected rolls. Please try again.")
+      } finally {
+        setIsIssuing(false)
+      }
+    },
+    []
+  )
+
   const handleItemWiseExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockItemWiseXlsx()
+      const blob = await exportRollsStockItemWiseXlsx(false)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -70,7 +91,7 @@ export default function StockReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter)
+      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -173,8 +194,21 @@ export default function StockReport() {
 
       {!error && (
         <DataTable
+          key={tableKey}
           columns={getRollsStockColumns()}
           data={filteredRollsStock}
+          getRowId={(row) => String(row.id)}
+          bulkActions={(selectedRows) => (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => handleBulkIssue(selectedRows)}
+              disabled={isIssuing}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {isIssuing ? "Issuing..." : `Issue selected (${selectedRows.length})`}
+            </Button>
+          )}
         />
       )}
     </div>

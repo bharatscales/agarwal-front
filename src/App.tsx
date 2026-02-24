@@ -99,6 +99,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/reports/roll-issues" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

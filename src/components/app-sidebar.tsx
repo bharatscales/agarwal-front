@@ -423,6 +423,16 @@ export function AppSidebar() {
                       })}
                     </div>
                   )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === "/manufacturing/reports/roll-issues"}
+                      onClick={() => handleNavigation("/manufacturing/reports/roll-issues")}
+                      className="w-full pl-8"
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <span>RM Rolls Issued</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </div>
               )}
             </SidebarMenu>

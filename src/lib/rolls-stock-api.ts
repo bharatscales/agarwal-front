@@ -23,6 +23,8 @@ type RollsStockResponse = {
   netweight?: number | null
   grossweight?: number | null
   stock_voucher_id?: number | null
+  issued?: boolean
+  issued_at?: string | null
 }
 
 const mapRollsStock = (rollsStock: RollsStockResponse) => ({
@@ -38,6 +40,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   netweight: rollsStock.netweight ?? 0,
   grossweight: rollsStock.grossweight ?? 0,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
+  issued: rollsStock.issued ?? false,
+  issuedAt: rollsStock.issued_at ?? null,
 })
 
 export const getRollsStockByVoucher = async (voucherId: number) => {
@@ -47,10 +51,19 @@ export const getRollsStockByVoucher = async (voucherId: number) => {
   return response.data.map(mapRollsStock)
 }
 
-export const getAllRollsStock = async (skip = 0, limit = 1000) => {
-  const response = await api.get<RollsStockResponse[]>(
-    `/rolls-stock/?skip=${skip}&limit=${limit}`
-  )
+export const getAllRollsStock = async (
+  skip = 0,
+  limit = 1000,
+  issued?: boolean
+) => {
+  const params: { skip: number; limit: number; issued?: boolean } = {
+    skip,
+    limit,
+  }
+  if (issued !== undefined) params.issued = issued
+  const response = await api.get<RollsStockResponse[]>(`/rolls-stock/`, {
+    params,
+  })
   return response.data.map(mapRollsStock)
 }
 
@@ -83,12 +96,29 @@ export const deleteRollsStock = async (rollsStockId: number) => {
   await api.delete(`/rolls-stock/${rollsStockId}`)
 }
 
+/** Mark selected rolls as issued (bulk). Returns count updated. */
+export const bulkIssueRollsStock = async (ids: number[]): Promise<{ updated: number }> => {
+  const response = await api.post<{ updated: number }>("/rolls-stock/bulk-issue", { ids })
+  return response.data
+}
+
+/** Restore selected rolls (set issued=false, issued_at=null). Returns count updated. */
+export const bulkRestoreRollsStock = async (ids: number[]): Promise<{ updated: number }> => {
+  const response = await api.post<{ updated: number }>("/rolls-stock/bulk-restore", { ids })
+  return response.data
+}
+
 /**
  * Request full item-wise export from server (full dataset, no pagination).
+ * When issued is false, exports only non-issued rolls; when true, only issued.
  * Returns blob for download; server generates the .xlsx.
  */
-export const exportRollsStockItemWiseXlsx = async (): Promise<Blob> => {
+export const exportRollsStockItemWiseXlsx = async (
+  issued?: boolean
+): Promise<Blob> => {
+  const params = issued !== undefined ? { issued } : undefined
   const response = await api.get("/rolls-stock/export/item-wise", {
+    params,
     responseType: "blob",
     timeout: 120000,
   })
@@ -98,17 +128,18 @@ export const exportRollsStockItemWiseXlsx = async (): Promise<Blob> => {
 /**
  * Request summary export from server: single sheet grouped by (item code, micron, size).
  * When itemCode is provided, export contains only that item's summary; otherwise all items.
+ * When issued is false, exports only non-issued rolls; when true, only issued.
  * Returns blob for download.
  */
 export const exportRollsStockSummaryXlsx = async (
-  itemCode?: string | null
+  itemCode?: string | null,
+  issued?: boolean
 ): Promise<Blob> => {
-  const params =
-    itemCode != null && itemCode.trim() !== ""
-      ? { item_code: itemCode.trim() }
-      : undefined
+  const params: { item_code?: string; issued?: boolean } = {}
+  if (itemCode != null && itemCode.trim() !== "") params.item_code = itemCode.trim()
+  if (issued !== undefined) params.issued = issued
   const response = await api.get("/rolls-stock/export/summary", {
-    params,
+    params: Object.keys(params).length ? params : undefined,
     responseType: "blob",
     timeout: 120000,
   })

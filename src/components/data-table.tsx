@@ -27,12 +27,16 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   onRowClick?: (row: TData) => void;
+  getRowId?: (row: TData) => string;
+  bulkActions?: (selectedRows: TData[]) => React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   onRowClick,
+  getRowId,
+  bulkActions,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -43,6 +47,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    getRowId,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
@@ -138,10 +143,13 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between py-4">
-        <div className="text-muted-foreground dark:text-muted-foreground text-black text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+      <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {table.getFilteredSelectedRowModel().rows.length > 0 && bulkActions?.(table.getFilteredSelectedRowModel().rows.map((r) => r.original))}
+          <span className="text-muted-foreground dark:text-muted-foreground text-black text-sm">
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
+            {table.getFilteredRowModel().rows.length} row(s) selected.
+          </span>
         </div>
         <div className="flex items-center space-x-2">
           <Button

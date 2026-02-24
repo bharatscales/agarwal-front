@@ -14,9 +14,25 @@ export type RollsStockRow = {
   netweight: number
   grossweight: number
   barcode?: string
+  issued: boolean
+  issuedAt: string | null
 }
 
-export const getRollsStockColumns = (): ColumnDef<RollsStockRow>[] => [
+const issuedAtColumn: ColumnDef<RollsStockRow> = {
+  accessorKey: "issuedAt",
+  header: ({ column }) => (
+    <ColumnHeader title="Issued At" column={column} placeholder="Filter..." />
+  ),
+  cell: ({ row }) => (
+    <div className="text-sm">
+      {row.original.issuedAt
+        ? new Date(row.original.issuedAt).toLocaleString()
+        : "-"}
+    </div>
+  ),
+}
+
+export const getRollsStockColumns = (options?: { showIssuedAt?: boolean }): ColumnDef<RollsStockRow>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -114,4 +130,5 @@ export const getRollsStockColumns = (): ColumnDef<RollsStockRow>[] => [
       <div className="text-sm">{row.getValue("vendorCode") || "-"}</div>
     ),
   },
+  ...(options?.showIssuedAt ? [issuedAtColumn] : []),
 ]
