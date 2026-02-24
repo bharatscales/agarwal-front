@@ -39,6 +39,15 @@ export const getItems = async (skip = 0, limit = 100): Promise<Item[]> => {
   return response.data.map(mapItem)
 }
 
+export type MenuItem = { id: number; item_code: string; name: string }
+
+export const getItemsByGroupForMenu = async (group: string): Promise<MenuItem[]> => {
+  const response = await api.get<MenuItem[]>(`/item/menu/by-group`, {
+    params: { group },
+  })
+  return response.data
+}
+
 export const createItem = async (payload: ItemPayload) => {
   const response = await api.post<ItemResponse>("/item/", {
     item_code: payload.itemCode,

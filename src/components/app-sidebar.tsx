@@ -16,10 +16,11 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getCurrentUser } from "@/lib/user-api";
+import { getItemsByGroupForMenu, type MenuItem as ItemMenuItem } from "@/lib/item-api";
 
 import {
   Sidebar,
@@ -77,13 +78,7 @@ const manufacturingItems: MenuItem[] = [
   },
 ];
 
-const reportSubItems: MenuItem[] = [
-  {
-    title: "Rm Rolls Stock",
-    icon: BarChart3,
-    path: "/manufacturing/reports/stock",
-  },
-];
+// Rm Rolls Stock is rendered as expandable with sub-items from item table (item group: rm film)
 
 
 
@@ -122,9 +117,12 @@ const masterItems: MenuItem[] = [
 ];
 
 
+const RM_FILM_GROUP = "rm film";
+
 export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { setOpenMobile, state, toggleSidebar } = useSidebar();
@@ -135,6 +133,8 @@ export function AppSidebar() {
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
+  const [isRmRollsStockOpen, setIsRmRollsStockOpen] = useState(false);
+  const [rmFilmMenuItems, setRmFilmMenuItems] = useState<ItemMenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const handleNavigation = (path: string) => {
@@ -155,10 +155,15 @@ export function AppSidebar() {
     setIsReportsOpen(!isReportsOpen);
   };
 
+  const toggleRmRollsStock = () => {
+    setIsRmRollsStockOpen(!isRmRollsStockOpen);
+  };
+
   useEffect(() => {
     if (state === "collapsed") {
       setIsMastersOpen(false);
       setIsReportsOpen(false);
+      setIsRmRollsStockOpen(false);
     }
   }, [state]);
 
@@ -168,6 +173,29 @@ export function AppSidebar() {
       setIsReportsOpen(true);
     }
   }, [location.pathname]);
+
+  // Auto-expand Rm Rolls Stock when on stock report page
+  useEffect(() => {
+    if (location.pathname === "/manufacturing/reports/stock") {
+      setIsRmRollsStockOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Fetch RM film items for Rm Rolls Stock sub-menu
+  useEffect(() => {
+    const fetchRmFilmItems = async () => {
+      try {
+        const items = await getItemsByGroupForMenu(RM_FILM_GROUP);
+        setRmFilmMenuItems(items);
+      } catch (err) {
+        console.error("Failed to load item codes for Rm Rolls Stock menu:", err);
+        setRmFilmMenuItems([]);
+      }
+    };
+    if (isReportsOpen) {
+      fetchRmFilmItems();
+    }
+  }, [isReportsOpen]);
 
 
   // Fetch current user info
@@ -346,17 +374,55 @@ export function AppSidebar() {
               </SidebarMenuItem>
               {isReportsOpen && (
                 <div className="ml-4 space-y-1">
-                  {reportSubItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        isActive={isActive(item.path)}
-                        onClick={() => handleNavigation(item.path)}
-                        className="w-full pl-8"
-                      >
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={toggleRmRollsStock}
+                      className="w-full justify-between pl-8"
+                    >
+                      <div className="flex items-center">
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <span>Rm Rolls Stock</span>
+                      </div>
+                      {isRmRollsStockOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {isRmRollsStockOpen && (
+                    <div className="ml-4 space-y-1">
+                      <SidebarMenuItem key="stock-all">
+                        <SidebarMenuButton
+                          isActive={
+                            location.pathname === "/manufacturing/reports/stock" &&
+                            !searchParams.get("itemCode")
+                          }
+                          onClick={() => handleNavigation("/manufacturing/reports/stock")}
+                          className="w-full pl-10"
+                        >
+                          <span>All</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {rmFilmMenuItems.map((item) => {
+                        const itemPath = `/manufacturing/reports/stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                        const isItemActive =
+                          location.pathname === "/manufacturing/reports/stock" &&
+                          searchParams.get("itemCode") === item.item_code;
+                        return (
+                          <SidebarMenuItem key={item.id}>
+                            <SidebarMenuButton
+                              isActive={isItemActive}
+                              onClick={() => handleNavigation(itemPath)}
+                              className="w-full pl-10"
+                            >
+                              <span>{item.item_code}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </SidebarMenu>

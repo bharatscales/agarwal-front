@@ -97,10 +97,18 @@ export const exportRollsStockItemWiseXlsx = async (): Promise<Blob> => {
 
 /**
  * Request summary export from server: single sheet grouped by (item code, micron, size).
+ * When itemCode is provided, export contains only that item's summary; otherwise all items.
  * Returns blob for download.
  */
-export const exportRollsStockSummaryXlsx = async (): Promise<Blob> => {
+export const exportRollsStockSummaryXlsx = async (
+  itemCode?: string | null
+): Promise<Blob> => {
+  const params =
+    itemCode != null && itemCode.trim() !== ""
+      ? { item_code: itemCode.trim() }
+      : undefined
   const response = await api.get("/rolls-stock/export/summary", {
+    params,
     responseType: "blob",
     timeout: 120000,
   })

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
+import { useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
@@ -12,10 +13,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function StockReport() {
+  const [searchParams] = useSearchParams()
+  const itemCodeFilter = searchParams.get("itemCode") ?? undefined
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const filteredRollsStock = useMemo(() => {
+    if (!itemCodeFilter) return rollsStock
+    return rollsStock.filter((row) => row.itemCode === itemCodeFilter)
+  }, [rollsStock, itemCodeFilter])
 
   const fetchRollsStock = async () => {
     try {
@@ -63,11 +70,15 @@ export default function StockReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx()
+      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Rm-Rolls-Stock-Summary-${new Date().toISOString().slice(0, 10)}.xlsx`
+      const dateStr = new Date().toISOString().slice(0, 10)
+      a.download =
+        itemCodeFilter != null && itemCodeFilter.trim() !== ""
+          ? `${itemCodeFilter.trim()}_summary_${dateStr}.xlsx`
+          : `Rm-Rolls-Stock-Summary-${dateStr}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -84,9 +95,13 @@ export default function StockReport() {
     return (
       <div className="px-6 pt-2 pb-6">
         <div className="mb-6">
-          <h1 className="text-lg sm:text-xl font-bold">Rm Rolls Stock</h1>
+          <h1 className="text-lg sm:text-xl font-bold">
+            Rm Rolls Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+          </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            View and analyze RM rolls stock.
+            {itemCodeFilter
+              ? `Viewing rolls stock for item: ${itemCodeFilter}`
+              : "View and analyze RM rolls stock."}
           </p>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -103,9 +118,13 @@ export default function StockReport() {
     <div className="px-6 pt-2 pb-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold">Rm Rolls Stock</h1>
+          <h1 className="text-lg sm:text-xl font-bold">
+            Rm Rolls Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+          </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            View and analyze RM rolls stock.
+            {itemCodeFilter
+              ? `Viewing rolls stock for item: ${itemCodeFilter}`
+              : "View and analyze RM rolls stock."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -117,19 +136,21 @@ export default function StockReport() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={handleItemWiseExportXlsx}
-                disabled={isExporting}
-              >
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                {isExporting ? "Exporting..." : "Item wise export .xlsx"}
-              </DropdownMenuItem>
+              {!itemCodeFilter && (
+                <DropdownMenuItem
+                  onClick={handleItemWiseExportXlsx}
+                  disabled={isExporting}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  {isExporting ? "Exporting..." : "Item wise export .xlsx"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={handleSummaryExportXlsx}
                 disabled={isExporting}
               >
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
-                Summary .xlsx
+                {isExporting ? "Exporting..." : "Summary .xlsx"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -153,7 +174,7 @@ export default function StockReport() {
       {!error && (
         <DataTable
           columns={getRollsStockColumns()}
-          data={rollsStock}
+          data={filteredRollsStock}
         />
       )}
     </div>
