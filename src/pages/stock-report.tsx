@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { RefreshCw, ChevronDown, FileSpreadsheet } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
-import { getAllRollsStock, exportRollsStockItemWiseXlsx } from "@/lib/rolls-stock-api"
+import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx } from "@/lib/rolls-stock-api"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -60,6 +60,26 @@ export default function StockReport() {
     }
   }
 
+  const handleSummaryExportXlsx = async () => {
+    try {
+      setIsExporting(true)
+      const blob = await exportRollsStockSummaryXlsx()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Rm-Rolls-Stock-Summary-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Export failed:", err)
+      setError("Export failed. Please try again.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="px-6 pt-2 pb-6">
@@ -103,6 +123,13 @@ export default function StockReport() {
               >
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                 {isExporting ? "Exporting..." : "Item wise export .xlsx"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleSummaryExportXlsx}
+                disabled={isExporting}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Summary .xlsx
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

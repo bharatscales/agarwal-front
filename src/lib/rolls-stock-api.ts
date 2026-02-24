@@ -95,3 +95,15 @@ export const exportRollsStockItemWiseXlsx = async (): Promise<Blob> => {
   return response.data as Blob
 }
 
+/**
+ * Request summary export from server: single sheet grouped by (item code, micron, size).
+ * Returns blob for download.
+ */
+export const exportRollsStockSummaryXlsx = async (): Promise<Blob> => {
+  const response = await api.get("/rolls-stock/export/summary", {
+    responseType: "blob",
+    timeout: 120000,
+  })
+  return response.data as Blob
+}
+
