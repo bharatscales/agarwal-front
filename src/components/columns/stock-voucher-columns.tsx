@@ -13,6 +13,9 @@ import {
 export type StockVoucher = {
   id: number
   vendorId: number
+  vendorCode?: string
+  vendorName?: string
+  vendorType?: string
   vendor: string
   invoiceNo: string
   invoiceDate: string

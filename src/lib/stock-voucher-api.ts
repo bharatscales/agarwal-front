@@ -23,6 +23,9 @@ type StockVoucherResponse = {
 const mapVoucher = (voucher: StockVoucherResponse) => ({
   id: voucher.id,
   vendorId: voucher.vendor_id ?? 0,
+  vendorCode: voucher.vendor_code ?? "",
+  vendorName: voucher.vendor_name ?? "",
+  vendorType: voucher.vendor_type ?? "",
   vendor: voucher.vendor_code && voucher.vendor_name
     ? `${voucher.vendor_code} - ${voucher.vendor_name} (${voucher.vendor_type ?? ""})`.trim()
     : voucher.vendor_name ?? "-",

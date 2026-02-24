@@ -224,6 +224,8 @@ export default function StockEntryItems() {
         // Stock voucher details
         stockVoucher: stockVoucher ? {
           id: stockVoucher.id,
+          vendorCode: stockVoucher.vendorCode,
+          vendorName: stockVoucher.vendorName,
           vendor: stockVoucher.vendor,
           vendorId: stockVoucher.vendorId,
           invoiceNo: stockVoucher.invoiceNo,
@@ -608,6 +610,8 @@ export default function StockEntryItems() {
           barcode: row.barcode || "",
           stockVoucher: stockVoucher ? {
             id: stockVoucher.id,
+            vendorCode: stockVoucher.vendorCode,
+            vendorName: stockVoucher.vendorName,
             vendor: stockVoucher.vendor,
             vendorId: stockVoucher.vendorId,
             invoiceNo: stockVoucher.invoiceNo,

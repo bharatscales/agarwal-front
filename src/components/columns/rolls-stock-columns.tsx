@@ -1,5 +1,6 @@
 import { type ColumnDef } from "@tanstack/react-table"
 import { ColumnHeader } from "@/components/column-header"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export type RollsStockRow = {
   id: number
@@ -16,6 +17,30 @@ export type RollsStockRow = {
 }
 
 export const getRollsStockColumns = (): ColumnDef<RollsStockRow>[] => [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-[1px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        className="translate-y-[1px]"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "id",
     header: ({ column }) => (

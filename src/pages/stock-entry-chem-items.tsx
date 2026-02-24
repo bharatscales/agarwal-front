@@ -484,6 +484,8 @@ export default function StockEntryChemItems() {
         // Stock voucher details
         stockVoucher: stockVoucher ? {
           id: stockVoucher.id,
+          vendorCode: stockVoucher.vendorCode,
+          vendorName: stockVoucher.vendorName,
           vendor: stockVoucher.vendor,
           vendorId: stockVoucher.vendorId,
           invoiceNo: stockVoucher.invoiceNo,
@@ -572,6 +574,8 @@ export default function StockEntryChemItems() {
           uom: row.uom || "",
           stockVoucher: stockVoucher ? {
             id: stockVoucher.id,
+            vendorCode: stockVoucher.vendorCode,
+            vendorName: stockVoucher.vendorName,
             vendor: stockVoucher.vendor,
             vendorId: stockVoucher.vendorId,
             invoiceNo: stockVoucher.invoiceNo,

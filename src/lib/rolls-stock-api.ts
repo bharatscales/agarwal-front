@@ -83,3 +83,15 @@ export const deleteRollsStock = async (rollsStockId: number) => {
   await api.delete(`/rolls-stock/${rollsStockId}`)
 }
 
+/**
+ * Request full item-wise export from server (full dataset, no pagination).
+ * Returns blob for download; server generates the .xlsx.
+ */
+export const exportRollsStockItemWiseXlsx = async (): Promise<Blob> => {
+  const response = await api.get("/rolls-stock/export/item-wise", {
+    responseType: "blob",
+    timeout: 120000,
+  })
+  return response.data as Blob
+}
+
