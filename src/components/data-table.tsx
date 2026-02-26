@@ -111,16 +111,13 @@ export function DataTable<TData, TValue>({
             style={{ maxHeight: scrollHeight }}
           >
             <table className="w-full caption-bottom text-sm border-collapse">
-              <TableHeader>
+              <TableHeader className="[&_tr]:border-b-0">
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow
-                    key={headerGroup.id}
-                    className="border-b border-zinc-600"
-                  >
+                  <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className="sticky top-0 z-20 bg-white dark:bg-zinc-900 text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                        className="sticky top-0 z-20 bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
                       >
                         {header.isPlaceholder
                           ? null
@@ -187,17 +184,14 @@ export function DataTable<TData, TValue>({
           </div>
         ) : (
           <Table className="border-collapse">
-            <TableHeader>
+            <TableHeader className="[&_tr]:border-b-0">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow
-                  key={headerGroup.id}
-                  className="border-b border-zinc-600"
-                >
+                <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     return (
                       <TableHead
                         key={header.id}
-                        className="text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2"
+                        className="bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2"
                       >
                         {header.isPlaceholder
                           ? null
