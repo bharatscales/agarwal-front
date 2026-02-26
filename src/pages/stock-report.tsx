@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
@@ -12,34 +12,64 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+const PAGE_SIZE = 100
+
 export default function StockReport() {
   const [searchParams] = useSearchParams()
   const itemCodeFilter = searchParams.get("itemCode") ?? undefined
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
+  const [skip, setSkip] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isIssuing, setIsIssuing] = useState(false)
   const [tableKey, setTableKey] = useState(0)
+  const nextSkipRef = useRef(0)
   const filteredRollsStock = useMemo(() => {
     if (!itemCodeFilter) return rollsStock
     return rollsStock.filter((row) => row.itemCode === itemCodeFilter)
   }, [rollsStock, itemCodeFilter])
 
-  const fetchRollsStock = async () => {
+  const fetchRollsStock = useCallback(async (reset = true) => {
     try {
-      setIsLoading(true)
+      if (reset) {
+        setIsLoading(true)
+        setSkip(0)
+        setHasMore(true)
+        nextSkipRef.current = 0
+      }
       setError(null)
-      const data = await getAllRollsStock(0, 5000, false)
-      setRollsStock(data)
+      const start = reset ? 0 : nextSkipRef.current
+      const limit = PAGE_SIZE
+      const data = await getAllRollsStock(start, limit, false)
+      if (reset) {
+        setRollsStock(data)
+        setSkip(data.length)
+        nextSkipRef.current = data.length
+      } else {
+        setRollsStock((prev) => [...prev, ...data])
+        const newSkip = start + data.length
+        setSkip(newSkip)
+        nextSkipRef.current = newSkip
+      }
+      setHasMore(data.length === limit)
     } catch (err: unknown) {
       console.error("Error fetching rolls stock:", err)
       setError("Failed to load film stock")
-      setRollsStock([])
+      if (reset) setRollsStock([])
     } finally {
       setIsLoading(false)
+      setIsLoadingMore(false)
     }
-  }
+  }, [])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return
+    setIsLoadingMore(true)
+    fetchRollsStock(false)
+  }, [hasMore, isLoadingMore, isLoading, fetchRollsStock])
 
   useEffect(() => {
     fetchRollsStock()
@@ -198,6 +228,11 @@ export default function StockReport() {
           columns={getRollsStockColumns()}
           data={filteredRollsStock}
           getRowId={(row) => String(row.id)}
+          scrollable
+          scrollHeight="80vh"
+          onLoadMore={loadMore}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
           bulkActions={(selectedRows) => (
             <Button
               size="sm"

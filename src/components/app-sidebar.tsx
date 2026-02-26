@@ -38,6 +38,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -529,6 +530,7 @@ export function AppSidebar() {
                       <span>Rm Film Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarSeparator className="my-2" />
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmInkStock}
@@ -588,6 +590,7 @@ export function AppSidebar() {
                       <span>Rm Ink Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarSeparator className="my-2" />
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmAdhesiveStock}
@@ -647,6 +650,7 @@ export function AppSidebar() {
                       <span>Rm Adhesive Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarSeparator className="my-2" />
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmChemicalStock}

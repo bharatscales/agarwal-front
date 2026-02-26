@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { RefreshCw, FileSpreadsheet, RotateCcw } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
@@ -16,10 +16,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 const RESTORE_CONFIRM_TEXT = "restore"
+const PAGE_SIZE = 100
 
 export default function RollIssuesReport() {
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
+  const [skip, setSkip] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isRestoring, setIsRestoring] = useState(false)
@@ -27,21 +31,46 @@ export default function RollIssuesReport() {
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [restoreConfirmInput, setRestoreConfirmInput] = useState("")
   const [pendingRestoreRows, setPendingRestoreRows] = useState<RollsStockRow[]>([])
+  const nextSkipRef = useRef(0)
 
-  const fetchRollsStock = async () => {
+  const fetchRollsStock = useCallback(async (reset = true) => {
     try {
-      setIsLoading(true)
+      if (reset) {
+        setIsLoading(true)
+        setSkip(0)
+        setHasMore(true)
+        nextSkipRef.current = 0
+      }
       setError(null)
-      const data = await getAllRollsStock(0, 5000, true)
-      setRollsStock(data)
+      const start = reset ? 0 : nextSkipRef.current
+      const limit = PAGE_SIZE
+      const data = await getAllRollsStock(start, limit, true)
+      if (reset) {
+        setRollsStock(data)
+        setSkip(data.length)
+        nextSkipRef.current = data.length
+      } else {
+        setRollsStock((prev) => [...prev, ...data])
+        const newSkip = start + data.length
+        setSkip(newSkip)
+        nextSkipRef.current = newSkip
+      }
+      setHasMore(data.length === limit)
     } catch (err: unknown) {
       console.error("Error fetching issued rolls:", err)
       setError("Failed to load issued rolls")
-      setRollsStock([])
+      if (reset) setRollsStock([])
     } finally {
       setIsLoading(false)
+      setIsLoadingMore(false)
     }
-  }
+  }, [])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return
+    setIsLoadingMore(true)
+    fetchRollsStock(false)
+  }, [hasMore, isLoadingMore, isLoading, fetchRollsStock])
 
   useEffect(() => {
     fetchRollsStock()
@@ -162,6 +191,11 @@ export default function RollIssuesReport() {
           columns={getRollsStockColumns({ showIssuedAt: true })}
           data={rollsStock}
           getRowId={(row) => String(row.id)}
+          scrollable
+          scrollHeight="80vh"
+          onLoadMore={loadMore}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
           bulkActions={(selectedRows) => (
             <Button
               size="sm"
