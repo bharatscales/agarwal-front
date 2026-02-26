@@ -114,6 +114,26 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/reports/adhesive-stock" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/reports/adhesive-issues" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/reports/chemical-stock" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/reports/chemical-issues" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

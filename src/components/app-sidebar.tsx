@@ -14,6 +14,10 @@ import {
   Factory,
   Box,
   BarChart3,
+  Cylinder,
+  Droplets,
+  FlaskConical,
+  StickyNote,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -119,6 +123,8 @@ const masterItems: MenuItem[] = [
 
 const RM_FILM_GROUP = "rm film";
 const RM_INK_GROUP = "ink";
+const RM_ADHESIVE_GROUP = "adhesive";
+const RM_CHEMICAL_GROUP = "chemical";
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -136,8 +142,12 @@ export function AppSidebar() {
   const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [isRmRollsStockOpen, setIsRmRollsStockOpen] = useState(false);
   const [isRmInkStockOpen, setIsRmInkStockOpen] = useState(false);
+  const [isRmAdhesiveStockOpen, setIsRmAdhesiveStockOpen] = useState(false);
+  const [isRmChemicalStockOpen, setIsRmChemicalStockOpen] = useState(false);
   const [rmFilmMenuItems, setRmFilmMenuItems] = useState<ItemMenuItem[]>([]);
   const [rmInkMenuItems, setRmInkMenuItems] = useState<ItemMenuItem[]>([]);
+  const [rmAdhesiveMenuItems, setRmAdhesiveMenuItems] = useState<ItemMenuItem[]>([]);
+  const [rmChemicalMenuItems, setRmChemicalMenuItems] = useState<ItemMenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const handleNavigation = (path: string) => {
@@ -166,12 +176,22 @@ export function AppSidebar() {
     setIsRmInkStockOpen(!isRmInkStockOpen);
   };
 
+  const toggleRmAdhesiveStock = () => {
+    setIsRmAdhesiveStockOpen(!isRmAdhesiveStockOpen);
+  };
+
+  const toggleRmChemicalStock = () => {
+    setIsRmChemicalStockOpen(!isRmChemicalStockOpen);
+  };
+
   useEffect(() => {
     if (state === "collapsed") {
       setIsMastersOpen(false);
       setIsReportsOpen(false);
       setIsRmRollsStockOpen(false);
       setIsRmInkStockOpen(false);
+      setIsRmAdhesiveStockOpen(false);
+      setIsRmChemicalStockOpen(false);
     }
   }, [state]);
 
@@ -193,6 +213,20 @@ export function AppSidebar() {
   useEffect(() => {
     if (location.pathname === "/manufacturing/reports/ink-stock") {
       setIsRmInkStockOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Auto-expand Rm Adhesive Stock when on adhesive stock report page
+  useEffect(() => {
+    if (location.pathname === "/manufacturing/reports/adhesive-stock") {
+      setIsRmAdhesiveStockOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Auto-expand Rm Chemical Stock when on chemical stock report page
+  useEffect(() => {
+    if (location.pathname === "/manufacturing/reports/chemical-stock") {
+      setIsRmChemicalStockOpen(true);
     }
   }, [location.pathname]);
 
@@ -228,6 +262,37 @@ export function AppSidebar() {
     }
   }, [isReportsOpen]);
 
+  // Fetch RM adhesive items for Rm Adhesive Stock sub-menu
+  useEffect(() => {
+    const fetchRmAdhesiveItems = async () => {
+      try {
+        const items = await getItemsByGroupForMenu(RM_ADHESIVE_GROUP);
+        setRmAdhesiveMenuItems(items);
+      } catch (err) {
+        console.error("Failed to load item codes for Rm Adhesive Stock menu:", err);
+        setRmAdhesiveMenuItems([]);
+      }
+    };
+    if (isReportsOpen) {
+      fetchRmAdhesiveItems();
+    }
+  }, [isReportsOpen]);
+
+  // Fetch RM chemical items for Rm Chemical Stock sub-menu
+  useEffect(() => {
+    const fetchRmChemicalItems = async () => {
+      try {
+        const items = await getItemsByGroupForMenu(RM_CHEMICAL_GROUP);
+        setRmChemicalMenuItems(items);
+      } catch (err) {
+        console.error("Failed to load item codes for Rm Chemical Stock menu:", err);
+        setRmChemicalMenuItems([]);
+      }
+    };
+    if (isReportsOpen) {
+      fetchRmChemicalItems();
+    }
+  }, [isReportsOpen]);
 
   // Fetch current user info
   useEffect(() => {
@@ -411,7 +476,7 @@ export function AppSidebar() {
                       className="w-full justify-between pl-8"
                     >
                       <div className="flex items-center">
-                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <Cylinder className="h-4 w-4 mr-2 rotate-90" />
                         <span>Rm Film Stock</span>
                       </div>
                       {isRmRollsStockOpen ? (
@@ -460,7 +525,7 @@ export function AppSidebar() {
                       onClick={() => handleNavigation("/manufacturing/reports/roll-issues")}
                       className="w-full pl-8"
                     >
-                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <Cylinder className="h-4 w-4 mr-2 rotate-90" />
                       <span>Rm Film Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -470,7 +535,7 @@ export function AppSidebar() {
                       className="w-full justify-between pl-8"
                     >
                       <div className="flex items-center">
-                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <Droplets className="h-4 w-4 mr-2" />
                         <span>Rm Ink Stock</span>
                       </div>
                       {isRmInkStockOpen ? (
@@ -519,8 +584,126 @@ export function AppSidebar() {
                       onClick={() => handleNavigation("/manufacturing/reports/ink-issues")}
                       className="w-full pl-8"
                     >
-                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <Droplets className="h-4 w-4 mr-2" />
                       <span>Rm Ink Issued</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={toggleRmAdhesiveStock}
+                      className="w-full justify-between pl-8"
+                    >
+                      <div className="flex items-center">
+                        <StickyNote className="h-4 w-4 mr-2" />
+                        <span>Rm Adhesive Stock</span>
+                      </div>
+                      {isRmAdhesiveStockOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {isRmAdhesiveStockOpen && (
+                    <div className="ml-4 space-y-1">
+                      <SidebarMenuItem key="adhesive-stock-all">
+                        <SidebarMenuButton
+                          isActive={
+                            location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                            !searchParams.get("itemCode")
+                          }
+                          onClick={() => handleNavigation("/manufacturing/reports/adhesive-stock")}
+                          className="w-full pl-10"
+                        >
+                          <span>All</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {rmAdhesiveMenuItems.map((item) => {
+                        const itemPath = `/manufacturing/reports/adhesive-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                        const isItemActive =
+                          location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                          searchParams.get("itemCode") === item.item_code;
+                        return (
+                          <SidebarMenuItem key={item.id}>
+                            <SidebarMenuButton
+                              isActive={isItemActive}
+                              onClick={() => handleNavigation(itemPath)}
+                              className="w-full pl-10"
+                            >
+                              <span>{item.item_code}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === "/manufacturing/reports/adhesive-issues"}
+                      onClick={() => handleNavigation("/manufacturing/reports/adhesive-issues")}
+                      className="w-full pl-8"
+                    >
+                      <StickyNote className="h-4 w-4 mr-2" />
+                      <span>Rm Adhesive Issued</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={toggleRmChemicalStock}
+                      className="w-full justify-between pl-8"
+                    >
+                      <div className="flex items-center">
+                        <FlaskConical className="h-4 w-4 mr-2" />
+                        <span>Rm Chemical Stock</span>
+                      </div>
+                      {isRmChemicalStockOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {isRmChemicalStockOpen && (
+                    <div className="ml-4 space-y-1">
+                      <SidebarMenuItem key="chemical-stock-all">
+                        <SidebarMenuButton
+                          isActive={
+                            location.pathname === "/manufacturing/reports/chemical-stock" &&
+                            !searchParams.get("itemCode")
+                          }
+                          onClick={() => handleNavigation("/manufacturing/reports/chemical-stock")}
+                          className="w-full pl-10"
+                        >
+                          <span>All</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {rmChemicalMenuItems.map((item) => {
+                        const itemPath = `/manufacturing/reports/chemical-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                        const isItemActive =
+                          location.pathname === "/manufacturing/reports/chemical-stock" &&
+                          searchParams.get("itemCode") === item.item_code;
+                        return (
+                          <SidebarMenuItem key={item.id}>
+                            <SidebarMenuButton
+                              isActive={isItemActive}
+                              onClick={() => handleNavigation(itemPath)}
+                              className="w-full pl-10"
+                            >
+                              <span>{item.item_code}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === "/manufacturing/reports/chemical-issues"}
+                      onClick={() => handleNavigation("/manufacturing/reports/chemical-issues")}
+                      className="w-full pl-8"
+                    >
+                      <FlaskConical className="h-4 w-4 mr-2" />
+                      <span>Rm Chemical Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </div>
