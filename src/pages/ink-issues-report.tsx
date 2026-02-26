@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react"
 import { RefreshCw, FileSpreadsheet, RotateCcw } from "lucide-react"
 import { DataTable } from "@/components/data-table"
-import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
-import { getAllRollsStock, exportRollsStockSummaryXlsx, bulkRestoreRollsStock } from "@/lib/rolls-stock-api"
+import { getInkStockColumns, type InkStockRow } from "@/components/columns/ink-stock-columns"
+import { getAllInkStock, exportInkStockSummaryXlsx, bulkRestoreInkStock } from "@/lib/ink-stock-api"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label"
 
 const RESTORE_CONFIRM_TEXT = "restore"
 
-export default function RollIssuesReport() {
-  const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
+export default function InkIssuesReport() {
+  const [inkStock, setInkStock] = useState<InkStockRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -26,32 +26,32 @@ export default function RollIssuesReport() {
   const [tableKey, setTableKey] = useState(0)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [restoreConfirmInput, setRestoreConfirmInput] = useState("")
-  const [pendingRestoreRows, setPendingRestoreRows] = useState<RollsStockRow[]>([])
+  const [pendingRestoreRows, setPendingRestoreRows] = useState<InkStockRow[]>([])
 
-  const fetchRollsStock = async () => {
+  const fetchInkStock = async () => {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getAllRollsStock(0, 5000, true)
-      setRollsStock(data)
+      const data = await getAllInkStock(0, 5000, true)
+      setInkStock(data)
     } catch (err: unknown) {
-      console.error("Error fetching issued rolls:", err)
-      setError("Failed to load issued rolls")
-      setRollsStock([])
+      console.error("Error fetching issued ink:", err)
+      setError("Failed to load issued ink")
+      setInkStock([])
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchRollsStock()
+    fetchInkStock()
   }, [])
 
   const handleRefresh = () => {
-    fetchRollsStock()
+    fetchInkStock()
   }
 
-  const openRestoreDialog = useCallback((selectedRows: RollsStockRow[]) => {
+  const openRestoreDialog = useCallback((selectedRows: InkStockRow[]) => {
     setPendingRestoreRows(selectedRows)
     setRestoreConfirmInput("")
     setRestoreDialogOpen(true)
@@ -68,13 +68,13 @@ export default function RollIssuesReport() {
     try {
       setIsRestoring(true)
       setError(null)
-      await bulkRestoreRollsStock(pendingRestoreRows.map((r) => r.id))
+      await bulkRestoreInkStock(pendingRestoreRows.map((r) => r.id))
       closeRestoreDialog()
-      await fetchRollsStock()
+      await fetchInkStock()
       setTableKey((k) => k + 1)
     } catch (err) {
       console.error("Bulk restore failed:", err)
-      setError("Failed to restore selected rolls. Please try again.")
+      setError("Failed to restore selected ink. Please try again.")
       closeRestoreDialog()
     } finally {
       setIsRestoring(false)
@@ -84,11 +84,11 @@ export default function RollIssuesReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx(undefined, true)
+      const blob = await exportInkStockSummaryXlsx(undefined, true)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Rm-Film-Issued-Summary-${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `Rm-Ink-Issued-Summary-${new Date().toISOString().slice(0, 10)}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -105,15 +105,15 @@ export default function RollIssuesReport() {
     return (
       <div className="px-6 pt-2 pb-6">
         <div className="mb-6">
-          <h1 className="text-lg sm:text-xl font-bold">Rm Film Issued</h1>
+          <h1 className="text-lg sm:text-xl font-bold">Rm Ink Issued</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            View issued rolls only.
+            View issued ink only.
           </p>
         </div>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading rolls issued...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading ink issued...</p>
           </div>
         </div>
       </div>
@@ -124,9 +124,9 @@ export default function RollIssuesReport() {
     <div className="px-6 pt-2 pb-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold">Rm Film Issued</h1>
+          <h1 className="text-lg sm:text-xl font-bold">Rm Ink Issued</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            View issued rolls only.
+            View issued ink only.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -159,8 +159,8 @@ export default function RollIssuesReport() {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getRollsStockColumns({ showIssuedAt: true })}
-          data={rollsStock}
+          columns={getInkStockColumns({ showIssuedAt: true })}
+          data={inkStock}
           getRowId={(row) => String(row.id)}
           bulkActions={(selectedRows) => (
             <Button
@@ -178,18 +178,18 @@ export default function RollIssuesReport() {
       <Dialog open={restoreDialogOpen} onOpenChange={(open) => !open && closeRestoreDialog()}>
         <DialogContent className="dark:text-zinc-100">
           <DialogHeader>
-            <DialogTitle className="dark:text-white">Restore selected rolls</DialogTitle>
+            <DialogTitle className="dark:text-white">Restore selected ink</DialogTitle>
             <DialogDescription className="dark:text-zinc-300">
-              This will mark the selected {pendingRestoreRows.length} roll(s) as not issued so they
-              appear again in Rm Film Stock. Type <strong className="dark:text-zinc-200">restore</strong> below to confirm.
+              This will mark the selected {pendingRestoreRows.length} ink batch(es) as not issued so they
+              appear again in Rm Ink Stock. Type <strong className="dark:text-zinc-200">restore</strong> below to confirm.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="restore-confirm" className="dark:text-zinc-300">
+            <Label htmlFor="restore-confirm-ink" className="dark:text-zinc-300">
               Type &quot;restore&quot; to confirm
             </Label>
             <Input
-              id="restore-confirm"
+              id="restore-confirm-ink"
               value={restoreConfirmInput}
               onChange={(e) => setRestoreConfirmInput(e.target.value)}
               placeholder="restore"

@@ -78,7 +78,7 @@ const manufacturingItems: MenuItem[] = [
   },
 ];
 
-// Rm Rolls Stock is rendered as expandable with sub-items from item table (item group: rm film)
+// Rm Film Stock is rendered as expandable with sub-items from item table (item group: rm film)
 
 
 
@@ -118,6 +118,7 @@ const masterItems: MenuItem[] = [
 
 
 const RM_FILM_GROUP = "rm film";
+const RM_INK_GROUP = "ink";
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -134,7 +135,9 @@ export function AppSidebar() {
   const [isMastersOpen, setIsMastersOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [isRmRollsStockOpen, setIsRmRollsStockOpen] = useState(false);
+  const [isRmInkStockOpen, setIsRmInkStockOpen] = useState(false);
   const [rmFilmMenuItems, setRmFilmMenuItems] = useState<ItemMenuItem[]>([]);
+  const [rmInkMenuItems, setRmInkMenuItems] = useState<ItemMenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const handleNavigation = (path: string) => {
@@ -159,11 +162,16 @@ export function AppSidebar() {
     setIsRmRollsStockOpen(!isRmRollsStockOpen);
   };
 
+  const toggleRmInkStock = () => {
+    setIsRmInkStockOpen(!isRmInkStockOpen);
+  };
+
   useEffect(() => {
     if (state === "collapsed") {
       setIsMastersOpen(false);
       setIsReportsOpen(false);
       setIsRmRollsStockOpen(false);
+      setIsRmInkStockOpen(false);
     }
   }, [state]);
 
@@ -174,26 +182,49 @@ export function AppSidebar() {
     }
   }, [location.pathname]);
 
-  // Auto-expand Rm Rolls Stock when on stock report page
+  // Auto-expand Rm Film Stock when on stock report page
   useEffect(() => {
     if (location.pathname === "/manufacturing/reports/stock") {
       setIsRmRollsStockOpen(true);
     }
   }, [location.pathname]);
 
-  // Fetch RM film items for Rm Rolls Stock sub-menu
+  // Auto-expand Rm Ink Stock when on ink stock report page
+  useEffect(() => {
+    if (location.pathname === "/manufacturing/reports/ink-stock") {
+      setIsRmInkStockOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Fetch RM film items for Rm Film Stock sub-menu
   useEffect(() => {
     const fetchRmFilmItems = async () => {
       try {
         const items = await getItemsByGroupForMenu(RM_FILM_GROUP);
         setRmFilmMenuItems(items);
       } catch (err) {
-        console.error("Failed to load item codes for Rm Rolls Stock menu:", err);
+        console.error("Failed to load item codes for Rm Film Stock menu:", err);
         setRmFilmMenuItems([]);
       }
     };
     if (isReportsOpen) {
       fetchRmFilmItems();
+    }
+  }, [isReportsOpen]);
+
+  // Fetch RM ink items for Rm Ink Stock sub-menu
+  useEffect(() => {
+    const fetchRmInkItems = async () => {
+      try {
+        const items = await getItemsByGroupForMenu(RM_INK_GROUP);
+        setRmInkMenuItems(items);
+      } catch (err) {
+        console.error("Failed to load item codes for Rm Ink Stock menu:", err);
+        setRmInkMenuItems([]);
+      }
+    };
+    if (isReportsOpen) {
+      fetchRmInkItems();
     }
   }, [isReportsOpen]);
 
@@ -381,7 +412,7 @@ export function AppSidebar() {
                     >
                       <div className="flex items-center">
                         <BarChart3 className="h-4 w-4 mr-2" />
-                        <span>Rm Rolls Stock</span>
+                        <span>Rm Film Stock</span>
                       </div>
                       {isRmRollsStockOpen ? (
                         <ChevronDown className="h-4 w-4" />
@@ -430,7 +461,66 @@ export function AppSidebar() {
                       className="w-full pl-8"
                     >
                       <BarChart3 className="h-4 w-4 mr-2" />
-                      <span>RM Rolls Issued</span>
+                      <span>Rm Film Issued</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={toggleRmInkStock}
+                      className="w-full justify-between pl-8"
+                    >
+                      <div className="flex items-center">
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <span>Rm Ink Stock</span>
+                      </div>
+                      {isRmInkStockOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {isRmInkStockOpen && (
+                    <div className="ml-4 space-y-1">
+                      <SidebarMenuItem key="ink-stock-all">
+                        <SidebarMenuButton
+                          isActive={
+                            location.pathname === "/manufacturing/reports/ink-stock" &&
+                            !searchParams.get("itemCode")
+                          }
+                          onClick={() => handleNavigation("/manufacturing/reports/ink-stock")}
+                          className="w-full pl-10"
+                        >
+                          <span>All</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {rmInkMenuItems.map((item) => {
+                        const itemPath = `/manufacturing/reports/ink-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                        const isItemActive =
+                          location.pathname === "/manufacturing/reports/ink-stock" &&
+                          searchParams.get("itemCode") === item.item_code;
+                        return (
+                          <SidebarMenuItem key={item.id}>
+                            <SidebarMenuButton
+                              isActive={isItemActive}
+                              onClick={() => handleNavigation(itemPath)}
+                              className="w-full pl-10"
+                            >
+                              <span>{item.item_code}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={location.pathname === "/manufacturing/reports/ink-issues"}
+                      onClick={() => handleNavigation("/manufacturing/reports/ink-issues")}
+                      className="w-full pl-8"
+                    >
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <span>Rm Ink Issued</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </div>

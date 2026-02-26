@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
-import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
-import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx, bulkIssueRollsStock } from "@/lib/rolls-stock-api"
+import { getInkStockColumns, type InkStockRow } from "@/components/columns/ink-stock-columns"
+import { getAllInkStock, exportInkStockItemWiseXlsx, exportInkStockSummaryXlsx, bulkIssueInkStock } from "@/lib/ink-stock-api"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,55 +12,55 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export default function StockReport() {
+export default function InkStockReport() {
   const [searchParams] = useSearchParams()
   const itemCodeFilter = searchParams.get("itemCode") ?? undefined
-  const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
+  const [inkStock, setInkStock] = useState<InkStockRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isIssuing, setIsIssuing] = useState(false)
   const [tableKey, setTableKey] = useState(0)
-  const filteredRollsStock = useMemo(() => {
-    if (!itemCodeFilter) return rollsStock
-    return rollsStock.filter((row) => row.itemCode === itemCodeFilter)
-  }, [rollsStock, itemCodeFilter])
+  const filteredInkStock = useMemo(() => {
+    if (!itemCodeFilter) return inkStock
+    return inkStock.filter((row) => row.itemCode === itemCodeFilter)
+  }, [inkStock, itemCodeFilter])
 
-  const fetchRollsStock = async () => {
+  const fetchInkStock = async () => {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getAllRollsStock(0, 5000, false)
-      setRollsStock(data)
+      const data = await getAllInkStock(0, 5000, false)
+      setInkStock(data)
     } catch (err: unknown) {
-      console.error("Error fetching rolls stock:", err)
-      setError("Failed to load film stock")
-      setRollsStock([])
+      console.error("Error fetching ink stock:", err)
+      setError("Failed to load ink stock")
+      setInkStock([])
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchRollsStock()
+    fetchInkStock()
   }, [])
 
   const handleRefresh = () => {
-    fetchRollsStock()
+    fetchInkStock()
   }
 
   const handleBulkIssue = useCallback(
-    async (selectedRows: RollsStockRow[]) => {
+    async (selectedRows: InkStockRow[]) => {
       if (selectedRows.length === 0) return
       try {
         setIsIssuing(true)
         setError(null)
-        await bulkIssueRollsStock(selectedRows.map((r) => r.id))
-        await fetchRollsStock()
+        await bulkIssueInkStock(selectedRows.map((r) => r.id))
+        await fetchInkStock()
         setTableKey((k) => k + 1)
       } catch (err) {
         console.error("Bulk issue failed:", err)
-        setError("Failed to issue selected rolls. Please try again.")
+        setError("Failed to issue selected ink. Please try again.")
       } finally {
         setIsIssuing(false)
       }
@@ -71,11 +71,11 @@ export default function StockReport() {
   const handleItemWiseExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockItemWiseXlsx(false)
+      const blob = await exportInkStockItemWiseXlsx(false)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Rm-Film-Stock-ItemWise-${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `Rm-Ink-Stock-ItemWise-${new Date().toISOString().slice(0, 10)}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -91,7 +91,7 @@ export default function StockReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false)
+      const blob = await exportInkStockSummaryXlsx(itemCodeFilter, false)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -99,7 +99,7 @@ export default function StockReport() {
       a.download =
         itemCodeFilter != null && itemCodeFilter.trim() !== ""
           ? `${itemCodeFilter.trim()}_summary_${dateStr}.xlsx`
-          : `Rm-Film-Stock-Summary-${dateStr}.xlsx`
+          : `Rm-Ink-Stock-Summary-${dateStr}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -117,18 +117,18 @@ export default function StockReport() {
       <div className="px-6 pt-2 pb-6">
         <div className="mb-6">
           <h1 className="text-lg sm:text-xl font-bold">
-            Rm Film Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+            Rm Ink Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock."}
+              ? `Viewing ink stock for item: ${itemCodeFilter}`
+              : "View and analyze RM ink stock."}
           </p>
         </div>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading film stock...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading ink stock...</p>
           </div>
         </div>
       </div>
@@ -140,12 +140,12 @@ export default function StockReport() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-lg sm:text-xl font-bold">
-            Rm Film Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+            Rm Ink Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock."}
+              ? `Viewing ink stock for item: ${itemCodeFilter}`
+              : "View and analyze RM ink stock."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -195,8 +195,8 @@ export default function StockReport() {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getRollsStockColumns()}
-          data={filteredRollsStock}
+          columns={getInkStockColumns()}
+          data={filteredInkStock}
           getRowId={(row) => String(row.id)}
           bulkActions={(selectedRows) => (
             <Button

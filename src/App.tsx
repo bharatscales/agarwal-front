@@ -104,6 +104,16 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/reports/ink-stock" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/manufacturing/reports/ink-issues" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

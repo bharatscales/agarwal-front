@@ -18,6 +18,8 @@ import StockEntryChemItems from "./stock-entry-chem-items"
 import Reports from "./reports"
 import StockReport from "./stock-report"
 import RollIssuesReport from "./roll-issues-report"
+import InkStockReport from "./ink-stock-report"
+import InkIssuesReport from "./ink-issues-report"
 import { useLocation } from "react-router-dom"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -91,6 +93,12 @@ export default function Layout() {
         }
         if (location.pathname === "/manufacturing/reports/roll-issues") {
           return <RollIssuesReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/ink-stock") {
+          return <InkStockReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/ink-issues") {
+          return <InkIssuesReport />;
         }
         return <Home />;
     }

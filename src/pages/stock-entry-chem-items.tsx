@@ -137,7 +137,8 @@ export default function StockEntryChemItems() {
   const fetchItems = async () => {
     try {
       const data = await getItems()
-      const filteredItems = data.filter(item => item.itemGroup === "rm ink/adhesive/chemicals")
+      const chemItemGroups = ["rm ink/adhesive/chemicals", "ink", "adhesive", "chemical"]
+      const filteredItems = data.filter(item => chemItemGroups.includes(item.itemGroup))
       setItems(filteredItems)
       const options: CreatableOption[] = filteredItems.map(item => ({
         value: item.id.toString(),
@@ -689,12 +690,16 @@ export default function StockEntryChemItems() {
     if (field === "itemId") {
       const itemId = typeof value === "string" ? Number(value) : value
       const item = items.find(i => i.id === itemId)
+      const itemUom = item?.uom?.trim() || ""
+      const itemUomId = itemUom ? (getUomId(itemUom) || 0) : 0
       setChemStock(prev => prev.map((r, i) => 
         i === index ? { 
           ...r, 
           itemId: itemId, 
           itemCode: item?.itemCode || "",
           itemName: item?.itemName || "",
+          uom: itemUom,
+          uomId: itemUomId,
         } : r
       ))
     } else if (field === "uom") {
