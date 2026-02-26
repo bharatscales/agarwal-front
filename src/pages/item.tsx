@@ -22,6 +22,9 @@ export default function Item() {
     { value: "rm film", label: "RM Film" },
     { value: "rm ink/adhesive/chemicals", label: "RM Ink/Adhesive/Chemicals" },
     { value: "fg variety", label: "FG Variety" },
+    { value: "ink", label: "Ink" },
+    { value: "adhesive", label: "Adhesive" },
+    { value: "chemical", label: "Chemical" },
   ]
   const fallbackUoms: CreatableOption[] = [{ value: "Nos", label: "Nos" }]
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
