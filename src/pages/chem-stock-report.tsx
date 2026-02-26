@@ -203,7 +203,7 @@ export function ChemStockReport({ group }: Props) {
             <Button
               size="sm"
               variant="default"
-              onClick={() => handleBulkIssue(selectedRows)}
+              onClick={() => handleBulkIssue(selectedRows as ChemStockRow[])}
               disabled={isIssuing}
             >
               <Send className="h-4 w-4 mr-2" />

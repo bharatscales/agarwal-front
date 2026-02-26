@@ -7,6 +7,7 @@ interface User {
   username: string;
   email?: string;
   role?: "user" | "admin" | "superuser";
+  department?: string;
 }
 
 interface AuthContextType {
@@ -62,7 +63,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const response = await api.get('/user/me');
         
         if (response.data && response.data.user) {
-          setUser(response.data.user);
+          const u = response.data.user;
+          setUser({
+            id: u.id ?? '1',
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            department: u.department,
+          });
           // Apply theme if available
           if (response.data.user.theme) {
             document.documentElement.classList.toggle('dark', response.data.user.theme === 'dark');
@@ -74,7 +82,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             id: response.data.id || '1',
             username: response.data.username,
             email: response.data.email,
-            role: response.data.role
+            role: response.data.role,
+            department: response.data.department,
           });
           // Apply theme if available
           if (response.data.theme) {
@@ -131,7 +140,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               id: userData.id || '1',
               username: userData.username || username,
               email: userData.email,
-              role: userData.role
+              role: userData.role,
+              department: userData.department,
             });
             
             // Apply theme to document if theme exists

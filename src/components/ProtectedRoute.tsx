@@ -4,9 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  /** When "admin", allows admin or superuser. When "superuser", allows only superuser. */
   requiredRole?: "admin" | "superuser";
+  /** When true with requiredRole="admin", also allows role "user" with department "Stock" (for Item/Party masters). */
+  allowStockDepartment?: boolean;
 }
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+
+export function ProtectedRoute({ children, requiredRole, allowStockDepartment }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -25,11 +29,19 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   // Check role-based access using user data from AuthContext
-  if (requiredRole && user?.role !== requiredRole && user?.role !== "superuser") {
-    return <Navigate to="/home" replace />;
+  if (requiredRole) {
+    const isAdminOrSuperuser = user?.role === "admin" || user?.role === "superuser";
+    const isStockUser =
+      allowStockDepartment &&
+      user?.role === "user" &&
+      (user?.department?.toLowerCase() === "stock" || user?.department === "Stock");
+    if (!isAdminOrSuperuser && !isStockUser) {
+      return <Navigate to="/home" replace />;
+    }
+    if (requiredRole === "superuser" && user?.role !== "superuser") {
+      return <Navigate to="/home" replace />;
+    }
   }
-
-
 
   return <>{children}</>;
 }

@@ -53,13 +53,13 @@ export const getInkStockColumns = (options?: { showIssuedAt?: boolean }): Column
   },
   {
     id: "item",
-    accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+    accessorFn: (row) => row.itemCode ?? "",
     header: ({ column }) => (
       <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
     ),
     cell: ({ row }) => (
       <div className="text-sm">
-        {row.original.itemCode} - {row.original.itemName}
+        {row.original.itemCode}
       </div>
     ),
   },
@@ -70,6 +70,15 @@ export const getInkStockColumns = (options?: { showIssuedAt?: boolean }): Column
     ),
     cell: ({ row }) => (
       <div className="text-sm">{row.getValue("color") || "-"}</div>
+    ),
+  },
+  {
+    accessorKey: "grade",
+    header: ({ column }) => (
+      <ColumnHeader title="Grade" column={column} placeholder="Filter grade..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">{row.original.grade || "-"}</div>
     ),
   },
   {

@@ -32,6 +32,8 @@ type ChemStockRow = {
   qty: number
   uomId: number
   uom: string
+  gradeId?: number
+  grade: string
   isEditing?: boolean
 }
 
@@ -52,12 +54,15 @@ export default function StockEntryChemItems() {
     qty: 0,
     uomId: 0,
     uom: "",
+    gradeId: undefined,
+    grade: "",
     isEditing: true,
   }])
   const [items, setItems] = useState<Item[]>([])
   const [itemOptions, setItemOptions] = useState<CreatableOption[]>([])
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map())
   const [uomOptions, setUomOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [gradeOptions, setGradeOptions] = useState<Array<{ id: number; grade: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [defaultTemplate, setDefaultTemplate] = useState<TemplateMaster | null>(null)
@@ -71,6 +76,7 @@ export default function StockEntryChemItems() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const gradeInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const colorInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const qtyInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -87,6 +93,8 @@ export default function StockEntryChemItems() {
         qty: cs.qty || 0,
         uomId: cs.uomId || 0,
         uom: cs.uom || "",
+        gradeId: cs.gradeId,
+        grade: cs.grade ?? "",
         isEditing: false,
       }))
       setChemStock([...existingRows, {
@@ -97,6 +105,8 @@ export default function StockEntryChemItems() {
         qty: 0,
         uomId: 0,
         uom: "",
+        gradeId: undefined,
+        grade: "",
         isEditing: true,
       }])
       setSelectedRows(new Set())
@@ -112,6 +122,8 @@ export default function StockEntryChemItems() {
         qty: 0,
         uomId: 0,
         uom: "",
+        gradeId: undefined,
+        grade: "",
         isEditing: true,
       }])
       setSelectedRows(new Set())
@@ -126,6 +138,35 @@ export default function StockEntryChemItems() {
       setUomOptions(uoms.map(u => ({ value: u.uom, label: u.uom })))
     } catch (error) {
       console.error("Failed to load UOMs:", error)
+    }
+  }
+
+  const fetchGradesWithIds = async () => {
+    try {
+      const response = await api.get<Array<{ id: number; grade: string }>>("/meta/grades-with-ids")
+      setGradeOptions(response.data ?? [])
+    } catch (error) {
+      console.error("Failed to load grades:", error)
+    }
+  }
+
+  const handleCreateGrade = async (label: string, index: number) => {
+    const value = label.trim()
+    if (!value) return
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const response = await api.post<{ id: number; grade: string }>("/meta/grades", { grade: value })
+      await fetchGradesWithIds()
+      setChemStock(prev => prev.map((r, i) =>
+        i === index ? { ...r, gradeId: response.data.id, grade: response.data.grade } : r
+      ))
+      setTimeout(() => colorInputRefs.current[index]?.focus(), 100)
+    } catch (err: any) {
+      console.error("Failed to create grade:", err)
+      setError(err.response?.data?.detail ?? "Failed to create grade")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -203,6 +244,7 @@ export default function StockEntryChemItems() {
           return voucher
         }),
         fetchUomsWithIds(),
+        fetchGradesWithIds(),
         fetchItems(),
         fetchChemStock(),
         fetchTemplates(),
@@ -268,6 +310,8 @@ export default function StockEntryChemItems() {
             qty: 0,
             uomId: 0,
             uom: "",
+            gradeId: undefined,
+            grade: "",
             isEditing: true,
           }]
         }
@@ -294,6 +338,7 @@ export default function StockEntryChemItems() {
         color: row.color || undefined,
         qty: row.qty !== 0 ? row.qty : undefined,
         uomId: row.uomId || undefined,
+        gradeId: row.gradeId,
         stockVoucherId: Number(voucherId),
       }
 
@@ -310,6 +355,8 @@ export default function StockEntryChemItems() {
               qty: updated.qty,
               uomId: updated.uomId,
               uom: updated.uom,
+              gradeId: updated.gradeId,
+              grade: updated.grade ?? "",
               isEditing: false,
             } : r
           )
@@ -323,6 +370,8 @@ export default function StockEntryChemItems() {
               qty: 0,
               uomId: 0,
               uom: "",
+              gradeId: undefined,
+              grade: "",
               isEditing: true,
             }]
           }
@@ -341,6 +390,8 @@ export default function StockEntryChemItems() {
               qty: created.qty,
               uomId: created.uomId,
               uom: created.uom,
+              gradeId: created.gradeId,
+              grade: created.grade ?? "",
               isEditing: false,
             } : r
           )
@@ -352,6 +403,8 @@ export default function StockEntryChemItems() {
             qty: 0,
             uomId: 0,
             uom: "",
+            gradeId: undefined,
+            grade: "",
             isEditing: true,
           }]
         })
@@ -379,6 +432,8 @@ export default function StockEntryChemItems() {
             qty: 0,
             uomId: 0,
             uom: "",
+            gradeId: undefined,
+            grade: "",
             isEditing: true,
           }]
         }
@@ -404,6 +459,8 @@ export default function StockEntryChemItems() {
             qty: 0,
             uomId: 0,
             uom: "",
+            gradeId: undefined,
+            grade: "",
             isEditing: true,
           }]
         }
@@ -447,12 +504,13 @@ export default function StockEntryChemItems() {
             qty: 0,
             uomId: 0,
             uom: "",
+            gradeId: undefined,
+            grade: "",
             isEditing: true,
           }]
         }
         return filtered
       })
-      
       setSelectedRows(new Set())
     } catch (err: any) {
       console.error("Error deleting chem stock:", err)
@@ -667,7 +725,7 @@ export default function StockEntryChemItems() {
       handleFieldChange(index, "itemId", newItem.id.toString())
       
       setTimeout(() => {
-        colorInputRefs.current[index]?.focus()
+        gradeInputRefs.current[index]?.focus()
       }, 100)
     } catch (err: any) {
       console.error("Error creating item:", err)
@@ -714,6 +772,16 @@ export default function StockEntryChemItems() {
     }
   }
 
+  const copyGradeFromAbove = (index: number) => {
+    if (index === 0) return
+    const aboveRow = chemStock[index - 1]
+    if (aboveRow?.gradeId != null && aboveRow?.grade) {
+      setChemStock(prev => prev.map((r, i) =>
+        i === index ? { ...r, gradeId: aboveRow.gradeId, grade: aboveRow.grade ?? "" } : r
+      ))
+    }
+  }
+
   const handleItemKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
     if (e.key !== "Enter") return
     
@@ -729,7 +797,7 @@ export default function StockEntryChemItems() {
         if (aboveRow?.itemId) {
           handleFieldChange(index, "itemId", aboveRow.itemId.toString())
           setTimeout(() => {
-            colorInputRefs.current[index]?.focus()
+            gradeInputRefs.current[index]?.focus()
           }, 100)
           return
         }
@@ -737,7 +805,7 @@ export default function StockEntryChemItems() {
       if (itemOptions.length > 0) {
         handleFieldChange(index, "itemId", itemOptions[0].value)
         setTimeout(() => {
-          colorInputRefs.current[index]?.focus()
+          gradeInputRefs.current[index]?.focus()
         }, 100)
       }
       return
@@ -751,12 +819,12 @@ export default function StockEntryChemItems() {
     if (filtered.length > 0) {
       handleFieldChange(index, "itemId", filtered[0].value)
       setTimeout(() => {
-        colorInputRefs.current[index]?.focus()
+        gradeInputRefs.current[index]?.focus()
       }, 100)
     } else {
       await handleCreateItem(searchValue, index)
       setTimeout(() => {
-        colorInputRefs.current[index]?.focus()
+        gradeInputRefs.current[index]?.focus()
       }, 200)
     }
   }
@@ -789,7 +857,7 @@ export default function StockEntryChemItems() {
     { id: "sno", header: "S.No", cell: () => null, enableColumnFilter: false },
     {
       id: "item",
-      accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+      accessorFn: (row) => row.itemCode ?? "",
       header: ({ column }) => (
         <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
       ),
@@ -800,6 +868,14 @@ export default function StockEntryChemItems() {
       accessorKey: "color",
       header: ({ column }) => (
         <ColumnHeader title="Color" column={column} placeholder="Filter color..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "grade",
+      header: ({ column }) => (
+        <ColumnHeader title="Grade" column={column} placeholder="Filter grade..." />
       ),
       cell: () => null,
       filterFn,
@@ -975,6 +1051,38 @@ export default function StockEntryChemItems() {
                         />
                       </TableCell>
                       <TableCell className="py-1 px-2">
+                        <div className="[&_input]:h-8">
+                          <CreatableCombobox
+                            options={gradeOptions.map((g) => ({ value: String(g.id), label: g.grade }))}
+                            value={row.gradeId != null ? String(row.gradeId) : null}
+                            onValueChange={(val) => {
+                              const id = val ? Number(val) : undefined
+                              const opt = gradeOptions.find((gr) => gr.id === id)
+                              setChemStock(prev => prev.map((r, i) =>
+                                i === index ? { ...r, gradeId: id, grade: opt?.grade ?? "" } : r
+                              ))
+                            }}
+                            onCreateOption={(label) => handleCreateGrade(label, index)}
+                            placeholder="Grade"
+                            searchPlaceholder="Search grade..."
+                            createLabel="Create grade"
+                            triggerRef={(el) => {
+                              gradeInputRefs.current[index] = el
+                            }}
+                            onInputKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                // If empty and not first row, copy grade from above
+                                if ((row.gradeId == null || !row.grade) && index > 0) {
+                                  copyGradeFromAbove(index)
+                                }
+                                colorInputRefs.current[index]?.focus()
+                              }
+                            }}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1 px-2">
                         <Input
                           ref={(el) => {
                             qtyInputRefs.current[index] = el
@@ -1044,8 +1152,9 @@ export default function StockEntryChemItems() {
                       <TableCell className="text-center py-1 px-2">
                         {index + 1}
                       </TableCell>
-                      <TableCell className="py-1 px-2">{row.itemCode} - {row.itemName}</TableCell>
+                      <TableCell className="py-1 px-2">{row.itemCode}</TableCell>
                       <TableCell className="py-1 px-2">{row.color || "-"}</TableCell>
+                      <TableCell className="py-1 px-2">{row.grade || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.qty || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.uom || "-"}</TableCell>
                       <TableCell className="py-1 px-2">

@@ -27,6 +27,9 @@ import ChemicalIssuesReport from "./chemical-issues-report"
 import { useLocation } from "react-router-dom"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getCurrentUser } from "@/lib/user-api"
+import { useState, useEffect } from "react"
+import { Navigate } from "react-router-dom"
 
 function MobileMenuToggle() {
   const { toggleSidebar, isMobile } = useSidebar();
@@ -49,8 +52,51 @@ function MobileMenuToggle() {
 
 export default function Layout() {
   const location = useLocation();
+  const [stockUserBlock, setStockUserBlock] = useState<boolean | null>(null);
+
+  // Block work-order and job-card for stock department users (role=user, department=stock)
+  useEffect(() => {
+    const path = location.pathname;
+    const isBlockedPath =
+      path === "/manufacturing/work-order" ||
+      path === "/manufacturing/job-card" ||
+      (path.startsWith("/manufacturing/work-order/") && path !== "/manufacturing/work-order");
+    if (!isBlockedPath) {
+      setStockUserBlock(false);
+      return;
+    }
+    let cancelled = false;
+    getCurrentUser()
+      .then((user) => {
+        if (cancelled) return;
+        const isStock =
+          user.role === "user" &&
+          (user.department?.toLowerCase() === "stock" || user.department === "Stock");
+        setStockUserBlock(!!isStock);
+      })
+      .catch(() => {
+        if (!cancelled) setStockUserBlock(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
 
   const renderContent = () => {
+    const isBlockedPath =
+      location.pathname === "/manufacturing/work-order" ||
+      location.pathname === "/manufacturing/job-card" ||
+      (location.pathname.startsWith("/manufacturing/work-order/") && location.pathname !== "/manufacturing/work-order");
+    if (isBlockedPath && stockUserBlock === true) {
+      return <Navigate to="/home" replace />;
+    }
+    if (isBlockedPath && stockUserBlock === null) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+        </div>
+      );
+    }
     switch (location.pathname) {
       case "/home":
         return <Home />;

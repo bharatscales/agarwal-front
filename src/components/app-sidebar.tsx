@@ -137,6 +137,7 @@ export function AppSidebar() {
   const [currentUser, setCurrentUser] = useState<{
     username: string;
     role: string;
+    department?: string;
   } | null>(null);
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
@@ -158,6 +159,11 @@ export function AppSidebar() {
   const isActive = (path: string) => {
     return location.pathname === path;
   };
+
+  // Stock department user: can access Item/Party masters, Stock Entry, and all stock reports only; no Work Order / Job Card
+  const isStockUser =
+    currentUser?.role === "user" &&
+    (currentUser?.department?.toLowerCase() === "stock" || currentUser?.department === "Stock");
 
 
 
@@ -303,6 +309,7 @@ export function AppSidebar() {
         setCurrentUser({
           username: user.username,
           role: user.role,
+          department: user.department,
         });
       } catch (error) {
         console.error("Error fetching current user:", error);
@@ -442,7 +449,15 @@ export function AppSidebar() {
           <SidebarGroupLabel>Manufacturing</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {manufacturingItems.map((item) => (
+              {manufacturingItems
+                .filter((item) => {
+                  // Stock user: only Stock Entry; hide Work Order and Job Card
+                  if (isStockUser) {
+                    return item.title === "Stock Entry";
+                  }
+                  return true;
+                })
+                .map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   isActive={isActive(item.path)}
@@ -720,8 +735,8 @@ export function AppSidebar() {
         <div className="px-4 py-2">
           <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
         </div>
-        {/* Masters Section - Visible for admin and superuser */}
-        {(currentUser?.role === 'admin' || currentUser?.role === 'superuser') && (
+        {/* Masters Section - Admin/superuser: full list; Stock user: Item and Party only */}
+        {(currentUser?.role === 'admin' || currentUser?.role === 'superuser' || isStockUser) && (
         <SidebarGroup>
           <SidebarGroupLabel>Masters</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -747,6 +762,10 @@ export function AppSidebar() {
                 <div className="ml-4 space-y-1">
                   {masterItems
                     .filter(item => {
+                      // Stock user: only Item and Party master
+                      if (isStockUser) {
+                        return item.title === 'Item' || item.title === 'Party';
+                      }
                       // Hide Users and Templates for admin users - only show for superuser
                       if (currentUser?.role === 'admin' && (item.title === 'Users' || item.title === 'Templates')) {
                         return false;

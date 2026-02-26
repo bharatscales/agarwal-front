@@ -21,11 +21,14 @@ export type Item = {
 type ItemColumnHandlers = {
   onEdit: (item: Item) => void
   onDelete: (item: Item) => void
+  /** When false, actions column (Edit/Delete) is hidden. Default true. Use for read-only (e.g. Stock user). */
+  canEdit?: boolean
 }
 
 export const getItemColumns = ({
   onEdit,
   onDelete,
+  canEdit = true,
 }: ItemColumnHandlers): ColumnDef<Item>[] => [
   {
     accessorKey: "itemCode",
@@ -59,33 +62,37 @@ export const getItemColumns = ({
       <ColumnHeader title="UOM" column={column} placeholder="Filter UOM..." />
     ),
   },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const item = row.original
+  ...(canEdit
+    ? [
+        {
+          id: "actions",
+          cell: ({ row }: { row: { original: Item } }) => {
+            const item = row.original
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onEdit(item)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit item
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600" onClick={() => onDelete(item)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete item
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => onEdit(item)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit item
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-red-600" onClick={() => onDelete(item)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete item
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          },
+        },
+      ]
+    : []),
 ]
 

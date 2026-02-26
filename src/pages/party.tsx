@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import api from "@/lib/axios"
 import { createParty, deleteParty, getAllParties, updateParty } from "@/lib/party-api"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   Select,
   SelectContent,
@@ -23,6 +24,9 @@ type PartyForm = {
 }
 
 export default function Party() {
+  const { user } = useAuth()
+  const canEdit = user?.role === "admin" || user?.role === "superuser"
+
   const fallbackPartyTypes = ["customer", "supplier", "both"]
   const [isAddPartyOpen, setIsAddPartyOpen] = useState(false)
   const [isEditPartyOpen, setIsEditPartyOpen] = useState(false)
@@ -212,9 +216,10 @@ export default function Party() {
       .then(() => {
         setParties(prev => prev.filter(row => row.id !== party.id))
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error("Error deleting party:", err)
-        setError("Failed to delete party. Please try again.")
+        const msg = err.response?.data?.detail ?? "Failed to delete party. Please try again."
+        setError(typeof msg === "string" ? msg : "Failed to delete party. Please try again.")
       })
   }
 
@@ -296,10 +301,12 @@ export default function Party() {
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={handleAddParty} size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Party</span>
-            </Button>
+            {canEdit && (
+              <Button onClick={handleAddParty} size="sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Party</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -330,6 +337,7 @@ export default function Party() {
             columns={getPartyMasterColumns({
               onEdit: handleEditPartyOpen,
               onDelete: handleDeleteParty,
+              canEdit,
             })}
             data={parties}
           />

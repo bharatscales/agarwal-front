@@ -7,6 +7,7 @@ export type RollsStockPayload = {
   micron?: number
   netweight?: number
   grossweight?: number
+  gradeId?: number
   stockVoucherId: number
 }
 
@@ -16,6 +17,8 @@ type RollsStockResponse = {
   item_code?: string | null
   item_name?: string | null
   vendor_code?: string | null
+  grade_id?: number | null
+  grade?: string | null
   barcode?: string | null
   rollno?: string | null
   size?: number | null
@@ -33,6 +36,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   itemCode: rollsStock.item_code ?? "",
   itemName: rollsStock.item_name ?? "",
   vendorCode: rollsStock.vendor_code ?? "",
+  gradeId: rollsStock.grade_id ?? undefined,
+  grade: rollsStock.grade ?? "",
   barcode: rollsStock.barcode ?? "",
   rollno: rollsStock.rollno ?? "",
   size: rollsStock.size ?? 0,
@@ -75,6 +80,7 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     micron: payload.micron,
     netweight: payload.netweight,
     grossweight: payload.grossweight,
+    grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
   })
   return mapRollsStock(response.data)
@@ -88,6 +94,7 @@ export const updateRollsStock = async (rollsStockId: number, payload: Partial<Ro
     micron: payload.micron,
     netweight: payload.netweight,
     grossweight: payload.grossweight,
+    grade_id: payload.gradeId,
   })
   return mapRollsStock(response.data)
 }

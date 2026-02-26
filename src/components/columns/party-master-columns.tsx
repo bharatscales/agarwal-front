@@ -20,11 +20,14 @@ export type PartyMaster = {
 type PartyColumnHandlers = {
   onEdit: (party: PartyMaster) => void
   onDelete: (party: PartyMaster) => void
+  /** When false, actions column (Edit/Delete) is hidden. Default true. Use for read-only (e.g. Stock user). */
+  canEdit?: boolean
 }
 
 export const getPartyMasterColumns = ({
   onEdit,
   onDelete,
+  canEdit = true,
 }: PartyColumnHandlers): ColumnDef<PartyMaster>[] => [
   {
     accessorKey: "partyCode",
@@ -56,33 +59,37 @@ export const getPartyMasterColumns = ({
       return <div className="text-sm text-gray-600 dark:text-gray-400">{partyType}</div>
     },
   },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const party = row.original
+  ...(canEdit
+    ? [
+        {
+          id: "actions",
+          cell: ({ row }: { row: { original: PartyMaster } }) => {
+            const party = row.original
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onEdit(party)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit party
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600" onClick={() => onDelete(party)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete party
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => onEdit(party)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit party
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-red-600" onClick={() => onDelete(party)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete party
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          },
+        },
+      ]
+    : []),
 ]
 

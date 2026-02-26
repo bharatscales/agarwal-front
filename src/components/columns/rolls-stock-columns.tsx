@@ -8,6 +8,8 @@ export type RollsStockRow = {
   itemCode: string
   itemName: string
   vendorCode: string
+  gradeId?: number
+  grade?: string
   rollno: string
   size: number
   micron: number
@@ -66,14 +68,23 @@ export const getRollsStockColumns = (options?: { showIssuedAt?: boolean }): Colu
   },
   {
     id: "item",
-    accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+    accessorFn: (row) => row.itemCode ?? "",
     header: ({ column }) => (
       <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
     ),
     cell: ({ row }) => (
       <div className="text-sm">
-        {row.original.itemCode} - {row.original.itemName}
+        {row.original.itemCode}
       </div>
+    ),
+  },
+  {
+    accessorKey: "grade",
+    header: ({ column }) => (
+      <ColumnHeader title="Grade" column={column} placeholder="Filter grade..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">{row.original.grade || "-"}</div>
     ),
   },
   {

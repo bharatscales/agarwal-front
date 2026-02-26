@@ -27,6 +27,8 @@ type RollsStockRow = {
   itemId: number
   itemCode: string
   itemName: string
+  gradeId?: number
+  grade: string
   rollno: string
   size: number
   micron: number
@@ -45,6 +47,8 @@ export default function StockEntryItems() {
     itemId: 0,
     itemCode: "",
     itemName: "",
+    gradeId: undefined,
+    grade: "",
     rollno: "",
     size: 0,
     micron: 0,
@@ -54,6 +58,7 @@ export default function StockEntryItems() {
   }])
   const [items, setItems] = useState<Item[]>([])
   const [itemOptions, setItemOptions] = useState<CreatableOption[]>([])
+  const [gradeOptions, setGradeOptions] = useState<Array<{ id: number; grade: string }>>([])
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map()) // Map UOM name to ID
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +73,7 @@ export default function StockEntryItems() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const gradeInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const rollnoInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const sizeInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const micronInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -83,6 +89,8 @@ export default function StockEntryItems() {
         itemId: rs.itemId,
         itemCode: rs.itemCode,
         itemName: rs.itemName,
+        gradeId: rs.gradeId,
+        grade: rs.grade ?? "",
         rollno: rs.rollno,
         size: rs.size,
         micron: rs.micron,
@@ -96,6 +104,8 @@ export default function StockEntryItems() {
         itemId: 0,
         itemCode: "",
         itemName: "",
+        gradeId: undefined,
+        grade: "",
         rollno: "",
         size: 0,
         micron: 0,
@@ -113,6 +123,8 @@ export default function StockEntryItems() {
         itemId: 0,
         itemCode: "",
         itemName: "",
+        gradeId: undefined,
+        grade: "",
         rollno: "",
         size: 0,
         micron: 0,
@@ -132,6 +144,35 @@ export default function StockEntryItems() {
       setUomMap(new Map(uoms.map(u => [u.uom, u.id])))
     } catch (error) {
       console.error("Failed to load UOMs:", error)
+    }
+  }
+
+  const fetchGradesWithIds = async () => {
+    try {
+      const response = await api.get<Array<{ id: number; grade: string }>>("/meta/grades-with-ids")
+      setGradeOptions(response.data ?? [])
+    } catch (error) {
+      console.error("Failed to load grades:", error)
+    }
+  }
+
+  const handleCreateGrade = async (label: string, index: number) => {
+    const value = label.trim()
+    if (!value) return
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const response = await api.post<{ id: number; grade: string }>("/meta/grades", { grade: value })
+      await fetchGradesWithIds()
+      setRollsStock(prev => prev.map((r, i) =>
+        i === index ? { ...r, gradeId: response.data.id, grade: response.data.grade } : r
+      ))
+      setTimeout(() => gradeInputRefs.current[index]?.focus(), 100)
+    } catch (err: any) {
+      console.error("Failed to create grade:", err)
+      setError(err.response?.data?.detail ?? "Failed to create grade")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -294,6 +335,7 @@ export default function StockEntryItems() {
           return voucher
         }),
         fetchUomsWithIds(),
+        fetchGradesWithIds(),
         fetchItems(),
         fetchRollsStock(),
         fetchTemplates(),
@@ -360,6 +402,8 @@ export default function StockEntryItems() {
             itemId: 0,
             itemCode: "",
             itemName: "",
+            gradeId: undefined,
+            grade: "",
             rollno: "",
             size: 0,
             micron: 0,
@@ -393,6 +437,7 @@ export default function StockEntryItems() {
         micron: row.micron || undefined,
         netweight: row.netweight || undefined,
         grossweight: row.grossweight || undefined,
+        gradeId: row.gradeId,
         stockVoucherId: Number(voucherId),
       }
 
@@ -406,6 +451,8 @@ export default function StockEntryItems() {
               itemId: updated.itemId,
               itemCode: updated.itemCode,
               itemName: updated.itemName,
+              gradeId: updated.gradeId,
+              grade: updated.grade ?? "",
               rollno: updated.rollno,
               size: updated.size,
               micron: updated.micron,
@@ -414,13 +461,14 @@ export default function StockEntryItems() {
               isEditing: false,
             } : r
           )
-          // Add a new empty row at the end if there isn't one already
           const hasEmptyRow = updatedRows.some(r => !r.id && r.isEditing)
           if (!hasEmptyRow) {
             return [...updatedRows, {
               itemId: 0,
               itemCode: "",
               itemName: "",
+              gradeId: undefined,
+              grade: "",
               rollno: "",
               size: 0,
               micron: 0,
@@ -441,6 +489,8 @@ export default function StockEntryItems() {
               itemId: created.itemId,
               itemCode: created.itemCode,
               itemName: created.itemName,
+              gradeId: created.gradeId,
+              grade: created.grade ?? "",
               rollno: created.rollno,
               size: created.size,
               micron: created.micron,
@@ -449,11 +499,12 @@ export default function StockEntryItems() {
               isEditing: false,
             } : r
           )
-          // Add a new empty row at the end
           return [...updatedRows, {
             itemId: 0,
             itemCode: "",
             itemName: "",
+            gradeId: undefined,
+            grade: "",
             rollno: "",
             size: 0,
             micron: 0,
@@ -483,6 +534,8 @@ export default function StockEntryItems() {
             itemId: 0,
             itemCode: "",
             itemName: "",
+            gradeId: undefined,
+            grade: "",
             rollno: "",
             size: 0,
             micron: 0,
@@ -503,13 +556,14 @@ export default function StockEntryItems() {
       await deleteRollsStock(row.id)
       setRollsStock(prev => {
         const filtered = prev.filter((_, i) => i !== index)
-        // Ensure at least one empty row exists after deletion
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
           return [...filtered, {
             itemId: 0,
             itemCode: "",
             itemName: "",
+            gradeId: undefined,
+            grade: "",
             rollno: "",
             size: 0,
             micron: 0,
@@ -520,7 +574,6 @@ export default function StockEntryItems() {
         }
         return filtered
       })
-      // Remove from selected rows if it was selected
       setSelectedRows(prev => {
         const newSet = new Set(prev)
         newSet.delete(row.id!)
@@ -551,13 +604,14 @@ export default function StockEntryItems() {
       // Remove deleted rows from state
       setRollsStock(prev => {
         const filtered = prev.filter(row => !row.id || !selectedRows.has(row.id))
-        // Ensure at least one empty row exists after deletion
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
           return [...filtered, {
             itemId: 0,
             itemCode: "",
             itemName: "",
+            gradeId: undefined,
+            grade: "",
             rollno: "",
             size: 0,
             micron: 0,
@@ -568,8 +622,6 @@ export default function StockEntryItems() {
         }
         return filtered
       })
-      
-      // Clear selected rows
       setSelectedRows(new Set())
     } catch (err: any) {
       console.error("Error deleting rolls stock:", err)
@@ -736,6 +788,18 @@ export default function StockEntryItems() {
     const aboveRow = rollsStock[index - 1]
     if (!aboveRow) return
     
+    // Grade: copy both gradeId and grade from above row
+    if (field === "gradeId") {
+      const aboveGradeId = aboveRow.gradeId
+      const aboveGrade = aboveRow.grade
+      if (aboveGradeId != null && aboveGrade != null && aboveGrade !== "") {
+        setRollsStock(prev => prev.map((r, i) =>
+          i === index ? { ...r, gradeId: aboveGradeId, grade: aboveGrade } : r
+        ))
+      }
+      return
+    }
+
     const aboveValue = aboveRow[field]
     // For numeric fields, allow 0 as a valid value to copy
     // For string fields, only copy if not empty
@@ -768,7 +832,7 @@ export default function StockEntryItems() {
         if (aboveRow?.itemId) {
           handleFieldChange(index, "itemId", aboveRow.itemId.toString())
           setTimeout(() => {
-            rollnoInputRefs.current[index]?.focus()
+            gradeInputRefs.current[index]?.focus()
           }, 100)
           return
         }
@@ -776,33 +840,27 @@ export default function StockEntryItems() {
       // If empty, select first option if available
       if (itemOptions.length > 0) {
         handleFieldChange(index, "itemId", itemOptions[0].value)
-        // Move to next field
         setTimeout(() => {
-          rollnoInputRefs.current[index]?.focus()
+          gradeInputRefs.current[index]?.focus()
         }, 100)
       }
       return
     }
 
-    // Filter options to find matches (check both label and description)
     const filtered = itemOptions.filter(option =>
       option.label.toLowerCase().includes(searchValue.toLowerCase()) ||
       option.description?.toLowerCase().includes(searchValue.toLowerCase())
     )
 
     if (filtered.length > 0) {
-      // Select first matching option
       handleFieldChange(index, "itemId", filtered[0].value)
-      // Move to next field
       setTimeout(() => {
-        rollnoInputRefs.current[index]?.focus()
+        gradeInputRefs.current[index]?.focus()
       }, 100)
     } else {
-      // No match found, create new item
       await handleCreateItem(searchValue, index)
-      // Move to next field after item is created
       setTimeout(() => {
-        rollnoInputRefs.current[index]?.focus()
+        gradeInputRefs.current[index]?.focus()
       }, 200)
     }
   }
@@ -857,9 +915,17 @@ export default function StockEntryItems() {
     { id: "sno", header: "S.No", cell: () => null, enableColumnFilter: false },
     {
       id: "item",
-      accessorFn: (row) => `${row.itemCode} ${row.itemName}`.trim(),
+      accessorFn: (row) => row.itemCode ?? "",
       header: ({ column }) => (
         <ColumnHeader title="Item" column={column} placeholder="Filter item..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "grade",
+      header: ({ column }) => (
+        <ColumnHeader title="Grade" column={column} placeholder="Filter grade..." />
       ),
       cell: () => null,
       filterFn,
@@ -1046,6 +1112,38 @@ export default function StockEntryItems() {
                         </div>
                       </TableCell>
                       <TableCell className="py-1 px-2">
+                        <div className="[&_input]:h-8">
+                          <CreatableCombobox
+                            options={gradeOptions.map((g) => ({ value: String(g.id), label: g.grade }))}
+                            value={row.gradeId != null ? String(row.gradeId) : null}
+                            onValueChange={(val) => {
+                              const id = val ? Number(val) : undefined
+                              const opt = gradeOptions.find((gr) => gr.id === id)
+                              setRollsStock(prev => prev.map((r, i) =>
+                                i === index ? { ...r, gradeId: id, grade: opt?.grade ?? "" } : r
+                              ))
+                            }}
+                            onCreateOption={(label) => handleCreateGrade(label, index)}
+                            placeholder="Grade"
+                            searchPlaceholder="Search grade..."
+                            createLabel="Create grade"
+                            triggerRef={(el) => {
+                              gradeInputRefs.current[index] = el
+                            }}
+                            onInputKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                // If empty and not first row, copy grade from above
+                                if ((row.gradeId == null || !row.grade) && index > 0) {
+                                  copyValueFromAbove(index, "gradeId")
+                                }
+                                rollnoInputRefs.current[index]?.focus()
+                              }
+                            }}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1 px-2">
                         <Input
                           ref={(el) => {
                             rollnoInputRefs.current[index] = el
@@ -1214,7 +1312,8 @@ export default function StockEntryItems() {
                       <TableCell className="text-center py-1 px-2">
                         {index + 1}
                       </TableCell>
-                      <TableCell className="py-1 px-2">{row.itemCode} - {row.itemName}</TableCell>
+                      <TableCell className="py-1 px-2">{row.itemCode}</TableCell>
+                      <TableCell className="py-1 px-2">{row.grade || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.rollno || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.size || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.micron || "-"}</TableCell>

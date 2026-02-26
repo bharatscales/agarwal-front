@@ -172,7 +172,7 @@ export function ChemIssuesReport({ group }: Props) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => openRestoreDialog(selectedRows)}
+              onClick={() => openRestoreDialog(selectedRows as ChemStockRow[])}
             >
               <RotateCcw className="h-4 w-4 mr-2" />
               Restore selected ({selectedRows.length})

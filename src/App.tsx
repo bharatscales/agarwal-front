@@ -25,12 +25,12 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/masters/item" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="admin" allowStockDepartment>
                 <Layout />
               </ProtectedRoute>
             } />
             <Route path="/masters/party" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="admin" allowStockDepartment>
                 <Layout />
               </ProtectedRoute>
             } />

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 import api from "@/lib/axios"
 import { getItems, createItem, updateItem, deleteItem, type ItemPayload } from "@/lib/item-api"
+import { useAuth } from "@/contexts/AuthContext"
 
 type ItemForm = {
   itemCode: string
@@ -18,6 +19,9 @@ type ItemForm = {
 }
 
 export default function Item() {
+  const { user } = useAuth()
+  const canEdit = user?.role === "admin" || user?.role === "superuser"
+
   const fallbackItemGroups: CreatableOption[] = [
     { value: "rm film", label: "RM Film" },
     { value: "rm ink/adhesive/chemicals", label: "RM Ink/Adhesive/Chemicals" },
@@ -298,7 +302,8 @@ export default function Item() {
       setError(null)
     } catch (err: any) {
       console.error("Error deleting item:", err)
-      setError("Failed to delete item. Please try again.")
+      const msg = err.response?.data?.detail ?? "Failed to delete item. Please try again."
+      setError(typeof msg === "string" ? msg : "Failed to delete item. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -406,10 +411,12 @@ export default function Item() {
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={handleAddItem} size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Item</span>
-            </Button>
+            {canEdit && (
+              <Button onClick={handleAddItem} size="sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Item</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -433,6 +440,7 @@ export default function Item() {
             columns={getItemColumns({
               onEdit: handleEditItemOpen,
               onDelete: handleDeleteItem,
+              canEdit,
             })}
             data={items}
           />

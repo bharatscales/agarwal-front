@@ -8,6 +8,7 @@ export type ChemStockPayload = {
   color?: string
   qty?: number
   uomId?: number
+  gradeId?: number
   stockVoucherId: number
 }
 
@@ -20,6 +21,8 @@ export type ChemStockRow = {
   qty: number
   uomId: number
   uom: string
+  gradeId?: number
+  grade: string
   stockVoucherId: number
   issued: boolean
   issuedAt: string | null
@@ -34,6 +37,8 @@ type ChemStockResponse = {
   qty?: number | null
   uom_id?: number | null
   uom?: string | null
+  grade_id?: number | null
+  grade?: string | null
   stock_voucher_id?: number | null
   issued?: boolean
   issued_at?: string | null
@@ -48,6 +53,8 @@ const mapChemStock = (row: ChemStockResponse): ChemStockRow => ({
   qty: row.qty ?? 0,
   uomId: row.uom_id ?? 0,
   uom: row.uom ?? "",
+  gradeId: row.grade_id ?? undefined,
+  grade: row.grade ?? "",
   stockVoucherId: row.stock_voucher_id ?? 0,
   issued: row.issued ?? false,
   issuedAt: row.issued_at ?? null,
@@ -80,6 +87,7 @@ export const createChemStock = async (payload: ChemStockPayload): Promise<ChemSt
     color: payload.color ?? null,
     qty: payload.qty ?? null,
     uom_id: payload.uomId ?? null,
+    grade_id: payload.gradeId ?? null,
     stock_voucher_id: payload.stockVoucherId,
   })
   return mapChemStock(response.data)
@@ -94,6 +102,7 @@ export const updateChemStock = async (
   if (payload.color !== undefined) body.color = payload.color
   if (payload.qty !== undefined) body.qty = payload.qty
   if (payload.uomId !== undefined) body.uom_id = payload.uomId
+  if (payload.gradeId !== undefined) body.grade_id = payload.gradeId
   const response = await api.patch<ChemStockResponse>(`/chem-stock/${chemStockId}`, body)
   return mapChemStock(response.data)
 }

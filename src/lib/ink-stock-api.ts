@@ -9,6 +9,8 @@ export type InkStockRow = {
   qty: number
   uomId: number
   uom: string
+  gradeId?: number
+  grade?: string
   stockVoucherId: number
   issued: boolean
   issuedAt: string | null
@@ -23,6 +25,8 @@ type InkStockResponse = {
   qty?: number | null
   uom_id?: number | null
   uom?: string | null
+  grade_id?: number | null
+  grade?: string | null
   stock_voucher_id?: number | null
   issued?: boolean
   issued_at?: string | null
@@ -37,6 +41,8 @@ const mapInkStock = (row: InkStockResponse): InkStockRow => ({
   qty: row.qty ?? 0,
   uomId: row.uom_id ?? 0,
   uom: row.uom ?? "",
+  gradeId: row.grade_id ?? undefined,
+  grade: row.grade ?? "",
   stockVoucherId: row.stock_voucher_id ?? 0,
   issued: row.issued ?? false,
   issuedAt: row.issued_at ?? null,
