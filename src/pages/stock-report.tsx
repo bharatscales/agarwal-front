@@ -18,7 +18,6 @@ export default function StockReport() {
   const [searchParams] = useSearchParams()
   const itemCodeFilter = searchParams.get("itemCode") ?? undefined
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
-  const [skip, setSkip] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -36,7 +35,6 @@ export default function StockReport() {
     try {
       if (reset) {
         setIsLoading(true)
-        setSkip(0)
         setHasMore(true)
         nextSkipRef.current = 0
       }
@@ -46,13 +44,10 @@ export default function StockReport() {
       const data = await getAllRollsStock(start, limit, false)
       if (reset) {
         setRollsStock(data)
-        setSkip(data.length)
         nextSkipRef.current = data.length
       } else {
         setRollsStock((prev) => [...prev, ...data])
-        const newSkip = start + data.length
-        setSkip(newSkip)
-        nextSkipRef.current = newSkip
+        nextSkipRef.current = start + data.length
       }
       setHasMore(data.length === limit)
     } catch (err: unknown) {
