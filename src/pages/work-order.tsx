@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowRight, Plus, RefreshCw, X } from "lucide-react"
+import { ArrowRight, Plus, RefreshCw, Search, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getWorkOrderColumns, type WorkOrderMaster } from "@/components/columns/work-order-columns"
 import { Button } from "@/components/ui/button"
@@ -54,6 +54,7 @@ export default function WorkOrder() {
   })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof WorkOrderForm, string>>>({})
   const [workOrders, setWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [woNumberSearch, setWoNumberSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<WorkOrderForm>({
@@ -283,12 +284,12 @@ export default function WorkOrder() {
   const fetchParties = async () => {
     try {
       const data = await getAllParties()
-      // Filter parties to only show customer or both types
-      const filteredParties = data.filter(p => p.partyType === "customer" || p.partyType === "both")
-      setPartyOptions(filteredParties.map(p => ({
-        value: p.id.toString(),
-        label: `${p.partyCode} - ${p.partyName}`,
-      })))
+      setPartyOptions(
+        data.map(p => ({
+          value: p.id.toString(),
+          label: p.partyCode,
+        }))
+      )
     } catch (error) {
       console.error("Failed to load parties:", error)
     }
@@ -299,10 +300,12 @@ export default function WorkOrder() {
       const data = await getItems()
       // Filter items to only show those with item group "fg variety"
       const filteredItems = data.filter(item => item.itemGroup === "fg variety")
-      setItemOptions(filteredItems.map(i => ({
-        value: i.id.toString(),
-        label: `${i.itemCode} - ${i.itemName}`,
-      })))
+      setItemOptions(
+        filteredItems.map(i => ({
+          value: i.id.toString(),
+          label: i.itemCode,
+        }))
+      )
     } catch (error) {
       console.error("Failed to load items:", error)
     }
@@ -311,10 +314,12 @@ export default function WorkOrder() {
   const fetchMachines = async () => {
     try {
       const data = await getAllMachines()
-      setMachines(data.map(m => ({
-        value: m.id.toString(),
-        label: `${m.machineCode} - ${m.machineName}`,
-      })))
+      setMachines(
+        data.map(m => ({
+          value: m.id.toString(),
+          label: m.machineCode,
+        }))
+      )
     } catch (error) {
       console.error("Failed to load machines:", error)
     }
@@ -397,12 +402,28 @@ export default function WorkOrder() {
         </div>
       ) : (
         <div>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Work order number"
+                value={woNumberSearch}
+                onChange={(e) => setWoNumberSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
           <DataTable
             columns={getWorkOrderColumns({
               onEdit: handleEditWorkOrderOpen,
               onDelete: handleDeleteWorkOrder,
             })}
-            data={workOrders}
+            data={workOrders.filter((wo) => {
+              if (!woNumberSearch.trim()) return true
+              const woNum = (wo.woNumber ?? "").toString()
+              return woNum.toLowerCase().includes(woNumberSearch.trim().toLowerCase())
+            })}
             onRowClick={(workOrder) => {
               navigate(`/manufacturing/work-order/${workOrder.id}`)
             }}

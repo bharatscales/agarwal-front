@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, RefreshCw } from "lucide-react"
+import { ArrowLeft, RefreshCw, ScanBarcode } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import { getAllJobCards } from "@/lib/job-card-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
@@ -126,6 +127,7 @@ export default function WorkOrderDetail() {
   }, {} as Record<string, JobCard[]>)
 
   const operations = Object.keys(jobCardsByOperation).sort()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   if (isLoading) {
     return (
@@ -161,8 +163,8 @@ export default function WorkOrderDetail() {
   }
 
   return (
-    <div className="px-6 pt-2 pb-6">
-      <div className="mb-6">
+    <div className="px-1 sm:px-3 pt-2 pb-1">
+      <div className="mb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -174,11 +176,19 @@ export default function WorkOrderDetail() {
               Back
             </Button>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold">
-                Work Order: {workOrder.woNumber || `#${workOrder.id}`}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold">
+                  Work Order: {workOrder.woNumber || `#${workOrder.id}`}
+                </h1>
+                <Badge className={getStatusColor(workOrder.status)}>
+                  {workOrder.status.replace("_", " ").toUpperCase()}
+                </Badge>
+                <Badge className={getPriorityColor(workOrder.priority)}>
+                  {(workOrder.priority || "normal").toUpperCase()}
+                </Badge>
+              </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                View work order details and job cards
+                Created at {formatDate(workOrder.createdAt)}
               </p>
             </div>
           </div>
@@ -190,19 +200,9 @@ export default function WorkOrderDetail() {
       </div>
 
       {/* Work Order Details */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Work Order Information</CardTitle>
-          <CardDescription>Basic details of the work order</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">WO Number</p>
-              <p className="text-sm font-semibold mt-1">
-                {workOrder.woNumber || <span className="text-gray-400">-</span>}
-              </p>
-            </div>
+      <Card className="mb-1 py-1">
+        <CardContent className="pt-1">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-1">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Party</p>
               <p className="text-sm font-semibold mt-1">
@@ -229,22 +229,6 @@ export default function WorkOrderDetail() {
                 {workOrder.producedQty.toFixed(2)} KG
               </p>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
-              <Badge className={`mt-1 ${getStatusColor(workOrder.status)}`}>
-                {workOrder.status.replace("_", " ").toUpperCase()}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Priority</p>
-              <Badge className={`mt-1 ${getPriorityColor(workOrder.priority)}`}>
-                {(workOrder.priority || "normal").toUpperCase()}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Created At</p>
-              <p className="text-sm mt-1">{formatDate(workOrder.createdAt)}</p>
-            </div>
             {workOrder.startedAt && (
               <div>
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Started At</p>
@@ -263,22 +247,15 @@ export default function WorkOrderDetail() {
 
       {/* Job Cards by Operation */}
       {operations.length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-1">
           {operations.map((operation) => (
-            <Card key={operation}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{operation}</span>
-                  <Badge variant="outline">{jobCardsByOperation[operation].length} Job Card(s)</Badge>
-                </CardTitle>
-                <CardDescription>Job cards for {operation} operation</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+            <Card key={operation} className="py-1">
+              <CardContent className="pt-1">
+                <div className="space-y-2">
                   {jobCardsByOperation[operation].map((card) => (
-                    <Card key={card.id} className="bg-gray-50 dark:bg-gray-900/50">
-                      <CardContent className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card key={card.id} className="bg-gray-50 dark:bg-gray-900/50 py-1">
+                      <CardContent className="pt-1 space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div>
                             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Job Card Number</p>
                             <p className="text-sm font-semibold mt-1">{card.jobCardNumber}</p>
@@ -339,6 +316,35 @@ export default function WorkOrderDetail() {
                               <p className="text-sm mt-1">{formatDate(card.finishedAt)}</p>
                             </div>
                           )}
+                        </div>
+                        <div className="mt-1 max-w-xs">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Scan roll / ink QR code
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Input
+                                type="text"
+                                placeholder="Scan roll or ink QR..."
+                                className="pr-8"
+                              />
+                              {/* Mobile-only camera trigger inside field */}
+                              <button
+                                type="button"
+                                className="sm:hidden absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
+                                onClick={() => fileInputRef.current?.click()}
+                              >
+                                <ScanBarcode className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                            />
+                          </div>
                         </div>
                       </CardContent>
                     </Card>

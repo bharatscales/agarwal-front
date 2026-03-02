@@ -165,6 +165,11 @@ export function AppSidebar() {
     currentUser?.role === "user" &&
     (currentUser?.department?.toLowerCase() === "stock" || currentUser?.department === "Stock");
 
+  // Printing department user: hide Stock Entry and RM stock reports
+  const isPrintingUser =
+    currentUser?.role === "user" &&
+    (currentUser?.department?.toLowerCase() === "printing" || currentUser?.department === "Printing");
+
 
 
   const toggleMasters = () => {
@@ -455,6 +460,10 @@ export function AppSidebar() {
                   if (isStockUser) {
                     return item.title === "Stock Entry";
                   }
+                  // Printing user: hide Stock Entry
+                  if (isPrintingUser && item.title === "Stock Entry") {
+                    return false;
+                  }
                   return true;
                 })
                 .map((item) => (
@@ -486,6 +495,8 @@ export function AppSidebar() {
               </SidebarMenuItem>
               {isReportsOpen && (
                 <div className="ml-4 space-y-1">
+                  {!isPrintingUser && (
+                    <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmRollsStock}
@@ -535,6 +546,8 @@ export function AppSidebar() {
                       })}
                     </div>
                   )}
+                    </>
+                  )}
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={location.pathname === "/manufacturing/reports/roll-issues"}
@@ -546,6 +559,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarSeparator className="my-2" />
+                  {!isPrintingUser && (
+                    <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmInkStock}
@@ -595,6 +610,8 @@ export function AppSidebar() {
                       })}
                     </div>
                   )}
+                    </>
+                  )}
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={location.pathname === "/manufacturing/reports/ink-issues"}
@@ -606,6 +623,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarSeparator className="my-2" />
+                  {!isPrintingUser && (
+                    <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmAdhesiveStock}
@@ -655,6 +674,8 @@ export function AppSidebar() {
                       })}
                     </div>
                   )}
+                    </>
+                  )}
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={location.pathname === "/manufacturing/reports/adhesive-issues"}
@@ -666,6 +687,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarSeparator className="my-2" />
+                  {!isPrintingUser && (
+                    <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={toggleRmChemicalStock}
@@ -714,6 +737,8 @@ export function AppSidebar() {
                         );
                       })}
                     </div>
+                  )}
+                    </>
                   )}
                   <SidebarMenuItem>
                     <SidebarMenuButton

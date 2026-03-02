@@ -50,9 +50,23 @@ function MobileMenuToggle() {
   );
 }
 
+// Paths that printing department users (role=user, department=Printing) must not access
+const PRINTING_USER_BLOCKED_PATHS = [
+  "/manufacturing/stock-entry",
+  "/manufacturing/reports/stock",
+  "/manufacturing/reports/ink-stock",
+  "/manufacturing/reports/adhesive-stock",
+  "/manufacturing/reports/chemical-stock",
+];
+const isPrintingUserBlockedPath = (path: string) =>
+  path === "/manufacturing/stock-entry" ||
+  path.startsWith("/manufacturing/stock-entry/") ||
+  PRINTING_USER_BLOCKED_PATHS.includes(path);
+
 export default function Layout() {
   const location = useLocation();
   const [stockUserBlock, setStockUserBlock] = useState<boolean | null>(null);
+  const [printingUserBlock, setPrintingUserBlock] = useState<boolean | null>(null);
 
   // Block work-order and job-card for stock department users (role=user, department=stock)
   useEffect(() => {
@@ -82,6 +96,29 @@ export default function Layout() {
     };
   }, [location.pathname]);
 
+  // Block stock-entry and RM stock reports for printing department users (role=user, department=Printing)
+  useEffect(() => {
+    if (!isPrintingUserBlockedPath(location.pathname)) {
+      setPrintingUserBlock(false);
+      return;
+    }
+    let cancelled = false;
+    getCurrentUser()
+      .then((user) => {
+        if (cancelled) return;
+        const isPrinting =
+          user.role === "user" &&
+          (user.department?.toLowerCase() === "printing" || user.department === "Printing");
+        setPrintingUserBlock(!!isPrinting);
+      })
+      .catch(() => {
+        if (!cancelled) setPrintingUserBlock(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
+
   const renderContent = () => {
     const isBlockedPath =
       location.pathname === "/manufacturing/work-order" ||
@@ -91,6 +128,16 @@ export default function Layout() {
       return <Navigate to="/home" replace />;
     }
     if (isBlockedPath && stockUserBlock === null) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+        </div>
+      );
+    }
+    if (isPrintingUserBlockedPath(location.pathname) && printingUserBlock === true) {
+      return <Navigate to="/home" replace />;
+    }
+    if (isPrintingUserBlockedPath(location.pathname) && printingUserBlock === null) {
       return (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
