@@ -1,12 +1,12 @@
 import { type ColumnDef } from "@tanstack/react-table"
 import { ColumnHeader } from "@/components/column-header"
 import { Checkbox } from "@/components/ui/checkbox"
-import type { InkStockRow } from "@/lib/ink-stock-api"
-import { availableQty } from "@/lib/ink-stock-api"
+import type { ChemStockRow } from "@/lib/chem-stock-api"
+import { availableQtyChem } from "@/lib/chem-stock-api"
 
-export type { InkStockRow } from "@/lib/ink-stock-api"
+export type { ChemStockRow } from "@/lib/chem-stock-api"
 
-const issuedAtColumn: ColumnDef<InkStockRow> = {
+const issuedAtColumn: ColumnDef<ChemStockRow> = {
   accessorKey: "issuedAt",
   header: ({ column }) => (
     <ColumnHeader title="Issued At" column={column} placeholder="Filter..." />
@@ -20,11 +20,11 @@ const issuedAtColumn: ColumnDef<InkStockRow> = {
   ),
 }
 
-export const getInkStockColumns = (options?: {
+export const getChemStockColumns = (options?: {
   showIssuedAt?: boolean
   /** When true (e.g. Issued report), Qty column shows issuedQty; otherwise shows available (qty - issuedQty) */
   showIssuedReport?: boolean
-}): ColumnDef<InkStockRow>[] => [
+}): ColumnDef<ChemStockRow>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -69,6 +69,15 @@ export const getInkStockColumns = (options?: {
     ),
   },
   {
+    accessorKey: "barcode",
+    header: ({ column }) => (
+      <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm font-mono">{row.original.barcode ?? "-"}</div>
+    ),
+  },
+  {
     accessorKey: "color",
     header: ({ column }) => (
       <ColumnHeader title="Color" column={column} placeholder="Filter color..." />
@@ -89,7 +98,7 @@ export const getInkStockColumns = (options?: {
   {
     id: "qty",
     accessorFn: (row) =>
-      options?.showIssuedReport ? (row.issuedQty ?? 0) : availableQty(row),
+      options?.showIssuedReport ? (row.issuedQty ?? 0) : availableQtyChem(row),
     header: ({ column }) => (
       <ColumnHeader title={options?.showIssuedReport ? "Issued Qty" : "Qty"} column={column} placeholder="Filter..." />
     ),

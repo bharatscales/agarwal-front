@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { getAllWorkOrders } from "@/lib/work-order-api"
-import { getAllJobCards } from "@/lib/job-card-api"
+import { getAllJobCards, scanRoll, mapJobCard, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 
 type JobCard = {
@@ -84,6 +84,10 @@ export default function WorkOrderDetail() {
   const [jobCards, setJobCards] = useState<JobCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [scanValue, setScanValue] = useState<Record<number, string>>({})
+  const [scanMessage, setScanMessage] = useState<Record<number, { type: "success" | "error"; text: string }>>({})
+  const [scanningCardId, setScanningCardId] = useState<number | null>(null)
+  const [currentRollByCard, setCurrentRollByCard] = useState<Record<number, CurrentRoll | null>>({})
 
   const fetchData = async () => {
     if (!id) return
@@ -104,6 +108,28 @@ export default function WorkOrderDetail() {
       // Fetch job cards for this work order
       const cards = await getAllJobCards(0, 1000, parseInt(id))
       setJobCards(cards)
+
+      // Fetch current loaded roll for each Printing job card
+      const printingCards = cards.filter((c) => c.operation === "Printing")
+      if (printingCards.length > 0) {
+        const results = await Promise.all(
+          printingCards.map(async (c) => {
+            try {
+              const roll = await getCurrentRoll(c.id)
+              return { id: c.id, roll }
+            } catch {
+              return { id: c.id, roll: null }
+            }
+          })
+        )
+        setCurrentRollByCard((prev) => {
+          const next: Record<number, CurrentRoll | null> = { ...prev }
+          for (const r of results) {
+            next[r.id] = r.roll
+          }
+          return next
+        })
+      }
     } catch (err: any) {
       console.error("Error fetching data:", err)
       setError("Failed to load work order details. Please try again.")
@@ -115,6 +141,61 @@ export default function WorkOrderDetail() {
   useEffect(() => {
     fetchData()
   }, [id])
+
+  const handleScanRoll = async (card: JobCard, barcode: string) => {
+    const trimmed = barcode.trim()
+    if (!trimmed || card.operation !== "Printing") return
+    setScanningCardId(card.id)
+    setScanMessage((prev) => ({ ...prev, [card.id]: { type: "success", text: "" } }))
+    try {
+      const data = await scanRoll(card.id, trimmed)
+      setWorkOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: data.work_order.status,
+              startedAt: data.work_order.started_at ?? prev.startedAt,
+            }
+          : null
+      )
+      setJobCards((prev) =>
+        prev.map((c) => (c.id === card.id ? mapJobCard(data.job_card) : c))
+      )
+      setCurrentRollByCard((prev) => ({ ...prev, [card.id]: data.roll }))
+      setScanValue((prev) => ({ ...prev, [card.id]: "" }))
+      const parts: string[] = [`Roll ${data.roll.barcode}`]
+      if (data.roll.size != null) parts.push(`Size ${data.roll.size}`)
+      if (data.roll.micron != null) parts.push(`Micron ${data.roll.micron}`)
+      if (data.roll.netweight != null) parts.push(`Weight ${data.roll.netweight.toFixed(2)} KG`)
+      const detailText = parts.join(" • ")
+      setScanMessage((prev) => ({
+        ...prev,
+        [card.id]: {
+          type: "success",
+          text: `${detailText} loaded`,
+        },
+      }))
+      setTimeout(() => {
+        setScanMessage((prev) => {
+          const next = { ...prev }
+          delete next[card.id]
+          return next
+        })
+      }, 4000)
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } }; message?: string })
+          ?.response?.data?.detail ||
+        (err as { message?: string })?.message ||
+        "Failed to load roll"
+      setScanMessage((prev) => ({
+        ...prev,
+        [card.id]: { type: "error", text: msg },
+      }))
+    } finally {
+      setScanningCardId(null)
+    }
+  }
 
   // Group job cards by operation
   const jobCardsByOperation = jobCards.reduce((acc, card) => {
@@ -274,7 +355,7 @@ export default function WorkOrderDetail() {
                             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Shift</p>
                             <p className="text-sm font-semibold mt-1">{card.shift}</p>
                           </div>
-                          {card.inputQty !== null && card.inputQty !== undefined && (
+                          {card.operation !== "Printing" && card.inputQty !== null && card.inputQty !== undefined && (
                             <div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Input Qty (KG)</p>
                               <p className="text-sm font-semibold mt-1">{card.inputQty.toFixed(2)}</p>
@@ -292,7 +373,7 @@ export default function WorkOrderDetail() {
                               <p className="text-sm font-semibold mt-1">{card.wastageQty.toFixed(2)}</p>
                             </div>
                           )}
-                          {card.inputRollCount !== null && card.inputRollCount !== undefined && (
+                          {card.operation !== "Printing" && card.inputRollCount !== null && card.inputRollCount !== undefined && (
                             <div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Input Roll Count</p>
                               <p className="text-sm font-semibold mt-1">{card.inputRollCount}</p>
@@ -317,35 +398,121 @@ export default function WorkOrderDetail() {
                             </div>
                           )}
                         </div>
-                        <div className="mt-1 max-w-xs">
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Scan roll / ink QR code
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <Input
-                                type="text"
-                                placeholder="Scan roll or ink QR..."
-                                className="pr-8"
+                        {card.operation === "Printing" && (
+                          <div className="mt-1 max-w-xs">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                              Scan roll barcode (then Enter)
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <Input
+                                  type="text"
+                                  placeholder="Scan roll barcode..."
+                                  className="pr-8"
+                                  value={scanValue[card.id] ?? ""}
+                                  onChange={(e) =>
+                                    setScanValue((prev) => ({
+                                      ...prev,
+                                      [card.id]: e.target.value,
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault()
+                                      handleScanRoll(
+                                        card,
+                                        scanValue[card.id] ?? ""
+                                      )
+                                    }
+                                  }}
+                                  disabled={scanningCardId === card.id}
+                                />
+                                <button
+                                  type="button"
+                                  className="sm:hidden absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
+                                  onClick={() => fileInputRef.current?.click()}
+                                >
+                                  <ScanBarcode className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
                               />
-                              {/* Mobile-only camera trigger inside field */}
-                              <button
-                                type="button"
-                                className="sm:hidden absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
-                                onClick={() => fileInputRef.current?.click()}
-                              >
-                                <ScanBarcode className="h-4 w-4" />
-                              </button>
                             </div>
-                            <input
-                              ref={fileInputRef}
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="hidden"
-                            />
+                            {scanMessage[card.id] && (
+                              <p
+                                className={
+                                  scanMessage[card.id].type === "success"
+                                    ? "text-sm text-green-600 dark:text-green-400 mt-1"
+                                    : "text-sm text-red-600 dark:text-red-400 mt-1"
+                                }
+                              >
+                                {scanMessage[card.id].text}
+                              </p>
+                            )}
+                            {currentRollByCard[card.id] && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                  Loaded rolls
+                                </p>
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full border border-gray-200 dark:border-gray-700 text-[11px]">
+                                    <thead className="bg-gray-100 dark:bg-gray-800/60">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+                                          Roll Barcode
+                                        </th>
+                                        <th className="px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+                                          Item Name
+                                        </th>
+                                        <th className="px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+                                          Size
+                                        </th>
+                                        <th className="px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+                                          Micron
+                                        </th>
+                                        <th className="px-2 py-1 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+                                          Net Weight (KG)
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      <tr>
+                                        <td className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100">
+                                          {currentRollByCard[card.id]?.barcode}
+                                        </td>
+                                        <td className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100">
+                                          {currentRollByCard[card.id]?.itemName ||
+                                            currentRollByCard[card.id]?.item_name ||
+                                            "-"}
+                                        </td>
+                                        <td className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100">
+                                          {currentRollByCard[card.id]?.size != null
+                                            ? currentRollByCard[card.id]?.size
+                                            : "-"}
+                                        </td>
+                                        <td className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100">
+                                          {currentRollByCard[card.id]?.micron != null
+                                            ? currentRollByCard[card.id]?.micron
+                                            : "-"}
+                                        </td>
+                                        <td className="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100">
+                                          {currentRollByCard[card.id]?.netweight != null
+                                            ? currentRollByCard[card.id]?.netweight?.toFixed(2)
+                                            : "-"}
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

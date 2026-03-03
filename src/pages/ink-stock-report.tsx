@@ -3,7 +3,14 @@ import { useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getInkStockColumns, type InkStockRow } from "@/components/columns/ink-stock-columns"
-import { getAllInkStock, exportInkStockItemWiseXlsx, exportInkStockSummaryXlsx, bulkIssueInkStock } from "@/lib/ink-stock-api"
+import {
+  getAllInkStock,
+  exportInkStockItemWiseXlsx,
+  exportInkStockSummaryXlsx,
+  bulkIssueInkStockWithQty,
+  availableQty,
+  type BulkIssueInkStockItem,
+} from "@/lib/ink-stock-api"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,6 +18,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function InkStockReport() {
   const [searchParams] = useSearchParams()
@@ -21,6 +38,10 @@ export default function InkStockReport() {
   const [isExporting, setIsExporting] = useState(false)
   const [isIssuing, setIsIssuing] = useState(false)
   const [tableKey, setTableKey] = useState(0)
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false)
+  const [issueRows, setIssueRows] = useState<InkStockRow[]>([])
+  const [issueQtyById, setIssueQtyById] = useState<Record<number, number>>({})
+  const [issueErrorsById, setIssueErrorsById] = useState<Record<number, string | null>>({})
   const filteredInkStock = useMemo(() => {
     if (!itemCodeFilter) return inkStock
     return inkStock.filter((row) => row.itemCode === itemCodeFilter)
@@ -50,12 +71,12 @@ export default function InkStockReport() {
   }
 
   const handleBulkIssue = useCallback(
-    async (selectedRows: InkStockRow[]) => {
-      if (selectedRows.length === 0) return
+    async (items: BulkIssueInkStockItem[]) => {
+      if (items.length === 0) return
       try {
         setIsIssuing(true)
         setError(null)
-        await bulkIssueInkStock(selectedRows.map((r) => r.id))
+        await bulkIssueInkStockWithQty(items)
         await fetchInkStock()
         setTableKey((k) => k + 1)
       } catch (err) {
@@ -65,8 +86,66 @@ export default function InkStockReport() {
         setIsIssuing(false)
       }
     },
-    []
+    [fetchInkStock]
   )
+
+  const openIssueDialog = (selectedRows: InkStockRow[]) => {
+    if (selectedRows.length === 0) return
+    const qtyMap: Record<number, number> = {}
+    selectedRows.forEach((row) => {
+      qtyMap[row.id] = availableQty(row)
+    })
+    setIssueRows(selectedRows)
+    setIssueQtyById(qtyMap)
+    setIssueErrorsById({})
+    setIssueDialogOpen(true)
+  }
+
+  const handleIssueQtyChange = (id: number, value: string) => {
+    const num = parseFloat(value)
+    setIssueQtyById((prev) => ({
+      ...prev,
+      [id]: Number.isNaN(num) ? 0 : num,
+    }))
+  }
+
+  const handleConfirmIssue = async () => {
+    if (issueRows.length === 0) return
+
+    const newErrors: Record<number, string | null> = {}
+    const items: BulkIssueInkStockItem[] = []
+    let hasError = false
+
+    for (const row of issueRows) {
+      const qty = issueQtyById[row.id] ?? 0
+      if (qty <= 0) {
+        newErrors[row.id] = "Quantity must be greater than zero"
+        hasError = true
+        continue
+      }
+      const available = availableQty(row)
+      if (qty > available) {
+        newErrors[row.id] = "Quantity cannot be greater than available"
+        hasError = true
+        continue
+      }
+      newErrors[row.id] = null
+      items.push({ id: row.id, issueQty: qty })
+    }
+
+    setIssueErrorsById(newErrors)
+    if (hasError) return
+
+    try {
+      await handleBulkIssue(items)
+      setIssueDialogOpen(false)
+      setIssueRows([])
+      setIssueQtyById({})
+      setIssueErrorsById({})
+    } catch {
+      // Errors are already handled in handleBulkIssue
+    }
+  }
 
   const handleItemWiseExportXlsx = async () => {
     try {
@@ -202,7 +281,7 @@ export default function InkStockReport() {
             <Button
               size="sm"
               variant="default"
-              onClick={() => handleBulkIssue(selectedRows)}
+              onClick={() => openIssueDialog(selectedRows)}
               disabled={isIssuing}
             >
               <Send className="h-4 w-4 mr-2" />
@@ -211,6 +290,93 @@ export default function InkStockReport() {
           )}
         />
       )}
+
+      <Dialog
+        open={issueDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIssueDialogOpen(false)
+            setIssueRows([])
+            setIssueQtyById({})
+            setIssueErrorsById({})
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
+              Issue RM Ink Stock
+            </DialogTitle>
+            <DialogDescription className="text-gray-700 dark:text-gray-200">
+              Enter the quantity to issue for each selected stock entry. You can issue partial quantities; the
+              remaining balance will stay in stock.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3 max-h-80 overflow-y-auto pr-1">
+            {issueRows.map((row) => {
+              const available = availableQty(row)
+              const value = issueQtyById[row.id] ?? available
+              const errorMsg = issueErrorsById[row.id] ?? null
+              return (
+                <div
+                  key={row.id}
+                  className="border border-gray-200 dark:border-gray-800 rounded-md p-2 flex flex-col gap-1"
+                >
+                  <div className="text-xs text-gray-700 dark:text-gray-200 flex flex-wrap gap-3">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {row.itemCode} — {row.itemName}
+                    </span>
+                    {row.grade && <span className="text-gray-700 dark:text-gray-200">Grade: {row.grade}</span>}
+                    {row.color && <span className="text-gray-700 dark:text-gray-200">Color: {row.color}</span>}
+                    <span>
+                      Available:{" "}
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {available} {row.uom}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor={`issue-qty-${row.id}`}
+                      className="text-xs w-24 text-gray-700 dark:text-gray-200"
+                    >
+                      Issue qty
+                    </Label>
+                    <Input
+                      id={`issue-qty-${row.id}`}
+                      type="number"
+                      step="0.01"
+                      className="h-8"
+                      value={value}
+                      onChange={(e) => handleIssueQtyChange(row.id, e.target.value)}
+                    />
+                  </div>
+                  {errorMsg && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errorMsg}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIssueDialogOpen(false)
+                setIssueRows([])
+                setIssueQtyById({})
+                setIssueErrorsById({})
+              }}
+              disabled={isIssuing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmIssue} disabled={isIssuing || issueRows.length === 0}>
+              {isIssuing ? "Issuing..." : "Confirm issue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

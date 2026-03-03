@@ -34,6 +34,7 @@ type ChemStockRow = {
   uom: string
   gradeId?: number
   grade: string
+  barcode?: string
   isEditing?: boolean
 }
 
@@ -534,9 +535,12 @@ export default function StockEntryChemItems() {
     setIsPrinting(true)
     try {
       const printData = {
-        // Chem stock details
+        // Chem stock details (barcode for template / print agent)
         itemCode: row.itemCode,
         itemName: row.itemName,
+        barcode: row.barcode ?? "",
+        quantity: row.qty,
+        unit: row.uom || "",
         color: row.color || "",
         qty: row.qty,
         uom: row.uom || "",
@@ -628,6 +632,9 @@ export default function StockEntryChemItems() {
         const printData = {
           itemCode: row.itemCode,
           itemName: row.itemName,
+          barcode: row.barcode ?? "",
+          quantity: row.qty,
+          unit: row.uom || "",
           color: row.color || "",
           qty: row.qty,
           uom: row.uom || "",
@@ -865,6 +872,14 @@ export default function StockEntryChemItems() {
       filterFn,
     },
     {
+      accessorKey: "barcode",
+      header: ({ column }) => (
+        <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
       accessorKey: "color",
       header: ({ column }) => (
         <ColumnHeader title="Color" column={column} placeholder="Filter color..." />
@@ -1033,6 +1048,7 @@ export default function StockEntryChemItems() {
                           />
                         </div>
                       </TableCell>
+                      <TableCell className="py-1 px-2 font-mono text-sm">{row.barcode ?? "-"}</TableCell>
                       <TableCell className="py-1 px-2">
                         <Input
                           ref={(el) => {
@@ -1153,6 +1169,7 @@ export default function StockEntryChemItems() {
                         {index + 1}
                       </TableCell>
                       <TableCell className="py-1 px-2">{row.itemCode}</TableCell>
+                      <TableCell className="py-1 px-2 font-mono text-sm">{row.barcode ?? "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.color || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.grade || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.qty || "-"}</TableCell>

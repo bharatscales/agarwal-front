@@ -40,7 +40,7 @@ type JobCardResponse = {
   created_at?: string
 }
 
-const mapJobCard = (jc: JobCardResponse) => ({
+export const mapJobCard = (jc: JobCardResponse) => ({
   id: jc.id,
   jobCardNumber: jc.job_card_number,
   workOrderId: jc.work_order_id,
@@ -122,5 +122,49 @@ export const updateJobCard = async (jobCardId: number, payload: Partial<JobCardP
 
 export const deleteJobCard = async (jobCardId: number) => {
   await api.delete(`/job-card/${jobCardId}`)
+}
+
+export type ScanRollResponse = {
+  job_card: JobCardResponse
+  work_order: { id: number; status: string; started_at: string | null }
+  roll: {
+    id: number
+    barcode: string
+    size?: number
+    micron?: number
+    netweight?: number
+    issued: boolean
+    issued_at: string | null
+    // support both possible API keys for item name
+    item_name?: string
+    itemName?: string
+  }
+}
+
+export const scanRoll = async (jobCardId: number, barcode: string): Promise<ScanRollResponse> => {
+  const response = await api.post<ScanRollResponse>(`/job-card/${jobCardId}/scan-roll`, { barcode: barcode.trim() })
+  return response.data
+}
+
+export type CurrentRoll = {
+  id: number
+  barcode: string
+  size?: number
+  micron?: number
+  netweight?: number
+  issued: boolean
+  issued_at: string | null
+  // support both possible API keys for item name
+  item_name?: string
+  itemName?: string
+}
+
+type CurrentRollResponse = {
+  roll: CurrentRoll | null
+}
+
+export const getCurrentRoll = async (jobCardId: number): Promise<CurrentRoll | null> => {
+  const response = await api.get<CurrentRollResponse>(`/job-card/${jobCardId}/current-roll`)
+  return response.data.roll ?? null
 }
 

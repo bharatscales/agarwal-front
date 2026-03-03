@@ -7,6 +7,7 @@ export type InkStockRow = {
   itemName: string
   color: string
   qty: number
+  issuedQty: number
   uomId: number
   uom: string
   gradeId?: number
@@ -16,6 +17,11 @@ export type InkStockRow = {
   issuedAt: string | null
 }
 
+/** Available quantity in stock (total - issued). */
+export function availableQty(row: InkStockRow): number {
+  return (row.qty ?? 0) - (row.issuedQty ?? 0)
+}
+
 type InkStockResponse = {
   id: number
   item_id: number | null
@@ -23,6 +29,7 @@ type InkStockResponse = {
   item_name?: string | null
   color?: string | null
   qty?: number | null
+  issued_qty?: number | null
   uom_id?: number | null
   uom?: string | null
   grade_id?: number | null
@@ -39,6 +46,7 @@ const mapInkStock = (row: InkStockResponse): InkStockRow => ({
   itemName: row.item_name ?? "",
   color: row.color ?? "",
   qty: row.qty ?? 0,
+  issuedQty: row.issued_qty ?? 0,
   uomId: row.uom_id ?? 0,
   uom: row.uom ?? "",
   gradeId: row.grade_id ?? undefined,
@@ -65,6 +73,24 @@ export const getAllInkStock = async (
 
 export const bulkIssueInkStock = async (ids: number[]): Promise<{ updated: number }> => {
   const response = await api.post<{ updated: number }>("/chem-stock/bulk-issue", { ids })
+  return response.data
+}
+
+export type BulkIssueInkStockItem = {
+  id: number
+  issueQty: number
+}
+
+export const bulkIssueInkStockWithQty = async (
+  items: BulkIssueInkStockItem[]
+): Promise<{ updated: number }> => {
+  const payload = {
+    items: items.map((item) => ({
+      id: item.id,
+      issue_qty: item.issueQty,
+    })),
+  }
+  const response = await api.post<{ updated: number }>("/chem-stock/bulk-issue-with-qty", payload)
   return response.data
 }
 

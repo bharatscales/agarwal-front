@@ -19,6 +19,8 @@ export type ChemStockRow = {
   itemName: string
   color: string
   qty: number
+  issuedQty: number
+  barcode: string
   uomId: number
   uom: string
   gradeId?: number
@@ -28,6 +30,11 @@ export type ChemStockRow = {
   issuedAt: string | null
 }
 
+/** Available quantity in stock (total - issued). */
+export function availableQtyChem(row: ChemStockRow): number {
+  return (row.qty ?? 0) - (row.issuedQty ?? 0)
+}
+
 type ChemStockResponse = {
   id: number
   item_id: number | null
@@ -35,6 +42,8 @@ type ChemStockResponse = {
   item_name?: string | null
   color?: string | null
   qty?: number | null
+  issued_qty?: number | null
+  barcode?: string | null
   uom_id?: number | null
   uom?: string | null
   grade_id?: number | null
@@ -51,6 +60,8 @@ const mapChemStock = (row: ChemStockResponse): ChemStockRow => ({
   itemName: row.item_name ?? "",
   color: row.color ?? "",
   qty: row.qty ?? 0,
+  issuedQty: row.issued_qty ?? 0,
+  barcode: row.barcode ?? "",
   uomId: row.uom_id ?? 0,
   uom: row.uom ?? "",
   gradeId: row.grade_id ?? undefined,
@@ -79,6 +90,16 @@ export const getAllChemStock = async (
 export const getChemStockByVoucher = async (voucherId: number): Promise<ChemStockRow[]> => {
   const response = await api.get<ChemStockResponse[]>(`/chem-stock/voucher/${voucherId}`)
   return response.data.map(mapChemStock)
+}
+
+/** Look up chem stock by barcode (for job card scan). */
+export const getChemStockByBarcode = async (barcode: string): Promise<ChemStockRow | null> => {
+  try {
+    const response = await api.get<ChemStockResponse>(`/chem-stock/by-barcode/${encodeURIComponent(barcode.trim())}`)
+    return mapChemStock(response.data)
+  } catch {
+    return null
+  }
 }
 
 export const createChemStock = async (payload: ChemStockPayload): Promise<ChemStockRow> => {
@@ -113,6 +134,24 @@ export const deleteChemStock = async (chemStockId: number): Promise<void> => {
 
 export const bulkIssueChemStock = async (ids: number[]): Promise<{ updated: number }> => {
   const response = await api.post<{ updated: number }>("/chem-stock/bulk-issue", { ids })
+  return response.data
+}
+
+export type BulkIssueChemStockItem = {
+  id: number
+  issueQty: number
+}
+
+export const bulkIssueChemStockWithQty = async (
+  items: BulkIssueChemStockItem[]
+): Promise<{ updated: number }> => {
+  const payload = {
+    items: items.map((item) => ({
+      id: item.id,
+      issue_qty: item.issueQty,
+    })),
+  }
+  const response = await api.post<{ updated: number }>("/chem-stock/bulk-issue-with-qty", payload)
   return response.data
 }
 

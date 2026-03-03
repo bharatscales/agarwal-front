@@ -159,7 +159,7 @@ export default function InkIssuesReport() {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getInkStockColumns({ showIssuedAt: true })}
+          columns={getInkStockColumns({ showIssuedAt: true, showIssuedReport: true })}
           data={inkStock}
           getRowId={(row) => String(row.id)}
           bulkActions={(selectedRows) => (

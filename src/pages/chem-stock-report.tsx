@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
-import { getInkStockColumns } from "@/components/columns/ink-stock-columns"
+import { getChemStockColumns } from "@/components/columns/chem-stock-columns"
 import {
   getAllChemStock,
   exportChemStockItemWiseXlsx,
   exportChemStockSummaryXlsx,
-  bulkIssueChemStock,
+  bulkIssueChemStockWithQty,
+  availableQtyChem,
   getChemGroupLabel,
   type ChemStockRow,
   type ChemItemGroup,
@@ -19,6 +20,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 type Props = { group: ChemItemGroup }
 
@@ -32,6 +43,10 @@ export function ChemStockReport({ group }: Props) {
   const [isIssuing, setIsIssuing] = useState(false)
   const [tableKey, setTableKey] = useState(0)
   const label = getChemGroupLabel(group)
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false)
+  const [issueRows, setIssueRows] = useState<ChemStockRow[]>([])
+  const [issueQtyById, setIssueQtyById] = useState<Record<number, number>>({})
+  const [issueErrorsById, setIssueErrorsById] = useState<Record<number, string | null>>({})
   const filteredData = useMemo(() => {
     if (!itemCodeFilter) return data
     return data.filter((row) => row.itemCode === itemCodeFilter)
@@ -57,12 +72,12 @@ export function ChemStockReport({ group }: Props) {
   }, [fetchData])
 
   const handleBulkIssue = useCallback(
-    async (selectedRows: ChemStockRow[]) => {
-      if (selectedRows.length === 0) return
+    async (items: { id: number; issueQty: number }[]) => {
+      if (items.length === 0) return
       try {
         setIsIssuing(true)
         setError(null)
-        await bulkIssueChemStock(selectedRows.map((r) => r.id))
+        await bulkIssueChemStockWithQty(items)
         await fetchData()
         setTableKey((k) => k + 1)
       } catch (err) {
@@ -74,6 +89,64 @@ export function ChemStockReport({ group }: Props) {
     },
     [fetchData]
   )
+
+  const openIssueDialog = (selectedRows: ChemStockRow[]) => {
+    if (selectedRows.length === 0) return
+    const qtyMap: Record<number, number> = {}
+    selectedRows.forEach((row) => {
+      qtyMap[row.id] = availableQtyChem(row)
+    })
+    setIssueRows(selectedRows)
+    setIssueQtyById(qtyMap)
+    setIssueErrorsById({})
+    setIssueDialogOpen(true)
+  }
+
+  const handleIssueQtyChange = (id: number, value: string) => {
+    const num = parseFloat(value)
+    setIssueQtyById((prev) => ({
+      ...prev,
+      [id]: Number.isNaN(num) ? 0 : num,
+    }))
+  }
+
+  const handleConfirmIssue = async () => {
+    if (issueRows.length === 0) return
+
+    const newErrors: Record<number, string | null> = {}
+    const items: { id: number; issueQty: number }[] = []
+    let hasError = false
+
+    for (const row of issueRows) {
+      const qty = issueQtyById[row.id] ?? 0
+      if (qty <= 0) {
+        newErrors[row.id] = "Quantity must be greater than zero"
+        hasError = true
+        continue
+      }
+      const available = availableQtyChem(row)
+      if (qty > available) {
+        newErrors[row.id] = "Quantity cannot be greater than available"
+        hasError = true
+        continue
+      }
+      newErrors[row.id] = null
+      items.push({ id: row.id, issueQty: qty })
+    }
+
+    setIssueErrorsById(newErrors)
+    if (hasError) return
+
+    try {
+      await handleBulkIssue(items)
+      setIssueDialogOpen(false)
+      setIssueRows([])
+      setIssueQtyById({})
+      setIssueErrorsById({})
+    } catch {
+      // Errors already handled in handleBulkIssue
+    }
+  }
 
   const handleItemWiseExportXlsx = async () => {
     try {
@@ -196,14 +269,14 @@ export function ChemStockReport({ group }: Props) {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getInkStockColumns()}
+          columns={getChemStockColumns()}
           data={filteredData}
           getRowId={(row) => String(row.id)}
           bulkActions={(selectedRows) => (
             <Button
               size="sm"
               variant="default"
-              onClick={() => handleBulkIssue(selectedRows as ChemStockRow[])}
+              onClick={() => openIssueDialog(selectedRows as ChemStockRow[])}
               disabled={isIssuing}
             >
               <Send className="h-4 w-4 mr-2" />
@@ -212,6 +285,93 @@ export function ChemStockReport({ group }: Props) {
           )}
         />
       )}
+
+      <Dialog
+        open={issueDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIssueDialogOpen(false)
+            setIssueRows([])
+            setIssueQtyById({})
+            setIssueErrorsById({})
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
+              Issue Rm {label} Stock
+            </DialogTitle>
+            <DialogDescription className="text-gray-700 dark:text-gray-200">
+              Enter the quantity to issue for each selected {label.toLowerCase()} stock entry. You can issue partial
+              quantities; the remaining balance will stay in stock.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3 max-h-80 overflow-y-auto pr-1">
+            {issueRows.map((row) => {
+              const available = availableQtyChem(row)
+              const value = issueQtyById[row.id] ?? available
+              const errorMsg = issueErrorsById[row.id] ?? null
+              return (
+                <div
+                  key={row.id}
+                  className="border border-gray-200 dark:border-gray-800 rounded-md p-2 flex flex-col gap-1"
+                >
+                  <div className="text-xs text-gray-700 dark:text-gray-200 flex flex-wrap gap-3">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {row.itemCode} — {row.itemName}
+                    </span>
+                    {row.grade && <span className="text-gray-700 dark:text-gray-200">Grade: {row.grade}</span>}
+                    {row.color && <span className="text-gray-700 dark:text-gray-200">Color: {row.color}</span>}
+                    <span>
+                      Available:{" "}
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {available} {row.uom}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor={`chem-issue-qty-${row.id}`}
+                      className="text-xs w-24 text-gray-700 dark:text-gray-200"
+                    >
+                      Issue qty
+                    </Label>
+                    <Input
+                      id={`chem-issue-qty-${row.id}`}
+                      type="number"
+                      step="0.01"
+                      className="h-8"
+                      value={value}
+                      onChange={(e) => handleIssueQtyChange(row.id, e.target.value)}
+                    />
+                  </div>
+                  {errorMsg && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errorMsg}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIssueDialogOpen(false)
+                setIssueRows([])
+                setIssueQtyById({})
+                setIssueErrorsById({})
+              }}
+              disabled={isIssuing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmIssue} disabled={isIssuing || issueRows.length === 0}>
+              {isIssuing ? "Issuing..." : "Confirm issue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

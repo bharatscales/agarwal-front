@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { RefreshCw, FileSpreadsheet, RotateCcw } from "lucide-react"
 import { DataTable } from "@/components/data-table"
-import { getInkStockColumns } from "@/components/columns/ink-stock-columns"
+import { getChemStockColumns } from "@/components/columns/chem-stock-columns"
 import {
   getAllChemStock,
   exportChemStockSummaryXlsx,
@@ -165,7 +165,7 @@ export function ChemIssuesReport({ group }: Props) {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getInkStockColumns({ showIssuedAt: true })}
+          columns={getChemStockColumns({ showIssuedAt: true, showIssuedReport: true })}
           data={data}
           getRowId={(row) => String(row.id)}
           bulkActions={(selectedRows) => (
