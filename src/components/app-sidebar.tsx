@@ -170,7 +170,10 @@ export function AppSidebar() {
     currentUser?.role === "user" &&
     (currentUser?.department?.toLowerCase() === "printing" || currentUser?.department === "Printing");
 
-
+  // Floor department user: hide entire Manufacturing menu
+  const isFloorUser =
+    currentUser?.role === "user" &&
+    (currentUser?.department?.toLowerCase() === "floor" || currentUser?.department === "Floor");
 
   const toggleMasters = () => {
     setIsMastersOpen(!isMastersOpen);
@@ -450,6 +453,7 @@ export function AppSidebar() {
           <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
         </div>
 
+        {!isFloorUser && (
         <SidebarGroup>
           <SidebarGroupLabel>Manufacturing</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -755,6 +759,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         {/* Separator */}
         <div className="px-4 py-2">

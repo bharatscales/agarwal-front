@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button"
 import { getCurrentUser } from "@/lib/user-api"
 import { useState, useEffect } from "react"
 import { Navigate } from "react-router-dom"
+import { useAuth } from "@/contexts/AuthContext"
 
 function MobileMenuToggle() {
   const { toggleSidebar, isMobile } = useSidebar();
@@ -65,8 +66,15 @@ const isPrintingUserBlockedPath = (path: string) =>
 
 export default function Layout() {
   const location = useLocation();
+  const { user, isLoading: authLoading } = useAuth();
   const [stockUserBlock, setStockUserBlock] = useState<boolean | null>(null);
   const [printingUserBlock, setPrintingUserBlock] = useState<boolean | null>(null);
+
+  const isFloorUser =
+    !authLoading &&
+    !!user &&
+    user.role === "user" &&
+    (user.department?.toLowerCase() === "floor" || user.department === "Floor");
 
   // Block work-order and job-card for stock department users (role=user, department=stock)
   useEffect(() => {
@@ -213,8 +221,16 @@ export default function Layout() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+      </div>
+    );
+  }
+
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={!isFloorUser}>
       <AppSidebar/>
       <main className="min-h-screen overflow-hidden dark:bg-gradient-to-br from-zinc-900 via-black to-zinc-900 w-full dark:text-white">
         <div className="flex-1 overflow-auto">

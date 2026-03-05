@@ -9,6 +9,8 @@ export type RollsStockPayload = {
   grossweight?: number
   gradeId?: number
   stockVoucherId: number
+  stage?: string
+  parentRollId?: number
 }
 
 type RollsStockResponse = {
@@ -28,6 +30,10 @@ type RollsStockResponse = {
   stock_voucher_id?: number | null
   issued?: boolean
   issued_at?: string | null
+  stage?: string | null
+  parent_roll_id?: number | null
+  consumed?: boolean
+  consumed_at?: string | null
 }
 
 const mapRollsStock = (rollsStock: RollsStockResponse) => ({
@@ -47,6 +53,10 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
   issued: rollsStock.issued ?? false,
   issuedAt: rollsStock.issued_at ?? null,
+  stage: rollsStock.stage ?? null,
+  parentRollId: rollsStock.parent_roll_id ?? null,
+  consumed: rollsStock.consumed ?? false,
+  consumedAt: rollsStock.consumed_at ?? null,
 })
 
 export const getRollsStockByVoucher = async (voucherId: number) => {
@@ -82,12 +92,17 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     grossweight: payload.grossweight,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
+    stage: payload.stage,
+    parent_roll_id: payload.parentRollId,
   })
   return mapRollsStock(response.data)
 }
 
-export const updateRollsStock = async (rollsStockId: number, payload: Partial<RollsStockPayload>) => {
-  const response = await api.patch<RollsStockResponse>(`/rolls-stock/${rollsStockId}`, {
+export const updateRollsStock = async (
+  rollsStockId: number,
+  payload: Partial<RollsStockPayload> & { consumed?: boolean }
+) => {
+  const body: Record<string, unknown> = {
     item_id: payload.itemId,
     rollno: payload.rollno,
     size: payload.size,
@@ -95,8 +110,31 @@ export const updateRollsStock = async (rollsStockId: number, payload: Partial<Ro
     netweight: payload.netweight,
     grossweight: payload.grossweight,
     grade_id: payload.gradeId,
-  })
+    stage: payload.stage,
+    parent_roll_id: payload.parentRollId,
+  }
+  if (payload.consumed !== undefined) body.consumed = payload.consumed
+  const response = await api.patch<RollsStockResponse>(`/rolls-stock/${rollsStockId}`, body)
   return mapRollsStock(response.data)
+}
+
+export const getRollsStockById = async (id: number) => {
+  const response = await api.get<RollsStockResponse>(`/rolls-stock/${id}`)
+  return mapRollsStock(response.data)
+}
+
+/** Fetch rolls whose parent_roll_id is in the given list (e.g. children of consumed/loaded rolls). */
+export const getRollsStockByParentIds = async (
+  parentRollIds: number[],
+  stage?: string
+) => {
+  if (parentRollIds.length === 0) return []
+  const params = new URLSearchParams({ parent_roll_ids: parentRollIds.join(",") })
+  if (stage != null && stage !== "") params.set("stage", stage)
+  const response = await api.get<RollsStockResponse[]>(`/rolls-stock/by-parent`, {
+    params,
+  })
+  return response.data.map(mapRollsStock)
 }
 
 export const deleteRollsStock = async (rollsStockId: number) => {

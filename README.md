@@ -34,6 +34,11 @@ Create `.env.local` in `frontend/agaarwal-front`:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
+Optional: for the Floor dashboard weight window (scale read from COM port on the user's PC), set a URL to a local bridge that serves the current weight (e.g. JSON `{ "weight": 12.5 }` or `{ "value": 12.5 }`):
+```bash
+VITE_WEIGHT_SCALE_URL=http://localhost:5000/weight
+```
+
 ### Run locally
 ```bash
 npm run dev

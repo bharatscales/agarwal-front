@@ -64,13 +64,21 @@ export const mapJobCard = (jc: JobCardResponse) => ({
   createdAt: jc.created_at,
 })
 
-export const getAllJobCards = async (skip = 0, limit = 100, workOrderId?: number) => {
+export const getAllJobCards = async (
+  skip = 0,
+  limit = 100,
+  workOrderId?: number,
+  operation?: string
+) => {
   const params = new URLSearchParams({
     skip: skip.toString(),
     limit: limit.toString(),
   })
   if (workOrderId) {
     params.append("work_order_id", workOrderId.toString())
+  }
+  if (operation) {
+    params.append("operation", operation)
   }
   const response = await api.get<JobCardResponse[]>(`/job-card/?${params.toString()}`)
   return response.data.map(mapJobCard)
@@ -166,5 +174,17 @@ type CurrentRollResponse = {
 export const getCurrentRoll = async (jobCardId: number): Promise<CurrentRoll | null> => {
   const response = await api.get<CurrentRollResponse>(`/job-card/${jobCardId}/current-roll`)
   return response.data.roll ?? null
+}
+
+/** Record roll job movement with direction 'out' (e.g. after creating WIP printed roll). */
+export const addRollMovementOut = async (
+  jobCardId: number,
+  rollId: number,
+  weightAtTime?: number
+): Promise<void> => {
+  await api.post(`/job-card/${jobCardId}/roll-movement-out`, {
+    roll_id: rollId,
+    weight_at_time: weightAtTime ?? undefined,
+  })
 }
 
