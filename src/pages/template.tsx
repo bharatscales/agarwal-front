@@ -32,6 +32,10 @@ const fileTypeOptions = [
 const defaultFormOptions = [
   { value: "stock_roll_stk", label: "Stock Roll STK" },
   { value: "stock_ink_stk", label: "Stock Ink STK" },
+  { value: "wip-printing", label: "WIP Printing" },
+  { value: "wip-lamination", label: "WIP Lamination" },
+  { value: "wip-slitting", label: "WIP Slitting" },
+  { value: "wip-ecl", label: "WIP ECL" },
 ]
 
 // Variables available for each default form type
@@ -69,6 +73,33 @@ const formVariables: Record<string, string[]> = {
     "stockVoucher.invoiceDate",
     "stockVoucher.stockType",
   ],
+  "wip-printing": [
+    "workOrder.id",
+    "workOrder.woNumber",
+    "workOrder.partyName",
+    "workOrder.partyCode",
+    "workOrder.itemName",
+    "workOrder.itemCode",
+    "workOrder.plannedQty",
+    "workOrder.producedQty",
+    "workOrder.status",
+    "workOrder.priority",
+    "workOrder.createdAt",
+    "workOrder.startedAt",
+    "workOrder.completedAt",
+    "jobCard.id",
+    "jobCard.jobCardNumber",
+    "roll.id",
+    "roll.barcode",
+    "roll.size",
+    "roll.micron",
+    "roll.netweight",
+    "roll.grossweight",
+    "roll.itemName",
+  ],
+  "wip-lamination": [],
+  "wip-slitting": [],
+  "wip-ecl": [],
 }
 
 // Helper function to generate JSON template based on type

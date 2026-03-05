@@ -60,10 +60,18 @@ export const getTemplateMasterColumns = ({
         return <div className="text-sm text-gray-400 dark:text-gray-500">-</div>
       }
       // Format the enum value for display
-      const displayValue = defaultForm === "stock_roll_stk" 
-        ? "Stock Roll STK" 
+      const displayValue = defaultForm === "stock_roll_stk"
+        ? "Stock Roll STK"
         : defaultForm === "stock_ink_stk"
         ? "Stock Ink STK"
+        : defaultForm === "wip-printing"
+        ? "WIP Printing"
+        : defaultForm === "wip-lamination"
+        ? "WIP Lamination"
+        : defaultForm === "wip-slitting"
+        ? "WIP Slitting"
+        : defaultForm === "wip-ecl"
+        ? "WIP ECL"
         : defaultForm
       return <div className="text-sm text-gray-600 dark:text-gray-400">{displayValue}</div>
     },

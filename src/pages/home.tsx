@@ -35,6 +35,8 @@ import {
   updateRollsStock,
   getRollsStockByParentIds,
 } from "@/lib/rolls-stock-api"
+import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
+import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
 import WorkOrder from "./work-order"
 
 const homeActions = [
@@ -114,6 +116,8 @@ export default function Home() {
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
   const [printingChildRollsLoading, setPrintingChildRollsLoading] = useState(false)
+  const [wipPrintingTemplate, setWipPrintingTemplate] = useState<TemplateMaster | null>(null)
+  const [printingPrintStatus, setPrintingPrintStatus] = useState<"idle" | "printing" | "done">("idle")
 
   const isStockUser =
     user?.role === "user" &&
@@ -305,6 +309,17 @@ export default function Home() {
       cancelled = true
     }
   }, [printingLoadedRolls])
+
+  // Fetch WIP printing template when on Floor Printing view (for Print button)
+  useEffect(() => {
+    if (!isFloorUser || floorView !== "printing") return
+    getAllTemplates(0, 200)
+      .then((data) => {
+        const t = data.find((template) => template.defaultForm === "wip-printing")
+        setWipPrintingTemplate(t ?? null)
+      })
+      .catch(() => setWipPrintingTemplate(null))
+  }, [isFloorUser, floorView])
 
   // When scale (serial) weight updates and add-roll form is open, use it for gross weight
   useEffect(() => {
@@ -906,12 +921,13 @@ export default function Home() {
                                 }
                                 onClick={async () => {
                                   const form = printingAddRollForm
-                                  if (form && printingSelectedWo?.itemId != null) {
+                                  const wo = printingSelectedWo
+                                  if (form && wo?.itemId != null) {
                                     try {
                                       setPrintingCreateChildLoading(true)
                                       setPrintingCreateChildMessage(null)
                                       const newRoll = await createRollsStock({
-                                        itemId: printingSelectedWo.itemId,
+                                        itemId: wo.itemId,
                                         rollno: "",
                                         size: form.size ? parseFloat(form.size) : undefined,
                                         micron: form.micron ? parseFloat(form.micron) : undefined,
@@ -925,19 +941,77 @@ export default function Home() {
                                       const weight = form.grossweight ? parseFloat(form.grossweight) : undefined
                                       await addRollMovementOut(form.jobCardId, newRoll.id, weight)
                                       setPrintingFormCommittedForRollId(form.roll.id)
-                                      setPrintingCreateChildMessage("Roll added and movement recorded.")
                                       const parentIds = printingLoadedRolls.map((r) => r.roll.id)
                                       getRollsStockByParentIds(parentIds, "wip_printed").then(
                                         setPrintingChildRollsFromDb
                                       )
-                                      window.print()
+
+                                      if (wipPrintingTemplate) {
+                                        const printData = {
+                                          workOrder: {
+                                            id: wo.id,
+                                            woNumber: wo.woNumber,
+                                            partyName: wo.partyName,
+                                            partyCode: wo.partyCode,
+                                            itemName: wo.itemName,
+                                            itemCode: wo.itemCode,
+                                            plannedQty: wo.plannedQty,
+                                            producedQty: wo.producedQty,
+                                            status: wo.status,
+                                            priority: wo.priority,
+                                            createdAt: wo.createdAt,
+                                            startedAt: wo.startedAt,
+                                            completedAt: wo.completedAt,
+                                          },
+                                          jobCard: {
+                                            id: form.jobCardId,
+                                            jobCardNumber: form.jobCardNumber,
+                                          },
+                                          roll: {
+                                            id: newRoll.id,
+                                            barcode: newRoll.barcode,
+                                            size: newRoll.size,
+                                            micron: newRoll.micron,
+                                            netweight: newRoll.netweight,
+                                            grossweight: newRoll.grossweight,
+                                            itemName: wo.itemName ?? newRoll.itemName,
+                                          },
+                                        }
+                                        const job = await createPrintJob({
+                                          name: `WIP Printing - ${form.jobCardNumber} - ${newRoll.barcode || newRoll.id}`,
+                                          template_id: wipPrintingTemplate.id,
+                                          data: printData,
+                                          copies: 1,
+                                        })
+                                        setPrintingCreateChildMessage("Roll added and label sent to printer.")
+                                        setPrintingPrintStatus("printing")
+                                        let pollCount = 0
+                                        const maxPolls = 30
+                                        const pollInterval = setInterval(async () => {
+                                          pollCount++
+                                          try {
+                                            const updatedJob = await getPrintJob(job.id)
+                                            if (updatedJob.status === "done") {
+                                              clearInterval(pollInterval)
+                                              setPrintingPrintStatus("done")
+                                              setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+                                            } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+                                              clearInterval(pollInterval)
+                                              setPrintingPrintStatus("idle")
+                                            }
+                                          } catch {
+                                            clearInterval(pollInterval)
+                                            setPrintingPrintStatus("idle")
+                                          }
+                                        }, 1000)
+                                      } else {
+                                        setPrintingCreateChildMessage("Roll added and movement recorded. No WIP printing template configured.")
+                                      }
                                     } catch {
                                       setPrintingCreateChildMessage("Failed to add roll or record movement.")
                                     } finally {
                                       setPrintingCreateChildLoading(false)
                                     }
-                                  } else {
-                                    window.print()
                                   }
                                 }}
                               >
@@ -1095,12 +1169,24 @@ export default function Home() {
               className={`text-xs font-semibold ${
                 !printerAvailable
                   ? "text-red-600 dark:text-red-400"
-                  : websocketConnected
-                    ? "text-gray-600 dark:text-gray-400"
-                    : "text-yellow-600 dark:text-yellow-400"
+                  : printingPrintStatus === "printing"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : printingPrintStatus === "done"
+                      ? "text-green-600 dark:text-green-400"
+                      : websocketConnected
+                        ? "text-gray-600 dark:text-gray-400"
+                        : "text-yellow-600 dark:text-yellow-400"
               }`}
             >
-              {!printerAvailable ? "Not available" : websocketConnected ? "Idle" : "Poll"}
+              {!printerAvailable
+                ? "Not available"
+                : printingPrintStatus === "printing"
+                  ? "Printing..."
+                  : printingPrintStatus === "done"
+                    ? "Done"
+                    : websocketConnected
+                      ? "Idle"
+                      : "Poll"}
             </span>
           </div>
         </div>
