@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { getAllParties } from "@/lib/party-api"
-import { getItems } from "@/lib/item-api"
+import { getPartyCustomers } from "@/lib/party-api"
+import { getItemsFgVarietyByParty } from "@/lib/item-api"
 import { getAllMachines } from "@/lib/machine-api"
 import { getAllOperators } from "@/lib/operator-api"
 import { createWorkOrder, deleteWorkOrder, getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
@@ -93,14 +93,26 @@ export default function WorkOrder() {
   }
 
   const handleInputChange = (field: keyof WorkOrderForm, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === "partyId") {
+        next.itemId = "" // Clear item when party changes
+      }
+      return next
+    })
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }))
     }
   }
 
   const handleEditInputChange = (field: keyof WorkOrderForm, value: string) => {
-    setEditFormData(prev => ({ ...prev, [field]: value }))
+    setEditFormData(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === "partyId") {
+        next.itemId = "" // Clear item when party changes
+      }
+      return next
+    })
     if (editErrors[field]) {
       setEditErrors(prev => ({ ...prev, [field]: undefined }))
     }
@@ -283,7 +295,7 @@ export default function WorkOrder() {
 
   const fetchParties = async () => {
     try {
-      const data = await getAllParties()
+      const data = await getPartyCustomers()
       setPartyOptions(
         data.map(p => ({
           value: p.id.toString(),
@@ -295,19 +307,18 @@ export default function WorkOrder() {
     }
   }
 
-  const fetchItems = async () => {
+  const fetchItemsForParty = async (partyId: number) => {
     try {
-      const data = await getItems()
-      // Filter items to only show those with item group "fg variety"
-      const filteredItems = data.filter(item => item.itemGroup === "fg variety")
+      const data = await getItemsFgVarietyByParty(partyId)
       setItemOptions(
-        filteredItems.map(i => ({
+        data.map(i => ({
           value: i.id.toString(),
           label: i.itemCode,
         }))
       )
     } catch (error) {
-      console.error("Failed to load items:", error)
+      console.error("Failed to load items for party:", error)
+      setItemOptions([])
     }
   }
 
@@ -351,11 +362,26 @@ export default function WorkOrder() {
 
   useEffect(() => {
     fetchParties()
-    fetchItems()
     fetchMachines()
     fetchOperators()
     fetchWorkOrders()
   }, [])
+
+  // When party changes in add form, load items for that party and clear item
+  useEffect(() => {
+    if (formData.partyId) {
+      fetchItemsForParty(parseInt(formData.partyId, 10))
+    } else {
+      setItemOptions([])
+    }
+  }, [formData.partyId])
+
+  // When party changes in edit form, load items for that party
+  useEffect(() => {
+    if (isEditWorkOrderOpen && editFormData.partyId) {
+      fetchItemsForParty(parseInt(editFormData.partyId, 10))
+    }
+  }, [isEditWorkOrderOpen, editFormData.partyId])
 
   return (
     <div className="px-6 pt-2 pb-6">

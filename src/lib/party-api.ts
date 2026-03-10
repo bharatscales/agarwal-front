@@ -27,6 +27,12 @@ export const getAllParties = async (skip = 0, limit = 100) => {
   return response.data.map(mapParty)
 }
 
+/** Parties of type customer or both (for work order form). */
+export const getPartyCustomers = async () => {
+  const response = await api.get<PartyResponse[]>("/meta/party-customers")
+  return response.data.map(mapParty)
+}
+
 export const createParty = async (payload: PartyPayload) => {
   const response = await api.post<PartyResponse>("/party/", {
     party_code: payload.partyCode,

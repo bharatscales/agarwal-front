@@ -9,12 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 import api from "@/lib/axios"
 import { getItems, createItem, updateItem, deleteItem, type ItemPayload } from "@/lib/item-api"
+import { getAllParties } from "@/lib/party-api"
 import { useAuth } from "@/contexts/AuthContext"
 
 type ItemForm = {
   itemCode: string
   itemName: string
   itemGroup: string
+  partyId: string
   uom: string
 }
 
@@ -38,6 +40,7 @@ export default function Item() {
     itemCode: "",
     itemName: "",
     itemGroup: "",
+    partyId: "",
     uom: "",
   })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
@@ -46,10 +49,12 @@ export default function Item() {
     itemCode: "",
     itemName: "",
     itemGroup: "",
+    partyId: "",
     uom: "",
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
   const [itemGroupOptions, setItemGroupOptions] = useState<CreatableOption[]>(fallbackItemGroups)
+  const [partyOptions, setPartyOptions] = useState<CreatableOption[]>([])
   const [uomOptions, setUomOptions] = useState<CreatableOption[]>(fallbackUoms)
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map()) // Map UOM name to ID
   const [isLoading, setIsLoading] = useState(true)
@@ -104,6 +109,7 @@ export default function Item() {
       itemCode: item.itemCode,
       itemName: item.itemName,
       itemGroup: item.itemGroup,
+      partyId: item.partyId != null ? String(item.partyId) : "",
       uom: item.uom,
     })
     setEditErrors({})
@@ -120,6 +126,9 @@ export default function Item() {
           itemCode: value,
           itemName: shouldSyncName ? value : prev.itemName,
         }
+      }
+      if (field === "itemGroup" && value !== "fg variety") {
+        return { ...prev, [field]: value, partyId: "" }
       }
       return { ...prev, [field]: value }
     })
@@ -150,6 +159,9 @@ export default function Item() {
           itemCode: value,
           itemName: shouldSyncName ? value : prev.itemName,
         }
+      }
+      if (field === "itemGroup" && value !== "fg variety") {
+        return { ...prev, [field]: value, partyId: "" }
       }
       return { ...prev, [field]: value }
     })
@@ -230,6 +242,7 @@ export default function Item() {
         itemCode: formData.itemCode.trim(),
         itemName: formData.itemName.trim() || formData.itemCode.trim(),
         itemGroup: formData.itemGroup.trim(),
+        partyId: formData.partyId.trim() ? parseInt(formData.partyId, 10) : undefined,
         uomId: uomId,
       }
 
@@ -239,6 +252,7 @@ export default function Item() {
         itemCode: "",
         itemName: "",
         itemGroup: "",
+        partyId: "",
         uom: "",
       })
       setFormErrors({})
@@ -268,6 +282,7 @@ export default function Item() {
         itemCode: editFormData.itemCode.trim(),
         itemName: editFormData.itemName.trim() || editFormData.itemCode.trim(),
         itemGroup: editFormData.itemGroup.trim(),
+        partyId: editFormData.partyId.trim() ? parseInt(editFormData.partyId, 10) : null,
         uomId: uomId,
       }
 
@@ -315,6 +330,7 @@ export default function Item() {
       itemCode: "",
       itemName: "",
       itemGroup: "",
+      partyId: "",
       uom: "",
     })
     setFormErrors({})
@@ -354,9 +370,21 @@ export default function Item() {
     fetchItemGroups()
   }, [])
 
+  const fetchParties = async () => {
+    try {
+      const data = await getAllParties()
+      setPartyOptions(
+        data.map(p => ({ value: p.id.toString(), label: p.partyCode }))
+      )
+    } catch (err) {
+      console.error("Failed to load parties:", err)
+    }
+  }
+
   useEffect(() => {
     fetchItems()
     fetchUomsWithIds()
+    fetchParties()
   }, [])
 
   useEffect(() => {
@@ -391,6 +419,7 @@ export default function Item() {
       itemCode: "",
       itemName: "",
       itemGroup: "",
+      partyId: "",
       uom: "",
     })
     setEditErrors({})
@@ -536,6 +565,21 @@ export default function Item() {
                     )}
                   </div>
 
+                  {formData.itemGroup === "fg variety" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="partyId">Party</Label>
+                      <CreatableCombobox
+                        options={partyOptions}
+                        value={formData.partyId || null}
+                        onValueChange={(value) =>
+                          handleInputChange("partyId", value ?? "")
+                        }
+                        placeholder="Select party"
+                        searchPlaceholder="Search party..."
+                      />
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="uom">Default Unit of Measure *</Label>
                     <CreatableCombobox
@@ -649,6 +693,21 @@ export default function Item() {
                       <p className="text-sm text-red-500">{editErrors.itemGroup}</p>
                     )}
                   </div>
+
+                  {editFormData.itemGroup === "fg variety" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-partyId">Party</Label>
+                      <CreatableCombobox
+                        options={partyOptions}
+                        value={editFormData.partyId || null}
+                        onValueChange={(value) =>
+                          handleEditInputChange("partyId", value ?? "")
+                        }
+                        placeholder="Select party"
+                        searchPlaceholder="Search party..."
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-uom">Default Unit of Measure *</Label>

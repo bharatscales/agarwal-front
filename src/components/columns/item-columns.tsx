@@ -15,6 +15,9 @@ export type Item = {
   itemCode: string
   itemName: string
   itemGroup: string
+  partyId?: number | null
+  partyCode?: string | null
+  partyName?: string | null
   uom: string
 }
 
@@ -55,6 +58,16 @@ export const getItemColumns = ({
     header: ({ column }) => (
       <ColumnHeader title="ITEM GROUP" column={column} placeholder="Filter item group..." />
     ),
+  },
+  {
+    accessorKey: "partyCode",
+    header: ({ column }) => (
+      <ColumnHeader title="PARTY" column={column} placeholder="Filter party..." />
+    ),
+    cell: ({ row }) => {
+      const partyCode = row.original.partyCode
+      return <div className="text-sm text-gray-600 dark:text-gray-400">{partyCode || "-"}</div>
+    },
   },
   {
     accessorKey: "uom",
