@@ -8,7 +8,8 @@ export type RollsStockPayload = {
   netweight?: number
   grossweight?: number
   gradeId?: number
-  stockVoucherId: number
+  /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
+  stockVoucherId?: number
   stage?: string
   parentRollId?: number
 }
