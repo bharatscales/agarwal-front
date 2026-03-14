@@ -1050,6 +1050,7 @@ export default function Home() {
                                       setPrintingCreateChildMessage(null)
                                       await updateRollsStock(form.roll.id, { consumed: true })
                                       setPrintingCreateChildMessage("Loaded roll marked as consumed.")
+                                      navigate("/home")
                                     } catch {
                                       setPrintingCreateChildMessage("Failed to mark roll as consumed.")
                                     } finally {
