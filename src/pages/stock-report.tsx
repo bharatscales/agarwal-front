@@ -5,6 +5,7 @@ import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx, bulkIssueRollsStock } from "@/lib/rolls-stock-api"
 import { Button } from "@/components/ui/button"
+import { getItems, type Item } from "@/lib/item-api"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ export default function StockReport() {
   const [searchParams] = useSearchParams()
   const itemCodeFilter = searchParams.get("itemCode") ?? undefined
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
+  const [items, setItems] = useState<Item[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -26,10 +28,24 @@ export default function StockReport() {
   const [isIssuing, setIsIssuing] = useState(false)
   const [tableKey, setTableKey] = useState(0)
   const nextSkipRef = useRef(0)
+  const itemCustomerMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of items) {
+      if (item.partyName) {
+        map[item.itemCode] = item.partyName
+      }
+    }
+    return map
+  }, [items])
+
   const filteredRollsStock = useMemo(() => {
-    if (!itemCodeFilter) return rollsStock
-    return rollsStock.filter((row) => row.itemCode === itemCodeFilter)
-  }, [rollsStock, itemCodeFilter])
+    const withCustomer: RollsStockRow[] = rollsStock.map((row) => ({
+      ...row,
+      customerName: itemCustomerMap[row.itemCode] ?? row.customerName ?? null,
+    }))
+    if (!itemCodeFilter) return withCustomer
+    return withCustomer.filter((row) => row.itemCode === itemCodeFilter)
+  }, [rollsStock, itemCodeFilter, itemCustomerMap])
 
   const fetchRollsStock = useCallback(async (reset = true) => {
     try {
@@ -68,6 +84,12 @@ export default function StockReport() {
 
   useEffect(() => {
     fetchRollsStock()
+  }, [])
+
+  useEffect(() => {
+    getItems(0, 1000)
+      .then(setItems)
+      .catch(() => setItems([]))
   }, [])
 
   const handleRefresh = () => {

@@ -97,11 +97,6 @@ export default function WorkOrder() {
     fetchWorkOrders()
   }
 
-  const getCurrentShift = () => {
-    const hour = new Date().getHours()
-    return hour < 14 ? "A" : "B"
-  }
-
   /** Inspection job cards get number from backend (JBI/1, JBI/2, …); we show a placeholder until created. */
   const INSPECTION_JOB_CARD_NUMBER_PLACEHOLDER = "Auto (from inspection series)"
 
@@ -161,7 +156,7 @@ export default function WorkOrder() {
         workOrderId: woInfo.workOrderId,
         woNumber: woInfo.woNumber,
         operation: "Inspection",
-        shift: getCurrentShift(),
+        shift: "",
         machineId: inspectionMachine.id,
         operatorName: "",
         inspectionOperators,
@@ -178,6 +173,10 @@ export default function WorkOrder() {
     if (!inspectionJobCardPayload) return
     if (!inspectionJobCardPayload.operatorName.trim()) {
       setInspectionJobCardError("Operator name is required.")
+      return
+    }
+    if (!inspectionJobCardPayload.shift.trim()) {
+      setInspectionJobCardError("Shift is required.")
       return
     }
     setInspectionJobCardError(null)
@@ -659,16 +658,36 @@ export default function WorkOrder() {
                 </div>
                 <div>
                   <span className="text-gray-500 dark:text-gray-400">Work order</span>
-                  <p className="font-medium">{inspectionJobCardPayload.woNumber ?? `WO ${inspectionJobCardPayload.workOrderId}`}</p>
+                  <p className="font-medium">
+                    {inspectionJobCardPayload.woNumber ?? `WO ${inspectionJobCardPayload.workOrderId}`}
+                  </p>
                 </div>
                 <div>
                   <span className="text-gray-500 dark:text-gray-400">Operation</span>
                   <p className="font-medium">{inspectionJobCardPayload.operation}</p>
                 </div>
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Shift</span>
-                  <p className="font-medium">{inspectionJobCardPayload.shift}</p>
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inspection-shift">Shift *</Label>
+                <Select
+                  value={inspectionJobCardPayload.shift || undefined}
+                  onValueChange={(value) =>
+                    setInspectionJobCardPayload((prev) =>
+                      prev ? { ...prev, shift: value } : null
+                    )
+                  }
+                >
+                  <SelectTrigger id="inspection-shift" className="w-full">
+                    <SelectValue placeholder="Select shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fallbackShifts.map((shift) => (
+                      <SelectItem key={shift} value={shift}>
+                        {shift}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="inspection-operator">Operator name *</Label>

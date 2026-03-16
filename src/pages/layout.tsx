@@ -16,6 +16,7 @@ import StockEntry from "./stock-entry"
 import StockEntryItems from "./stock-entry-items"
 import StockEntryChemItems from "./stock-entry-chem-items"
 import Reports from "./reports"
+import WipReport from "./wip-report"
 import StockReport from "./stock-report"
 import RollIssuesReport from "./roll-issues-report"
 import InkStockReport from "./ink-stock-report"
@@ -235,6 +236,21 @@ export default function Layout() {
         }
         if (location.pathname === "/manufacturing/reports/chemical-issues") {
           return <ChemicalIssuesReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/wip-all") {
+          return <WipReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/wip-printing") {
+          return <WipReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/wip-inspection") {
+          return <WipReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/wip-ecl") {
+          return <WipReport />;
+        }
+        if (location.pathname === "/manufacturing/reports/wip-lamination") {
+          return <WipReport />;
         }
         return <Home />;
     }

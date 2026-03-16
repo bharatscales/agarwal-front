@@ -8,6 +8,7 @@ export type RollsStockRow = {
   itemCode: string
   itemName: string
   vendorCode: string
+  customerName?: string | null
   gradeId?: number
   grade?: string
   rollno: string
@@ -18,6 +19,8 @@ export type RollsStockRow = {
   barcode?: string
   issued: boolean
   issuedAt: string | null
+  stage?: string | null
+  consumed?: boolean
 }
 
 const issuedAtColumn: ColumnDef<RollsStockRow> = {
@@ -79,24 +82,6 @@ export const getRollsStockColumns = (options?: { showIssuedAt?: boolean }): Colu
     ),
   },
   {
-    accessorKey: "grade",
-    header: ({ column }) => (
-      <ColumnHeader title="Grade" column={column} placeholder="Filter grade..." />
-    ),
-    cell: ({ row }) => (
-      <div className="text-sm">{row.original.grade || "-"}</div>
-    ),
-  },
-  {
-    accessorKey: "rollno",
-    header: ({ column }) => (
-      <ColumnHeader title="Roll No" column={column} placeholder="Filter roll no..." />
-    ),
-    cell: ({ row }) => (
-      <div className="text-sm">{row.getValue("rollno") || "-"}</div>
-    ),
-  },
-  {
     accessorKey: "size",
     header: ({ column }) => (
       <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
@@ -133,12 +118,34 @@ export const getRollsStockColumns = (options?: { showIssuedAt?: boolean }): Colu
     ),
   },
   {
-    accessorKey: "vendorCode",
+    id: "customer",
     header: ({ column }) => (
-      <ColumnHeader title="Vendor" column={column} placeholder="Filter vendor..." />
+      <ColumnHeader title="Customer" column={column} placeholder="Filter customer..." />
     ),
     cell: ({ row }) => (
-      <div className="text-sm">{row.getValue("vendorCode") || "-"}</div>
+      <div className="text-sm">
+        {row.original.customerName || row.original.vendorCode || "-"}
+      </div>
+    ),
+  },
+  {
+    accessorKey: "stage",
+    header: ({ column }) => (
+      <ColumnHeader title="Stage" column={column} placeholder="Filter stage..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">{row.original.stage || "-"}</div>
+    ),
+  },
+  {
+    accessorKey: "consumed",
+    header: ({ column }) => (
+      <ColumnHeader title="Consumed" column={column} placeholder="Filter..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">
+        {row.original.consumed ? "Yes" : "No"}
+      </div>
     ),
   },
   ...(options?.showIssuedAt ? [issuedAtColumn] : []),

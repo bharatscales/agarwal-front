@@ -14,10 +14,6 @@ import {
   Factory,
   Box,
   BarChart3,
-  Cylinder,
-  Droplets,
-  FlaskConical,
-  StickyNote,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -142,6 +138,8 @@ export function AppSidebar() {
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
+  const [isRmReportsOpen, setIsRmReportsOpen] = useState(false);
+  const [isWipReportsOpen, setIsWipReportsOpen] = useState(false);
   const [isRmRollsStockOpen, setIsRmRollsStockOpen] = useState(false);
   const [isRmInkStockOpen, setIsRmInkStockOpen] = useState(false);
   const [isRmAdhesiveStockOpen, setIsRmAdhesiveStockOpen] = useState(false);
@@ -188,6 +186,14 @@ export function AppSidebar() {
     setIsReportsOpen(!isReportsOpen);
   };
 
+  const toggleRmReports = () => {
+    setIsRmReportsOpen(!isRmReportsOpen);
+  };
+
+  const toggleWipReports = () => {
+    setIsWipReportsOpen(!isWipReportsOpen);
+  };
+
   const toggleRmRollsStock = () => {
     setIsRmRollsStockOpen(!isRmRollsStockOpen);
   };
@@ -208,6 +214,8 @@ export function AppSidebar() {
     if (state === "collapsed") {
       setIsMastersOpen(false);
       setIsReportsOpen(false);
+      setIsRmReportsOpen(false);
+      setIsWipReportsOpen(false);
       setIsRmRollsStockOpen(false);
       setIsRmInkStockOpen(false);
       setIsRmAdhesiveStockOpen(false);
@@ -219,6 +227,8 @@ export function AppSidebar() {
   useEffect(() => {
     if (location.pathname.startsWith("/manufacturing/reports/")) {
       setIsReportsOpen(true);
+      setIsRmReportsOpen(true);
+      setIsWipReportsOpen(true);
     }
   }, [location.pathname]);
 
@@ -511,261 +521,330 @@ export function AppSidebar() {
               </SidebarMenuItem>
               {isReportsOpen && (
                 <div className="ml-4 space-y-1">
-                  {!isPrintingUser && (
-                    <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      onClick={toggleRmRollsStock}
-                      className="w-full justify-between pl-8"
+                      onClick={toggleRmReports}
+                      className="w-full justify-between pl-6"
                     >
                       <div className="flex items-center">
-                        <Cylinder className="h-4 w-4 mr-2 rotate-90" />
-                        <span>Rm Film Stock</span>
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <span>RM Reports</span>
                       </div>
-                      {isRmRollsStockOpen ? (
+                      {isRmReportsOpen ? (
                         <ChevronDown className="h-4 w-4" />
                       ) : (
                         <ChevronRight className="h-4 w-4" />
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {isRmRollsStockOpen && (
-                    <div className="ml-4 space-y-1">
-                      <SidebarMenuItem key="stock-all">
+                  {isRmReportsOpen && (
+                    <div className="ml-2 space-y-1">
+                      {!isPrintingUser && (
+                        <>
+                      <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={
-                            location.pathname === "/manufacturing/reports/stock" &&
-                            !searchParams.get("itemCode")
-                          }
-                          onClick={() => handleNavigation("/manufacturing/reports/stock")}
-                          className="w-full pl-10"
+                          onClick={toggleRmRollsStock}
+                          className="w-full justify-between pl-8"
                         >
-                          <span>All</span>
+                          <span>Rm Film Stock</span>
+                          {isRmRollsStockOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      {rmFilmMenuItems.map((item) => {
-                        const itemPath = `/manufacturing/reports/stock?itemCode=${encodeURIComponent(item.item_code)}`;
-                        const isItemActive =
-                          location.pathname === "/manufacturing/reports/stock" &&
-                          searchParams.get("itemCode") === item.item_code;
-                        return (
-                          <SidebarMenuItem key={item.id}>
+                      {isRmRollsStockOpen && (
+                        <div className="ml-4 space-y-1">
+                          <SidebarMenuItem key="stock-all">
                             <SidebarMenuButton
-                              isActive={isItemActive}
-                              onClick={() => handleNavigation(itemPath)}
+                              isActive={
+                                location.pathname === "/manufacturing/reports/stock" &&
+                                !searchParams.get("itemCode")
+                              }
+                              onClick={() => handleNavigation("/manufacturing/reports/stock")}
                               className="w-full pl-10"
                             >
-                              <span>{item.item_code}</span>
+                              <span>All</span>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
-                        );
-                      })}
+                          {rmFilmMenuItems.map((item) => {
+                            const itemPath = `/manufacturing/reports/stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                            const isItemActive =
+                              location.pathname === "/manufacturing/reports/stock" &&
+                              searchParams.get("itemCode") === item.item_code;
+                            return (
+                              <SidebarMenuItem key={item.id}>
+                                <SidebarMenuButton
+                                  isActive={isItemActive}
+                                  onClick={() => handleNavigation(itemPath)}
+                                  className="w-full pl-10"
+                                >
+                                  <span>{item.item_code}</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </div>
+                      )}
+                        </>
+                      )}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/roll-issues"}
+                          onClick={() => handleNavigation("/manufacturing/reports/roll-issues")}
+                          className="w-full pl-8"
+                        >
+                          <span>Rm Film Issued</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarSeparator className="my-2" />
+                      {!isPrintingUser && (
+                        <>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={toggleRmInkStock}
+                          className="w-full justify-between pl-8"
+                        >
+                          <span>Rm Ink Stock</span>
+                          {isRmInkStockOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {isRmInkStockOpen && (
+                        <div className="ml-4 space-y-1">
+                          <SidebarMenuItem key="ink-stock-all">
+                            <SidebarMenuButton
+                              isActive={
+                                location.pathname === "/manufacturing/reports/ink-stock" &&
+                                !searchParams.get("itemCode")
+                              }
+                              onClick={() => handleNavigation("/manufacturing/reports/ink-stock")}
+                              className="w-full pl-10"
+                            >
+                              <span>All</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                          {rmInkMenuItems.map((item) => {
+                            const itemPath = `/manufacturing/reports/ink-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                            const isItemActive =
+                              location.pathname === "/manufacturing/reports/ink-stock" &&
+                              searchParams.get("itemCode") === item.item_code;
+                            return (
+                              <SidebarMenuItem key={item.id}>
+                                <SidebarMenuButton
+                                  isActive={isItemActive}
+                                  onClick={() => handleNavigation(itemPath)}
+                                  className="w-full pl-10"
+                                >
+                                  <span>{item.item_code}</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </div>
+                      )}
+                        </>
+                      )}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/ink-issues"}
+                          onClick={() => handleNavigation("/manufacturing/reports/ink-issues")}
+                          className="w-full pl-8"
+                        >
+                          <span>Rm Ink Issued</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarSeparator className="my-2" />
+                      {!isPrintingUser && (
+                        <>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={toggleRmAdhesiveStock}
+                          className="w-full justify-between pl-8"
+                        >
+                          <span>Rm Adhesive Stock</span>
+                          {isRmAdhesiveStockOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {isRmAdhesiveStockOpen && (
+                        <div className="ml-4 space-y-1">
+                          <SidebarMenuItem key="adhesive-stock-all">
+                            <SidebarMenuButton
+                              isActive={
+                                location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                                !searchParams.get("itemCode")
+                              }
+                              onClick={() => handleNavigation("/manufacturing/reports/adhesive-stock")}
+                              className="w-full pl-10"
+                            >
+                              <span>All</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                          {rmAdhesiveMenuItems.map((item) => {
+                            const itemPath = `/manufacturing/reports/adhesive-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                            const isItemActive =
+                              location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                              searchParams.get("itemCode") === item.item_code;
+                            return (
+                              <SidebarMenuItem key={item.id}>
+                                <SidebarMenuButton
+                                  isActive={isItemActive}
+                                  onClick={() => handleNavigation(itemPath)}
+                                  className="w-full pl-10"
+                                >
+                                  <span>{item.item_code}</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </div>
+                      )}
+                        </>
+                      )}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/adhesive-issues"}
+                          onClick={() => handleNavigation("/manufacturing/reports/adhesive-issues")}
+                          className="w-full pl-8"
+                        >
+                          <span>Rm Adhesive Issued</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarSeparator className="my-2" />
+                      {!isPrintingUser && (
+                        <>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={toggleRmChemicalStock}
+                          className="w-full justify-between pl-8"
+                        >
+                          <span>Rm Chemical Stock</span>
+                          {isRmChemicalStockOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {isRmChemicalStockOpen && (
+                        <div className="ml-4 space-y-1">
+                          <SidebarMenuItem key="chemical-stock-all">
+                            <SidebarMenuButton
+                              isActive={
+                                location.pathname === "/manufacturing/reports/chemical-stock" &&
+                                !searchParams.get("itemCode")
+                              }
+                              onClick={() => handleNavigation("/manufacturing/reports/chemical-stock")}
+                              className="w-full pl-10"
+                            >
+                              <span>All</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                          {rmChemicalMenuItems.map((item) => {
+                            const itemPath = `/manufacturing/reports/chemical-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                            const isItemActive =
+                              location.pathname === "/manufacturing/reports/chemical-stock" &&
+                              searchParams.get("itemCode") === item.item_code;
+                            return (
+                              <SidebarMenuItem key={item.id}>
+                                <SidebarMenuButton
+                                  isActive={isItemActive}
+                                  onClick={() => handleNavigation(itemPath)}
+                                  className="w-full pl-10"
+                                >
+                                  <span>{item.item_code}</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </div>
+                      )}
+                        </>
+                      )}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/chemical-issues"}
+                          onClick={() => handleNavigation("/manufacturing/reports/chemical-issues")}
+                          className="w-full pl-8"
+                        >
+                          <span>Rm Chemical Issued</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
                     </div>
                   )}
-                    </>
-                  )}
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={location.pathname === "/manufacturing/reports/roll-issues"}
-                      onClick={() => handleNavigation("/manufacturing/reports/roll-issues")}
-                      className="w-full pl-8"
-                    >
-                      <Cylinder className="h-4 w-4 mr-2 rotate-90" />
-                      <span>Rm Film Issued</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarSeparator className="my-2" />
-                  {!isPrintingUser && (
-                    <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={toggleRmInkStock}
-                      className="w-full justify-between pl-8"
+                      onClick={toggleWipReports}
+                      className="w-full justify-between pl-6"
                     >
                       <div className="flex items-center">
-                        <Droplets className="h-4 w-4 mr-2" />
-                        <span>Rm Ink Stock</span>
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        <span>WIP Reports</span>
                       </div>
-                      {isRmInkStockOpen ? (
+                      {isWipReportsOpen ? (
                         <ChevronDown className="h-4 w-4" />
                       ) : (
                         <ChevronRight className="h-4 w-4" />
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {isRmInkStockOpen && (
-                    <div className="ml-4 space-y-1">
-                      <SidebarMenuItem key="ink-stock-all">
+                  {isWipReportsOpen && (
+                    <div className="ml-2 space-y-1">
+                      <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={
-                            location.pathname === "/manufacturing/reports/ink-stock" &&
-                            !searchParams.get("itemCode")
-                          }
-                          onClick={() => handleNavigation("/manufacturing/reports/ink-stock")}
-                          className="w-full pl-10"
+                          isActive={location.pathname === "/manufacturing/reports/wip-all"}
+                          onClick={() => handleNavigation("/manufacturing/reports/wip-all")}
+                          className="w-full pl-8"
                         >
-                          <span>All</span>
+                          <span>ALL</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      {rmInkMenuItems.map((item) => {
-                        const itemPath = `/manufacturing/reports/ink-stock?itemCode=${encodeURIComponent(item.item_code)}`;
-                        const isItemActive =
-                          location.pathname === "/manufacturing/reports/ink-stock" &&
-                          searchParams.get("itemCode") === item.item_code;
-                        return (
-                          <SidebarMenuItem key={item.id}>
-                            <SidebarMenuButton
-                              isActive={isItemActive}
-                              onClick={() => handleNavigation(itemPath)}
-                              className="w-full pl-10"
-                            >
-                              <span>{item.item_code}</span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </div>
-                  )}
-                    </>
-                  )}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={location.pathname === "/manufacturing/reports/ink-issues"}
-                      onClick={() => handleNavigation("/manufacturing/reports/ink-issues")}
-                      className="w-full pl-8"
-                    >
-                      <Droplets className="h-4 w-4 mr-2" />
-                      <span>Rm Ink Issued</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarSeparator className="my-2" />
-                  {!isPrintingUser && (
-                    <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={toggleRmAdhesiveStock}
-                      className="w-full justify-between pl-8"
-                    >
-                      <div className="flex items-center">
-                        <StickyNote className="h-4 w-4 mr-2" />
-                        <span>Rm Adhesive Stock</span>
-                      </div>
-                      {isRmAdhesiveStockOpen ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {isRmAdhesiveStockOpen && (
-                    <div className="ml-4 space-y-1">
-                      <SidebarMenuItem key="adhesive-stock-all">
+                      <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={
-                            location.pathname === "/manufacturing/reports/adhesive-stock" &&
-                            !searchParams.get("itemCode")
-                          }
-                          onClick={() => handleNavigation("/manufacturing/reports/adhesive-stock")}
-                          className="w-full pl-10"
+                          isActive={location.pathname === "/manufacturing/reports/wip-printing"}
+                          onClick={() => handleNavigation("/manufacturing/reports/wip-printing")}
+                          className="w-full pl-8"
                         >
-                          <span>All</span>
+                          <span>WIP Printing</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      {rmAdhesiveMenuItems.map((item) => {
-                        const itemPath = `/manufacturing/reports/adhesive-stock?itemCode=${encodeURIComponent(item.item_code)}`;
-                        const isItemActive =
-                          location.pathname === "/manufacturing/reports/adhesive-stock" &&
-                          searchParams.get("itemCode") === item.item_code;
-                        return (
-                          <SidebarMenuItem key={item.id}>
-                            <SidebarMenuButton
-                              isActive={isItemActive}
-                              onClick={() => handleNavigation(itemPath)}
-                              className="w-full pl-10"
-                            >
-                              <span>{item.item_code}</span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </div>
-                  )}
-                    </>
-                  )}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={location.pathname === "/manufacturing/reports/adhesive-issues"}
-                      onClick={() => handleNavigation("/manufacturing/reports/adhesive-issues")}
-                      className="w-full pl-8"
-                    >
-                      <StickyNote className="h-4 w-4 mr-2" />
-                      <span>Rm Adhesive Issued</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarSeparator className="my-2" />
-                  {!isPrintingUser && (
-                    <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={toggleRmChemicalStock}
-                      className="w-full justify-between pl-8"
-                    >
-                      <div className="flex items-center">
-                        <FlaskConical className="h-4 w-4 mr-2" />
-                        <span>Rm Chemical Stock</span>
-                      </div>
-                      {isRmChemicalStockOpen ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {isRmChemicalStockOpen && (
-                    <div className="ml-4 space-y-1">
-                      <SidebarMenuItem key="chemical-stock-all">
+                      <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={
-                            location.pathname === "/manufacturing/reports/chemical-stock" &&
-                            !searchParams.get("itemCode")
-                          }
-                          onClick={() => handleNavigation("/manufacturing/reports/chemical-stock")}
-                          className="w-full pl-10"
+                          isActive={location.pathname === "/manufacturing/reports/wip-inspection"}
+                          onClick={() => handleNavigation("/manufacturing/reports/wip-inspection")}
+                          className="w-full pl-8"
                         >
-                          <span>All</span>
+                          <span>WIP Inspection</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      {rmChemicalMenuItems.map((item) => {
-                        const itemPath = `/manufacturing/reports/chemical-stock?itemCode=${encodeURIComponent(item.item_code)}`;
-                        const isItemActive =
-                          location.pathname === "/manufacturing/reports/chemical-stock" &&
-                          searchParams.get("itemCode") === item.item_code;
-                        return (
-                          <SidebarMenuItem key={item.id}>
-                            <SidebarMenuButton
-                              isActive={isItemActive}
-                              onClick={() => handleNavigation(itemPath)}
-                              className="w-full pl-10"
-                            >
-                              <span>{item.item_code}</span>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/wip-ecl"}
+                          onClick={() => handleNavigation("/manufacturing/reports/wip-ecl")}
+                          className="w-full pl-8"
+                        >
+                          <span>WIP ECL</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={location.pathname === "/manufacturing/reports/wip-lamination"}
+                          onClick={() => handleNavigation("/manufacturing/reports/wip-lamination")}
+                          className="w-full pl-8"
+                        >
+                          <span>WIP Lamination</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
                     </div>
                   )}
-                    </>
-                  )}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={location.pathname === "/manufacturing/reports/chemical-issues"}
-                      onClick={() => handleNavigation("/manufacturing/reports/chemical-issues")}
-                      className="w-full pl-8"
-                    >
-                      <FlaskConical className="h-4 w-4 mr-2" />
-                      <span>Rm Chemical Issued</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </div>
               )}
               </>
