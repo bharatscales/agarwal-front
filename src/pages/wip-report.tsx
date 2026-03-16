@@ -9,49 +9,52 @@ import { getItems, type Item } from "@/lib/item-api"
 
 const PAGE_SIZE = 100
 
+type WipTabKey = "all" | "printing" | "inspection" | "ecl" | "lamination"
+
 function getConfigForPath(pathname: string): {
   title: string
   description: string
-  stageFilter?: string
+  tab: WipTabKey
 } {
   if (pathname.endsWith("/wip-printing")) {
     return {
       title: "WIP Printing",
       description: "View roll stock currently in WIP Printing stage.",
-      stageFilter: "wip-printing",
+      tab: "printing",
     }
   }
   if (pathname.endsWith("/wip-inspection")) {
     return {
       title: "WIP Inspection",
       description: "View roll stock currently in WIP Inspection stage.",
-      stageFilter: "wip-inspection",
+      tab: "inspection",
     }
   }
   if (pathname.endsWith("/wip-ecl")) {
     return {
       title: "WIP ECL",
       description: "View roll stock currently in WIP ECL stage.",
-      stageFilter: "wip-ecl",
+      tab: "ecl",
     }
   }
   if (pathname.endsWith("/wip-lamination")) {
     return {
       title: "WIP Lamination",
       description: "View roll stock currently in WIP Lamination stage.",
-      stageFilter: "wip-lamination",
+      tab: "lamination",
     }
   }
   // Default: ALL WIP stages
   return {
     title: "WIP Rolls (All Stages)",
     description: "View roll stock currently in any WIP stage.",
+    tab: "all",
   }
 }
 
 export default function WipReport() {
   const location = useLocation()
-  const { title, description, stageFilter } = getConfigForPath(location.pathname)
+  const { title, description, tab } = getConfigForPath(location.pathname)
 
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
   const [items, setItems] = useState<Item[]>([])
@@ -73,18 +76,36 @@ export default function WipReport() {
   }, [items])
 
   const filteredRollsStock = useMemo(() => {
+    const normalizeStage = (stage?: string | null) =>
+      (stage || "").toLowerCase().replace(/[\s_]+/g, "-")
+
     const withCustomer: RollsStockRow[] = rollsStock.map((row) => ({
       ...row,
       customerName: itemCustomerMap[row.itemCode] ?? row.customerName ?? null,
     }))
-    if (stageFilter) {
-      return withCustomer.filter(
-        (row) => (row.stage || "").toLowerCase() === stageFilter.toLowerCase()
-      )
+    if (tab === "all") {
+      // ALL: keep only rows whose stage starts with "wip"
+      return withCustomer.filter((row) => normalizeStage(row.stage).startsWith("wip"))
     }
-    // ALL: keep only rows whose stage starts with "wip"
-    return withCustomer.filter((row) => (row.stage || "").toLowerCase().startsWith("wip"))
-  }, [rollsStock, stageFilter, itemCustomerMap])
+
+    return withCustomer.filter((row) => {
+      const s = normalizeStage(row.stage)
+      if (!s.startsWith("wip")) return false
+      switch (tab) {
+        case "printing":
+          // Match wip-printing, wip_printed, etc.
+          return s.startsWith("wip-print")
+        case "inspection":
+          return s.startsWith("wip-inspection")
+        case "ecl":
+          return s.startsWith("wip-ecl")
+        case "lamination":
+          return s.startsWith("wip-lamination")
+        default:
+          return true
+      }
+    })
+  }, [rollsStock, tab, itemCustomerMap])
 
   const fetchRollsStock = useCallback(
     async (reset = true) => {
@@ -186,7 +207,7 @@ export default function WipReport() {
       {!error && (
         <DataTable
           key={tableKey}
-          columns={getRollsStockColumns()}
+          columns={getRollsStockColumns({ variant: "wip" })}
           data={filteredRollsStock}
           getRowId={(row) => String(row.id)}
           scrollable

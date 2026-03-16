@@ -255,3 +255,69 @@ export const addInspectionRoll = async (
   return response.data
 }
 
+/** Create a WIP ECL roll and its out-movement in one request. */
+export const addEclRoll = async (
+  jobCardId: number,
+  payload: AddPrintedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const response = await api.post<AddPrintedRollResponse>(
+    `/job-card/${jobCardId}/add-ecl-roll`,
+    {
+      item_id: payload.itemId,
+      rollno: payload.rollno ?? undefined,
+      size: payload.size,
+      micron: payload.micron,
+      netweight: payload.netweight,
+      grossweight: payload.grossweight,
+      grade_id: payload.gradeId ?? undefined,
+      parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+
+/** Create a WIP lamination roll and its out-movement in one request. */
+export const addLaminationRoll = async (
+  jobCardId: number,
+  payload: AddPrintedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const response = await api.post<AddPrintedRollResponse>(
+    `/job-card/${jobCardId}/add-lamination-roll`,
+    {
+      item_id: payload.itemId,
+      rollno: payload.rollno ?? undefined,
+      size: payload.size,
+      micron: payload.micron,
+      netweight: payload.netweight,
+      grossweight: payload.grossweight,
+      grade_id: payload.gradeId ?? undefined,
+      parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+
+/** Create a slitting (finished) roll and its out-movement in one request. */
+export const addSlittingRoll = async (
+  jobCardId: number,
+  payload: AddPrintedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const response = await api.post<AddPrintedRollResponse>(
+    `/job-card/${jobCardId}/add-slitting-roll`,
+    {
+      item_id: payload.itemId,
+      rollno: payload.rollno ?? undefined,
+      size: payload.size,
+      micron: payload.micron,
+      netweight: payload.netweight,
+      grossweight: payload.grossweight,
+      grade_id: payload.gradeId ?? undefined,
+      parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+

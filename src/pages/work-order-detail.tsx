@@ -109,10 +109,9 @@ export default function WorkOrderDetail() {
       const cards = await getAllJobCards(0, 1000, parseInt(id))
       setJobCards(cards)
 
-      // Fetch current loaded roll for each Printing and Inspection job card
-      const cardsWithRoll = cards.filter(
-        (c) => c.operation === "Printing" || c.operation === "Inspection"
-      )
+      // Fetch current loaded roll for job cards that support scanning (Printing, Inspection, ECL, Lamination, Slitting)
+      const scanOps = ["Printing", "Inspection", "ECL", "Lamination", "Slitting"]
+      const cardsWithRoll = cards.filter((c) => scanOps.includes(c.operation))
       if (cardsWithRoll.length > 0) {
         const results = await Promise.all(
           cardsWithRoll.map(async (c) => {
@@ -146,7 +145,7 @@ export default function WorkOrderDetail() {
 
   const handleScanRoll = async (card: JobCard, barcode: string) => {
     const trimmed = barcode.trim()
-    if (!trimmed || card.operation !== "Printing") return
+    if (!trimmed) return
     setScanningCardId(card.id)
     setScanMessage((prev) => ({ ...prev, [card.id]: { type: "success", text: "" } }))
     try {
@@ -400,9 +399,17 @@ export default function WorkOrderDetail() {
                             </div>
                           )}
                         </div>
-                        {(card.operation === "Printing" || card.operation === "Inspection") && (
+                        {(card.operation === "Printing" ||
+                          card.operation === "Inspection" ||
+                          card.operation === "ECL" ||
+                          card.operation === "Lamination" ||
+                          card.operation === "Slitting") && (
                           <div className="mt-1 max-w-xs">
-                            {card.operation === "Printing" && (
+                            {(card.operation === "Printing" ||
+                              card.operation === "Inspection" ||
+                              card.operation === "ECL" ||
+                              card.operation === "Lamination" ||
+                              card.operation === "Slitting") && (
                               <>
                                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                                   Scan roll barcode (then Enter)

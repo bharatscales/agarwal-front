@@ -26,7 +26,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/AuthContext"
 import api from "@/lib/axios"
-import { addInspectionRoll, addPrintedRoll, getAllJobCards, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
+import {
+  addEclRoll,
+  addInspectionRoll,
+  addLaminationRoll,
+  addPrintedRoll,
+  addSlittingRoll,
+  getAllJobCards,
+  getCurrentRoll,
+  type CurrentRoll,
+} from "@/lib/job-card-api"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import {
@@ -147,6 +156,75 @@ export default function Home() {
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
   const [inspectionChildRollsLoading, setInspectionChildRollsLoading] = useState(false)
+
+  // Floor ECL (mirror of Inspection)
+  const [eclWorkOrders, setEclWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [eclLoading, setEclLoading] = useState(false)
+  const [eclError, setEclError] = useState<string | null>(null)
+  const [eclSelectedWo, setEclSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [eclRollsLoading, setEclRollsLoading] = useState(false)
+  const [eclLoadedRolls, setEclLoadedRolls] = useState<
+    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
+  >([])
+  const [eclCreateChildLoading, setEclCreateChildLoading] = useState(false)
+  const [eclCreateChildMessage, setEclCreateChildMessage] = useState<string | null>(null)
+  const [eclAddRollForm, setEclAddRollForm] = useState<{
+    jobCardNumber: string
+    jobCardId: number
+    roll: CurrentRoll
+    parent: { gradeId?: number }
+    size: string
+    micron: string
+    netweight: string
+    grossweight: string
+  } | null>(null)
+  const [eclFormCommittedForRollId, setEclFormCommittedForRollId] = useState<number | null>(null)
+
+  // Floor Lamination (mirror of Inspection)
+  const [laminationWorkOrders, setLaminationWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [laminationLoading, setLaminationLoading] = useState(false)
+  const [laminationError, setLaminationError] = useState<string | null>(null)
+  const [laminationSelectedWo, setLaminationSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [laminationRollsLoading, setLaminationRollsLoading] = useState(false)
+  const [laminationLoadedRolls, setLaminationLoadedRolls] = useState<
+    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
+  >([])
+  const [laminationCreateChildLoading, setLaminationCreateChildLoading] = useState(false)
+  const [laminationCreateChildMessage, setLaminationCreateChildMessage] = useState<string | null>(null)
+  const [laminationAddRollForm, setLaminationAddRollForm] = useState<{
+    jobCardNumber: string
+    jobCardId: number
+    roll: CurrentRoll
+    parent: { gradeId?: number }
+    size: string
+    micron: string
+    netweight: string
+    grossweight: string
+  } | null>(null)
+  const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
+
+  // Floor Slitting (mirror of Inspection)
+  const [slittingWorkOrders, setSlittingWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [slittingLoading, setSlittingLoading] = useState(false)
+  const [slittingError, setSlittingError] = useState<string | null>(null)
+  const [slittingSelectedWo, setSlittingSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [slittingRollsLoading, setSlittingRollsLoading] = useState(false)
+  const [slittingLoadedRolls, setSlittingLoadedRolls] = useState<
+    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
+  >([])
+  const [slittingCreateChildLoading, setSlittingCreateChildLoading] = useState(false)
+  const [slittingCreateChildMessage, setSlittingCreateChildMessage] = useState<string | null>(null)
+  const [slittingAddRollForm, setSlittingAddRollForm] = useState<{
+    jobCardNumber: string
+    jobCardId: number
+    roll: CurrentRoll
+    parent: { gradeId?: number }
+    size: string
+    micron: string
+    netweight: string
+    grossweight: string
+  } | null>(null)
+  const [slittingFormCommittedForRollId, setSlittingFormCommittedForRollId] = useState<number | null>(null)
 
   const isStockUser =
     user?.role === "user" &&
@@ -277,6 +355,147 @@ export default function Home() {
         }
       } finally {
         if (!cancelled) setInspectionLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [isFloorUser, floorView])
+
+  // Floor ECL: work orders that have an ECL job card with current loaded roll
+  useEffect(() => {
+    if (!isFloorUser || floorView !== "ecl") return
+    let cancelled = false
+    const run = async () => {
+      setEclLoading(true)
+      setEclError(null)
+      try {
+        const cards = await getAllJobCards(0, 500, undefined, "ECL")
+        const workOrderIdsWithRoll = new Set<number>()
+        const BATCH = 15
+        for (let i = 0; i < cards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = cards.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (c) => {
+              try {
+                const roll = await getCurrentRoll(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+              } catch {
+                return { workOrderId: c.workOrderId, hasRoll: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+        const allWos = await getAllWorkOrders(0, 500)
+        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        if (!cancelled) setEclWorkOrders(filtered)
+      } catch (err) {
+        if (!cancelled) {
+          setEclError("Failed to load work orders.")
+          setEclWorkOrders([])
+        }
+      } finally {
+        if (!cancelled) setEclLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [isFloorUser, floorView])
+
+  // Floor Lamination: work orders that have a Lamination job card with current loaded roll
+  useEffect(() => {
+    if (!isFloorUser || floorView !== "lamination") return
+    let cancelled = false
+    const run = async () => {
+      setLaminationLoading(true)
+      setLaminationError(null)
+      try {
+        const cards = await getAllJobCards(0, 500, undefined, "Lamination")
+        const workOrderIdsWithRoll = new Set<number>()
+        const BATCH = 15
+        for (let i = 0; i < cards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = cards.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (c) => {
+              try {
+                const roll = await getCurrentRoll(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+              } catch {
+                return { workOrderId: c.workOrderId, hasRoll: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+        const allWos = await getAllWorkOrders(0, 500)
+        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        if (!cancelled) setLaminationWorkOrders(filtered)
+      } catch (err) {
+        if (!cancelled) {
+          setLaminationError("Failed to load work orders.")
+          setLaminationWorkOrders([])
+        }
+      } finally {
+        if (!cancelled) setLaminationLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [isFloorUser, floorView])
+
+  // Floor Slitting: work orders that have a Slitting job card with current loaded roll
+  useEffect(() => {
+    if (!isFloorUser || floorView !== "slitting") return
+    let cancelled = false
+    const run = async () => {
+      setSlittingLoading(true)
+      setSlittingError(null)
+      try {
+        const cards = await getAllJobCards(0, 500, undefined, "Slitting")
+        const workOrderIdsWithRoll = new Set<number>()
+        const BATCH = 15
+        for (let i = 0; i < cards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = cards.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (c) => {
+              try {
+                const roll = await getCurrentRoll(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+              } catch {
+                return { workOrderId: c.workOrderId, hasRoll: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+        const allWos = await getAllWorkOrders(0, 500)
+        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        if (!cancelled) setSlittingWorkOrders(filtered)
+      } catch (err) {
+        if (!cancelled) {
+          setSlittingError("Failed to load work orders.")
+          setSlittingWorkOrders([])
+        }
+      } finally {
+        if (!cancelled) setSlittingLoading(false)
       }
     }
     run()
@@ -426,6 +645,186 @@ export default function Home() {
       cancelled = true
     }
   }, [inspectionSelectedWo?.id])
+
+  // When Floor user selects a work order in ECL section, fetch loaded roll(s) and show form
+  useEffect(() => {
+    if (!eclSelectedWo) {
+      setEclLoadedRolls([])
+      setEclAddRollForm(null)
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      setEclRollsLoading(true)
+      try {
+        const cards = await getAllJobCards(0, 20, eclSelectedWo.id, "ECL")
+        const results = await Promise.all(
+          cards.map(async (c) => {
+            try {
+              const roll = await getCurrentRoll(c.id)
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+            } catch {
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+            }
+          })
+        )
+        if (!cancelled) {
+          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          setEclLoadedRolls(loaded)
+          if (loaded.length > 0) {
+            const first = loaded[0]
+            try {
+              const parent = await getRollsStockById(first.roll.id)
+              if (!cancelled) {
+                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+                setEclAddRollForm({
+                  jobCardNumber: first.jobCardNumber,
+                  jobCardId: first.jobCardId,
+                  roll: first.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: first.roll.size != null ? String(first.roll.size) : "",
+                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                })
+              }
+            } catch {
+              if (!cancelled) setEclAddRollForm(null)
+            }
+          } else setEclAddRollForm(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setEclLoadedRolls([])
+          setEclAddRollForm(null)
+        }
+      } finally {
+        if (!cancelled) setEclRollsLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [eclSelectedWo?.id])
+
+  // When Floor user selects a work order in Lamination section, fetch loaded roll(s) and show form
+  useEffect(() => {
+    if (!laminationSelectedWo) {
+      setLaminationLoadedRolls([])
+      setLaminationAddRollForm(null)
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      setLaminationRollsLoading(true)
+      try {
+        const cards = await getAllJobCards(0, 20, laminationSelectedWo.id, "Lamination")
+        const results = await Promise.all(
+          cards.map(async (c) => {
+            try {
+              const roll = await getCurrentRoll(c.id)
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+            } catch {
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+            }
+          })
+        )
+        if (!cancelled) {
+          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          setLaminationLoadedRolls(loaded)
+          if (loaded.length > 0) {
+            const first = loaded[0]
+            try {
+              const parent = await getRollsStockById(first.roll.id)
+              if (!cancelled) {
+                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+                setLaminationAddRollForm({
+                  jobCardNumber: first.jobCardNumber,
+                  jobCardId: first.jobCardId,
+                  roll: first.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: first.roll.size != null ? String(first.roll.size) : "",
+                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                })
+              }
+            } catch {
+              if (!cancelled) setLaminationAddRollForm(null)
+            }
+          } else setLaminationAddRollForm(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setLaminationLoadedRolls([])
+          setLaminationAddRollForm(null)
+        }
+      } finally {
+        if (!cancelled) setLaminationRollsLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [laminationSelectedWo?.id])
+
+  // When Floor user selects a work order in Slitting section, fetch loaded roll(s) and show form
+  useEffect(() => {
+    if (!slittingSelectedWo) {
+      setSlittingLoadedRolls([])
+      setSlittingAddRollForm(null)
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      setSlittingRollsLoading(true)
+      try {
+        const cards = await getAllJobCards(0, 20, slittingSelectedWo.id, "Slitting")
+        const results = await Promise.all(
+          cards.map(async (c) => {
+            try {
+              const roll = await getCurrentRoll(c.id)
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+            } catch {
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+            }
+          })
+        )
+        if (!cancelled) {
+          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          setSlittingLoadedRolls(loaded)
+          if (loaded.length > 0) {
+            const first = loaded[0]
+            try {
+              const parent = await getRollsStockById(first.roll.id)
+              if (!cancelled) {
+                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+                setSlittingAddRollForm({
+                  jobCardNumber: first.jobCardNumber,
+                  jobCardId: first.jobCardId,
+                  roll: first.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: first.roll.size != null ? String(first.roll.size) : "",
+                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                })
+              }
+            } catch {
+              if (!cancelled) setSlittingAddRollForm(null)
+            }
+          } else setSlittingAddRollForm(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setSlittingLoadedRolls([])
+          setSlittingAddRollForm(null)
+        }
+      } finally {
+        if (!cancelled) setSlittingRollsLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [slittingSelectedWo?.id])
 
   // Reset committed state and child rolls when switching work order
   useEffect(() => {
@@ -657,8 +1056,12 @@ export default function Home() {
             </div>
           ) : (
             /* In-place page for selected department (title bar and bottom bar unchanged) */
-            <div className={(floorView === "printing" || floorView === "inspection") ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
-              {(floorView === "printing" && printingSelectedWo) || (floorView === "inspection" && inspectionSelectedWo) ? (
+            <div className={(floorView === "printing" || floorView === "inspection" || floorView === "ecl" || floorView === "lamination" || floorView === "slitting") ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
+              {(floorView === "printing" && printingSelectedWo) ||
+              (floorView === "inspection" && inspectionSelectedWo) ||
+              (floorView === "ecl" && eclSelectedWo) ||
+              (floorView === "lamination" && laminationSelectedWo) ||
+              (floorView === "slitting" && slittingSelectedWo) ? (
                 <div className="flex items-center relative w-full">
                   <Button
                     type="button"
@@ -671,7 +1074,15 @@ export default function Home() {
                     Back to Departments
                   </Button>
                   <h2 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize pointer-events-none">
-                    {floorView === "printing" ? "Printing" : "Inspection"}
+                    {floorView === "printing"
+                      ? "Printing"
+                      : floorView === "inspection"
+                        ? "Inspection"
+                        : floorView === "ecl"
+                          ? "ECL"
+                          : floorView === "lamination"
+                            ? "Lamination"
+                            : "Slitting"}
                   </h2>
                   <div className="shrink-0 w-[180px]" aria-hidden />
                 </div>
@@ -688,7 +1099,11 @@ export default function Home() {
                 </Button>
               )}
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
-                {(floorView === "printing" && printingSelectedWo) || (floorView === "inspection" && inspectionSelectedWo) ? (
+                {(floorView === "printing" && printingSelectedWo) ||
+                (floorView === "inspection" && inspectionSelectedWo) ||
+                (floorView === "ecl" && eclSelectedWo) ||
+                (floorView === "lamination" && laminationSelectedWo) ||
+                (floorView === "slitting" && slittingSelectedWo) ? (
                   <div className="flex items-center justify-between gap-4">
                     <Button
                       type="button"
@@ -697,7 +1112,10 @@ export default function Home() {
                       className="gap-2 -ml-2 shrink-0"
                       onClick={() => {
                         if (floorView === "printing") setPrintingSelectedWo(null)
-                        else setInspectionSelectedWo(null)
+                        else if (floorView === "inspection") setInspectionSelectedWo(null)
+                        else if (floorView === "ecl") setEclSelectedWo(null)
+                        else if (floorView === "lamination") setLaminationSelectedWo(null)
+                        else if (floorView === "slitting") setSlittingSelectedWo(null)
                       }}
                     >
                       <ArrowLeft className="h-4 w-4" />
@@ -705,13 +1123,21 @@ export default function Home() {
                     </Button>
                     <div className="space-y-0.5 text-center flex-1 min-w-0">
                       <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                        Work order number — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.woNumber ?? `WO ${(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.id}`}
+                        Work order number — {(floorView === "printing"
+                          ? printingSelectedWo
+                          : floorView === "inspection"
+                            ? inspectionSelectedWo
+                            : floorView === "ecl"
+                              ? eclSelectedWo
+                              : floorView === "lamination"
+                                ? laminationSelectedWo
+                                : slittingSelectedWo)?.woNumber ?? `WO ${(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.id}`}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Customer — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.partyName ?? "—"}
+                        Customer — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.partyName ?? "—"}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Variety — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.itemName ?? "—"}
+                        Variety — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.itemName ?? "—"}
                       </p>
                     </div>
                     <div className="w-[180px] shrink-0" aria-hidden />
@@ -856,6 +1282,9 @@ export default function Home() {
                                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
                                           Gross weight
                                         </th>
+                                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Reprint
+                                        </th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -878,6 +1307,80 @@ export default function Home() {
                                           </td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
                                             {r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-right">
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              disabled={!wipPrintingTemplate || printingCreateChildLoading}
+                                              onClick={async () => {
+                                                const wo = printingSelectedWo
+                                                if (!wo || !wipPrintingTemplate) return
+                                                try {
+                                                  setPrintingCreateChildLoading(true)
+                                                  const printData = {
+                                                    workOrder: {
+                                                      id: wo.id,
+                                                      woNumber: wo.woNumber,
+                                                      partyName: wo.partyName,
+                                                      partyCode: wo.partyCode,
+                                                      itemName: wo.itemName,
+                                                      itemCode: wo.itemCode,
+                                                      plannedQty: wo.plannedQty,
+                                                      producedQty: wo.producedQty,
+                                                      status: wo.status,
+                                                      priority: wo.priority,
+                                                      createdAt: wo.createdAt,
+                                                      startedAt: wo.startedAt,
+                                                      completedAt: wo.completedAt,
+                                                    },
+                                                    roll: {
+                                                      id: r.id,
+                                                      barcode: r.barcode,
+                                                      size: r.size,
+                                                      micron: r.micron,
+                                                      netweight: r.netweight,
+                                                      grossweight: r.grossweight,
+                                                      itemName: wo.itemName ?? r.itemName ?? null,
+                                                    },
+                                                  }
+                                                  const job = await createPrintJob({
+                                                    name: `WIP Printing Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
+                                                    template_id: wipPrintingTemplate.id,
+                                                    data: printData,
+                                                    copies: 1,
+                                                  })
+                                                  setPrintingCreateChildMessage("Label reprint sent to printer.")
+                                                  setPrintingPrintStatus("printing")
+                                                  let pollCount = 0
+                                                  const maxPolls = 30
+                                                  const pollInterval = setInterval(async () => {
+                                                    pollCount++
+                                                    try {
+                                                      const updatedJob = await getPrintJob(job.id)
+                                                      if (updatedJob.status === "done") {
+                                                        clearInterval(pollInterval)
+                                                        setPrintingPrintStatus("done")
+                                                        setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+                                                      } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+                                                        clearInterval(pollInterval)
+                                                        setPrintingPrintStatus("idle")
+                                                      }
+                                                    } catch {
+                                                      clearInterval(pollInterval)
+                                                      setPrintingPrintStatus("idle")
+                                                    }
+                                                  }, 1000)
+                                                } catch {
+                                                  setPrintingCreateChildMessage("Failed to send reprint to printer.")
+                                                } finally {
+                                                  setPrintingCreateChildLoading(false)
+                                                }
+                                              }}
+                                            >
+                                              <Printer className="h-4 w-4" />
+                                            </Button>
                                           </td>
                                         </tr>
                                       ))}
@@ -1103,32 +1606,6 @@ export default function Home() {
                                       setPrintingCreateChildLoading(true)
                                       setPrintingCreateChildMessage(null)
                                       const parentIds = printingLoadedRolls.map((r) => r.roll.id)
-                                      const created = await addPrintedRoll(form.jobCardId, {
-                                        itemId: wo.itemId,
-                                        rollno: "",
-                                        size: form.size ? parseFloat(form.size) : undefined,
-                                        micron: form.micron ? parseFloat(form.micron) : undefined,
-                                        netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                                        grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
-                                        gradeId: form.parent.gradeId,
-                                        parentRollIds: parentIds.length > 0 ? parentIds : undefined,
-                                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
-                                      })
-                                      const newRoll = {
-                                        id: created.id,
-                                        barcode: created.barcode,
-                                        itemId: created.item_id,
-                                        itemName: created.item_name ?? null,
-                                        size: created.size ?? null,
-                                        micron: created.micron ?? null,
-                                        netweight: created.netweight ?? null,
-                                        grossweight: created.grossweight ?? null,
-                                      }
-                                      setPrintingFormCommittedForRollId(form.roll.id)
-                                      getRollsStockByParentIds(parentIds, "wip_printed").then(
-                                        setPrintingChildRollsFromDb
-                                      )
-
                                       if (wipPrintingTemplate) {
                                         const printData = {
                                           workOrder: {
@@ -1151,22 +1628,19 @@ export default function Home() {
                                             jobCardNumber: form.jobCardNumber,
                                           },
                                           roll: {
-                                            id: newRoll.id,
-                                            barcode: newRoll.barcode,
-                                            size: newRoll.size,
-                                            micron: newRoll.micron,
-                                            netweight: newRoll.netweight,
-                                            grossweight: newRoll.grossweight,
-                                            itemName: wo.itemName ?? newRoll.itemName,
+                                            size: form.size ? parseFloat(form.size) : undefined,
+                                            micron: form.micron ? parseFloat(form.micron) : undefined,
+                                            netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                                            grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                            itemName: wo.itemName ?? null,
                                           },
                                         }
                                         const job = await createPrintJob({
-                                          name: `WIP Printing - ${form.jobCardNumber} - ${newRoll.barcode || newRoll.id}`,
+                                          name: `WIP Printing - ${form.jobCardNumber}`,
                                           template_id: wipPrintingTemplate.id,
                                           data: printData,
                                           copies: 1,
                                         })
-                                        setPrintingCreateChildMessage("Roll added and label sent to printer.")
                                         setPrintingPrintStatus("printing")
                                         let pollCount = 0
                                         const maxPolls = 30
@@ -1187,11 +1661,35 @@ export default function Home() {
                                             setPrintingPrintStatus("idle")
                                           }
                                         }, 1000)
-                                      } else {
-                                        setPrintingCreateChildMessage("Roll added and movement recorded. No WIP printing template configured.")
                                       }
+
+                                      await addPrintedRoll(form.jobCardId, {
+                                        itemId: wo.itemId,
+                                        rollno: "",
+                                        size: form.size ? parseFloat(form.size) : undefined,
+                                        micron: form.micron ? parseFloat(form.micron) : undefined,
+                                        netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                                        grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                        gradeId: form.parent.gradeId,
+                                        parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                      })
+                                      setPrintingFormCommittedForRollId(form.roll.id)
+                                      getRollsStockByParentIds(parentIds, "wip_printed").then(
+                                        setPrintingChildRollsFromDb
+                                      )
+
+                                      setPrintingCreateChildMessage(
+                                        wipPrintingTemplate
+                                          ? "Roll added and label sent to printer."
+                                          : "Roll added and movement recorded. No WIP printing template configured."
+                                      )
                                     } catch {
-                                      setPrintingCreateChildMessage("Failed to add roll or record movement.")
+                                      setPrintingCreateChildMessage(
+                                        wipPrintingTemplate
+                                          ? "Failed to print label. Roll not added or movement not recorded."
+                                          : "Failed to add roll or record movement."
+                                      )
                                     } finally {
                                       setPrintingCreateChildLoading(false)
                                     }
@@ -1449,6 +1947,9 @@ export default function Home() {
                                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
                                           Gross weight
                                         </th>
+                                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Reprint
+                                        </th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1471,6 +1972,80 @@ export default function Home() {
                                           </td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
                                             {r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-right">
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              disabled={!wipPrintingTemplate || inspectionCreateChildLoading}
+                                              onClick={async () => {
+                                                const wo = inspectionSelectedWo
+                                                if (!wo || !wipPrintingTemplate) return
+                                                try {
+                                                  setInspectionCreateChildLoading(true)
+                                                  const printData = {
+                                                    workOrder: {
+                                                      id: wo.id,
+                                                      woNumber: wo.woNumber,
+                                                      partyName: wo.partyName,
+                                                      partyCode: wo.partyCode,
+                                                      itemName: wo.itemName,
+                                                      itemCode: wo.itemCode,
+                                                      plannedQty: wo.plannedQty,
+                                                      producedQty: wo.producedQty,
+                                                      status: wo.status,
+                                                      priority: wo.priority,
+                                                      createdAt: wo.createdAt,
+                                                      startedAt: wo.startedAt,
+                                                      completedAt: wo.completedAt,
+                                                    },
+                                                    roll: {
+                                                      id: r.id,
+                                                      barcode: r.barcode,
+                                                      size: r.size,
+                                                      micron: r.micron,
+                                                      netweight: r.netweight,
+                                                      grossweight: r.grossweight,
+                                                      itemName: wo.itemName ?? r.itemName ?? null,
+                                                    },
+                                                  }
+                                                  const job = await createPrintJob({
+                                                    name: `Inspection Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
+                                                    template_id: wipPrintingTemplate.id,
+                                                    data: printData,
+                                                    copies: 1,
+                                                  })
+                                                  setInspectionCreateChildMessage("Label reprint sent to printer.")
+                                                  setPrintingPrintStatus("printing")
+                                                  let pollCount = 0
+                                                  const maxPolls = 30
+                                                  const pollInterval = setInterval(async () => {
+                                                    pollCount++
+                                                    try {
+                                                      const updatedJob = await getPrintJob(job.id)
+                                                      if (updatedJob.status === "done") {
+                                                        clearInterval(pollInterval)
+                                                        setPrintingPrintStatus("done")
+                                                        setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+                                                      } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+                                                        clearInterval(pollInterval)
+                                                        setPrintingPrintStatus("idle")
+                                                      }
+                                                    } catch {
+                                                      clearInterval(pollInterval)
+                                                      setPrintingPrintStatus("idle")
+                                                    }
+                                                  }, 1000)
+                                                } catch {
+                                                  setInspectionCreateChildMessage("Failed to send reprint to printer.")
+                                                } finally {
+                                                  setInspectionCreateChildLoading(false)
+                                                }
+                                              }}
+                                            >
+                                              <Printer className="h-4 w-4" />
+                                            </Button>
                                           </td>
                                         </tr>
                                       ))}
@@ -1694,6 +2269,64 @@ export default function Home() {
                                       setInspectionCreateChildLoading(true)
                                       setInspectionCreateChildMessage(null)
                                       const parentIds = inspectionLoadedRolls.map((r) => r.roll.id)
+
+                                      if (wipPrintingTemplate) {
+                                        const printData = {
+                                          workOrder: {
+                                            id: wo.id,
+                                            woNumber: wo.woNumber,
+                                            partyName: wo.partyName,
+                                            partyCode: wo.partyCode,
+                                            itemName: wo.itemName,
+                                            itemCode: wo.itemCode,
+                                            plannedQty: wo.plannedQty,
+                                            producedQty: wo.producedQty,
+                                            status: wo.status,
+                                            priority: wo.priority,
+                                            createdAt: wo.createdAt,
+                                            startedAt: wo.startedAt,
+                                            completedAt: wo.completedAt,
+                                          },
+                                          jobCard: {
+                                            id: form.jobCardId,
+                                            jobCardNumber: form.jobCardNumber,
+                                          },
+                                          roll: {
+                                            size: form.size ? parseFloat(form.size) : undefined,
+                                            micron: form.micron ? parseFloat(form.micron) : undefined,
+                                            netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                                            grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                            itemName: wo.itemName ?? null,
+                                          },
+                                        }
+                                        const job = await createPrintJob({
+                                          name: `Inspection - ${form.jobCardNumber}`,
+                                          template_id: wipPrintingTemplate.id,
+                                          data: printData,
+                                          copies: 1,
+                                        })
+                                        setPrintingPrintStatus("printing")
+                                        let pollCount = 0
+                                        const maxPolls = 30
+                                        const pollInterval = setInterval(async () => {
+                                          pollCount++
+                                          try {
+                                            const updatedJob = await getPrintJob(job.id)
+                                            if (updatedJob.status === "done") {
+                                              clearInterval(pollInterval)
+                                              setPrintingPrintStatus("done")
+                                              setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+                                            } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+                                              clearInterval(pollInterval)
+                                              setPrintingPrintStatus("idle")
+                                            }
+                                          } catch {
+                                            clearInterval(pollInterval)
+                                            setPrintingPrintStatus("idle")
+                                          }
+                                        }, 1000)
+                                      }
+
                                       await addInspectionRoll(form.jobCardId, {
                                         itemId: wo.itemId,
                                         rollno: "",
@@ -1707,17 +2340,25 @@ export default function Home() {
                                       })
                                       setInspectionFormCommittedForRollId(form.roll.id)
                                       getRollsStockByParentIds(parentIds, "wip_inspection").then(setInspectionChildRollsFromDb)
-                                      setInspectionCreateChildMessage("Roll added and movement recorded.")
+                                      setInspectionCreateChildMessage(
+                                        wipPrintingTemplate
+                                          ? "Roll added and label sent to printer."
+                                          : "Roll added and movement recorded. No WIP printing template configured."
+                                      )
                                     } catch {
-                                      setInspectionCreateChildMessage("Failed to add roll or record movement.")
+                                      setInspectionCreateChildMessage(
+                                        wipPrintingTemplate
+                                          ? "Failed to print label. Roll not added or movement not recorded."
+                                          : "Failed to add roll or record movement."
+                                      )
                                     } finally {
                                       setInspectionCreateChildLoading(false)
                                     }
                                   }
                                 }}
                               >
-                                <Plus className="h-4 w-4" />
-                                Add roll
+                                <Printer className="h-4 w-4" />
+                                Print
                               </Button>
                               {inspectionAddRollForm &&
                                 inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id && (
@@ -1801,6 +2442,245 @@ export default function Home() {
                                   <td className="py-2 text-xs text-gray-500 dark:text-gray-400">
                                     Click to view loaded roll
                                   </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )
+                ) : floorView === "ecl" ? (
+                  eclSelectedWo ? (
+                    <div className="space-y-4 mt-4">
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll(s)</h4>
+                        {eclRollsLoading ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+                        ) : eclLoadedRolls.length === 0 ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">No roll currently loaded for this work order.</p>
+                        ) : (
+                          <div className="space-y-4">
+                            {eclLoadedRolls.map(({ jobCardNumber, roll }) => (
+                              <div key={`${jobCardNumber}-${roll.id}`} className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm">
+                                <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
+                                <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
+                                  <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
+                                  {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
+                                  {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
+                                </dl>
+                                {eclAddRollForm?.roll.id === roll.id && (
+                                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      <div><Label className="text-xs">Size</Label><Input type="text" value={eclAddRollForm.size} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
+                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={eclAddRollForm.micron} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                      <div><Label className="text-xs">Net weight</Label><Input type="text" value={eclAddRollForm.netweight} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
+                                      <div><Label className="text-xs">Gross weight</Label><Input type="text" value={eclAddRollForm.grossweight} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={eclCreateChildLoading || (eclAddRollForm != null && eclFormCommittedForRollId === eclAddRollForm.roll.id)}
+                                      onClick={async () => {
+                                        const form = eclAddRollForm
+                                        const wo = eclSelectedWo
+                                        if (!form || wo?.itemId == null) return
+                                        try {
+                                          setEclCreateChildLoading(true)
+                                          setEclCreateChildMessage(null)
+                                          const parentIds = eclLoadedRolls.map((r) => r.roll.id)
+                                          await addEclRoll(form.jobCardId, {
+                                            itemId: wo.itemId,
+                                            rollno: "",
+                                            size: form.size ? parseFloat(form.size) : undefined,
+                                            micron: form.micron ? parseFloat(form.micron) : undefined,
+                                            netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                                            grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                            gradeId: form.parent.gradeId,
+                                            parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                                            weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                          })
+                                          setEclFormCommittedForRollId(form.roll.id)
+                                          setEclCreateChildMessage("Roll added.")
+                                        } catch {
+                                          setEclCreateChildMessage("Failed to add roll.")
+                                        } finally {
+                                          setEclCreateChildLoading(false)
+                                        }
+                                      }}
+                                    >
+                                      {eclCreateChildLoading ? "Adding…" : "Add roll"}
+                                    </Button>
+                                    {eclAddRollForm && eclFormCommittedForRollId === eclAddRollForm.roll.id && (
+                                      <Button type="button" variant="outline" size="sm" className="ml-2" onClick={() => { setEclFormCommittedForRollId(null); setEclAddRollForm((p) => p ? { ...p, size: p.roll.size != null ? String(p.roll.size) : "", micron: p.roll.micron != null ? String(p.roll.micron) : "", netweight: p.roll.netweight != null ? String(p.roll.netweight) : "", grossweight: "" } : null) }}>
+                                        <Plus className="h-4 w-4" /> Add new roll
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {eclCreateChildMessage && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{eclCreateChildMessage}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {eclLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : eclError ? <p className="text-sm text-red-600 dark:text-red-400">{eclError}</p> : eclWorkOrders.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p> : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead><tr className="border-b border-gray-200 dark:border-gray-600"><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">WO Number</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Party</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Item</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Status</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Action</th></tr></thead>
+                            <tbody>
+                              {eclWorkOrders.map((wo) => (
+                                <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setEclSelectedWo(wo)}>
+                                  <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )
+                ) : floorView === "lamination" ? (
+                  laminationSelectedWo ? (
+                    <div className="space-y-4 mt-4">
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll(s)</h4>
+                        {laminationRollsLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : laminationLoadedRolls.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No roll currently loaded for this work order.</p> : (
+                          <div className="space-y-4">
+                            {laminationLoadedRolls.map(({ jobCardNumber, roll }) => (
+                              <div key={`${jobCardNumber}-${roll.id}`} className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm">
+                                <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
+                                <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
+                                  <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
+                                  {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
+                                  {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
+                                </dl>
+                                {laminationAddRollForm?.roll.id === roll.id && (
+                                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      <div><Label className="text-xs">Size</Label><Input type="text" value={laminationAddRollForm.size} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
+                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={laminationAddRollForm.micron} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                      <div><Label className="text-xs">Net weight</Label><Input type="text" value={laminationAddRollForm.netweight} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
+                                      <div><Label className="text-xs">Gross weight</Label><Input type="text" value={laminationAddRollForm.grossweight} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
+                                    </div>
+                                    <Button type="button" size="sm" disabled={laminationCreateChildLoading || (laminationAddRollForm != null && laminationFormCommittedForRollId === laminationAddRollForm.roll.id)} onClick={async () => {
+                                      const form = laminationAddRollForm
+                                      const wo = laminationSelectedWo
+                                      if (!form || wo?.itemId == null) return
+                                      try {
+                                        setLaminationCreateChildLoading(true)
+                                        setLaminationCreateChildMessage(null)
+                                        const parentIds = laminationLoadedRolls.map((r) => r.roll.id)
+                                        await addLaminationRoll(form.jobCardId, { itemId: wo.itemId, rollno: "", size: form.size ? parseFloat(form.size) : undefined, micron: form.micron ? parseFloat(form.micron) : undefined, netweight: form.netweight ? parseFloat(form.netweight) : undefined, grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined, gradeId: form.parent.gradeId, parentRollIds: parentIds.length > 0 ? parentIds : undefined, weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined })
+                                        setLaminationFormCommittedForRollId(form.roll.id)
+                                        setLaminationCreateChildMessage("Roll added.")
+                                      } catch { setLaminationCreateChildMessage("Failed to add roll.") }
+                                      finally { setLaminationCreateChildLoading(false) }
+                                    }}>{laminationCreateChildLoading ? "Adding…" : "Add roll"}</Button>
+                                    {laminationAddRollForm && laminationFormCommittedForRollId === laminationAddRollForm.roll.id && (
+                                      <Button type="button" variant="outline" size="sm" className="ml-2" onClick={() => { setLaminationFormCommittedForRollId(null); setLaminationAddRollForm((p) => p ? { ...p, size: p.roll.size != null ? String(p.roll.size) : "", micron: p.roll.micron != null ? String(p.roll.micron) : "", netweight: p.roll.netweight != null ? String(p.roll.netweight) : "", grossweight: "" } : null) }}><Plus className="h-4 w-4" /> Add new roll</Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {laminationCreateChildMessage && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{laminationCreateChildMessage}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {laminationLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : laminationError ? <p className="text-sm text-red-600 dark:text-red-400">{laminationError}</p> : laminationWorkOrders.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p> : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead><tr className="border-b border-gray-200 dark:border-gray-600"><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">WO Number</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Party</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Item</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Status</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Action</th></tr></thead>
+                            <tbody>
+                              {laminationWorkOrders.map((wo) => (
+                                <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setLaminationSelectedWo(wo)}>
+                                  <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )
+                ) : floorView === "slitting" ? (
+                  slittingSelectedWo ? (
+                    <div className="space-y-4 mt-4">
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll</h4>
+                        {slittingRollsLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : slittingLoadedRolls.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No roll currently loaded for this work order.</p> : (
+                          <div className="space-y-4">
+                            {slittingLoadedRolls.map(({ jobCardNumber, roll }) => (
+                              <div key={`${jobCardNumber}-${roll.id}`} className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm">
+                                <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
+                                <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
+                                  <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
+                                  {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
+                                  {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
+                                </dl>
+                                {slittingAddRollForm?.roll.id === roll.id && (
+                                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      <div><Label className="text-xs">Size</Label><Input type="text" value={slittingAddRollForm.size} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
+                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={slittingAddRollForm.micron} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                      <div><Label className="text-xs">Net weight</Label><Input type="text" value={slittingAddRollForm.netweight} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
+                                      <div><Label className="text-xs">Gross weight</Label><Input type="text" value={slittingAddRollForm.grossweight} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
+                                    </div>
+                                    <Button type="button" size="sm" disabled={slittingCreateChildLoading || (slittingAddRollForm != null && slittingFormCommittedForRollId === slittingAddRollForm.roll.id)} onClick={async () => {
+                                      const form = slittingAddRollForm
+                                      const wo = slittingSelectedWo
+                                      if (!form || wo?.itemId == null) return
+                                      try {
+                                        setSlittingCreateChildLoading(true)
+                                        setSlittingCreateChildMessage(null)
+                                        const parentIds = slittingLoadedRolls.map((r) => r.roll.id)
+                                        await addSlittingRoll(form.jobCardId, { itemId: wo.itemId, rollno: "", size: form.size ? parseFloat(form.size) : undefined, micron: form.micron ? parseFloat(form.micron) : undefined, netweight: form.netweight ? parseFloat(form.netweight) : undefined, grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined, gradeId: form.parent.gradeId, parentRollIds: parentIds.length > 0 ? parentIds : undefined, weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined })
+                                        setSlittingFormCommittedForRollId(form.roll.id)
+                                        setSlittingCreateChildMessage("Roll added.")
+                                      } catch { setSlittingCreateChildMessage("Failed to add roll.") }
+                                      finally { setSlittingCreateChildLoading(false) }
+                                    }}>{slittingCreateChildLoading ? "Adding…" : "Add roll"}</Button>
+                                    {slittingAddRollForm && slittingFormCommittedForRollId === slittingAddRollForm.roll.id && (
+                                      <Button type="button" variant="outline" size="sm" className="ml-2" onClick={() => { setSlittingFormCommittedForRollId(null); setSlittingAddRollForm((p) => p ? { ...p, size: p.roll.size != null ? String(p.roll.size) : "", micron: p.roll.micron != null ? String(p.roll.micron) : "", netweight: p.roll.netweight != null ? String(p.roll.netweight) : "", grossweight: "" } : null) }}><Plus className="h-4 w-4" /> Add new roll</Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {slittingCreateChildMessage && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{slittingCreateChildMessage}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {slittingLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : slittingError ? <p className="text-sm text-red-600 dark:text-red-400">{slittingError}</p> : slittingWorkOrders.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p> : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead><tr className="border-b border-gray-200 dark:border-gray-600"><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">WO Number</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Party</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Item</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Status</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Action</th></tr></thead>
+                            <tbody>
+                              {slittingWorkOrders.map((wo) => (
+                                <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setSlittingSelectedWo(wo)}>
+                                  <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
                                 </tr>
                               ))}
                             </tbody>
