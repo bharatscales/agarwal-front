@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowRight, Plus, RefreshCw, Search, X } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { ArrowRight, Plus, RefreshCw, ScanBarcode, Search, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getWorkOrderColumns, type WorkOrderMaster } from "@/components/columns/work-order-columns"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,8 @@ import { getPartyCustomers } from "@/lib/party-api"
 import { getItemsFgVarietyByParty } from "@/lib/item-api"
 import { getAllMachines } from "@/lib/machine-api"
 import { getAllOperators } from "@/lib/operator-api"
+import { createJobCard, scanRoll } from "@/lib/job-card-api"
+import { getRollByBarcode, getWorkOrderByRollBarcode } from "@/lib/rolls-stock-api"
 import { createWorkOrder, deleteWorkOrder, getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
 import {
   Select,
@@ -34,6 +37,10 @@ type WorkOrderForm = {
 
 export default function WorkOrder() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isInspectionUser =
+    user?.role === "user" &&
+    (user?.department?.toLowerCase() === "inspection" || user?.department === "Inspection")
   const fallbackPriorities = ["low", "normal", "high"]
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
   const [isEditWorkOrderOpen, setIsEditWorkOrderOpen] = useState(false)
@@ -55,6 +62,23 @@ export default function WorkOrder() {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof WorkOrderForm, string>>>({})
   const [workOrders, setWorkOrders] = useState<WorkOrderMaster[]>([])
   const [woNumberSearch, setWoNumberSearch] = useState("")
+  const [inspectionBarcode, setInspectionBarcode] = useState("")
+  const [barcodeScanError, setBarcodeScanError] = useState<string | null>(null)
+  const [isBarcodeChecking, setIsBarcodeChecking] = useState(false)
+  const [inspectionAddJobCardOpen, setInspectionAddJobCardOpen] = useState(false)
+  const [inspectionJobCardPayload, setInspectionJobCardPayload] = useState<{
+    barcode: string
+    jobCardNumber: string
+    workOrderId: number
+    woNumber: string | null
+    operation: string
+    shift: string
+    machineId: number
+    operatorName: string
+    inspectionOperators: { value: string; label: string }[]
+  } | null>(null)
+  const [inspectionJobCardError, setInspectionJobCardError] = useState<string | null>(null)
+  const [inspectionJobCardSubmitting, setInspectionJobCardSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<WorkOrderForm>({
@@ -71,6 +95,115 @@ export default function WorkOrder() {
 
   const handleRefresh = () => {
     fetchWorkOrders()
+  }
+
+  const getCurrentShift = () => {
+    const hour = new Date().getHours()
+    return hour < 14 ? "A" : "B"
+  }
+
+  /** Inspection job cards get number from backend (JBI/1, JBI/2, …); we show a placeholder until created. */
+  const INSPECTION_JOB_CARD_NUMBER_PLACEHOLDER = "Auto (from inspection series)"
+
+  const handleBarcodeScan = async () => {
+    const barcode = inspectionBarcode.trim()
+    if (!barcode) return
+    setBarcodeScanError(null)
+    setIsBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setBarcodeScanError("Roll not found for this barcode.")
+        return
+      }
+      if (roll.consumed) {
+        setBarcodeScanError("This roll is already consumed.")
+        return
+      }
+      if (roll.issued) {
+        setBarcodeScanError("This roll is already issued.")
+        return
+      }
+      const stage = (roll.stage ?? "").toLowerCase()
+      const isWipPrinting = stage === "wip-printing" || stage === "wip_printed"
+      if (!isWipPrinting) {
+        setBarcodeScanError("Roll must be in WIP Printing stage. Current stage: " + (roll.stage || "—"))
+        return
+      }
+      const woInfo = await getWorkOrderByRollBarcode(barcode)
+      if (!woInfo) {
+        setBarcodeScanError("No work order linked to this roll (roll must come from a printing job card).")
+        return
+      }
+      const [operatorsList, machinesList] = await Promise.all([
+        getAllOperators(0, 500),
+        getAllMachines(0, 500),
+      ])
+      const inspectionOperators = operatorsList
+        .filter((op) => (op.operation ?? "").toLowerCase() === "inspection")
+        .map((op) => ({ value: op.operatorName, label: op.operatorName }))
+      const inspectionMachine = machinesList.find(
+        (m) => (m.operation ?? "").toLowerCase() === "inspection"
+      )
+      if (!inspectionMachine) {
+        setBarcodeScanError("No machine configured for Inspection operation.")
+        return
+      }
+      if (inspectionOperators.length === 0) {
+        setBarcodeScanError("No operators configured for Inspection operation.")
+        return
+      }
+      setInspectionBarcode("")
+      setInspectionJobCardError(null)
+      setInspectionJobCardPayload({
+        barcode,
+        jobCardNumber: "", // Backend assigns from job_card_inspection series (JBI/1, JBI/2, …)
+        workOrderId: woInfo.workOrderId,
+        woNumber: woInfo.woNumber,
+        operation: "Inspection",
+        shift: getCurrentShift(),
+        machineId: inspectionMachine.id,
+        operatorName: "",
+        inspectionOperators,
+      })
+      setInspectionAddJobCardOpen(true)
+    } catch {
+      setBarcodeScanError("Could not look up roll. Try again.")
+    } finally {
+      setIsBarcodeChecking(false)
+    }
+  }
+
+  const handleInspectionJobCardSubmit = async () => {
+    if (!inspectionJobCardPayload) return
+    if (!inspectionJobCardPayload.operatorName.trim()) {
+      setInspectionJobCardError("Operator name is required.")
+      return
+    }
+    setInspectionJobCardError(null)
+    setInspectionJobCardSubmitting(true)
+    const barcode = inspectionJobCardPayload.barcode
+    const workOrderId = inspectionJobCardPayload.workOrderId
+    try {
+      const newJobCard = await createJobCard({
+        jobCardNumber: inspectionJobCardPayload.jobCardNumber, // Empty for Inspection; backend assigns from job_card_inspection series (JBI/n)
+        workOrderId: inspectionJobCardPayload.workOrderId,
+        operation: inspectionJobCardPayload.operation,
+        machineId: inspectionJobCardPayload.machineId,
+        operatorName: inspectionJobCardPayload.operatorName.trim(),
+        shift: inspectionJobCardPayload.shift,
+      })
+      await scanRoll(newJobCard.id, barcode)
+      setInspectionAddJobCardOpen(false)
+      setInspectionJobCardPayload(null)
+      fetchWorkOrders()
+      navigate(`/manufacturing/work-order/${workOrderId}`)
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "message" in err ? String((err as { message: string }).message) : "Failed to create job card or load roll."
+      setInspectionJobCardError(msg)
+    } finally {
+      setInspectionJobCardSubmitting(false)
+    }
   }
 
   const handleAddWorkOrder = () => {
@@ -398,10 +531,12 @@ export default function WorkOrder() {
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={handleAddWorkOrder} size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Work Order</span>
-            </Button>
+            {!isInspectionUser && (
+              <Button onClick={handleAddWorkOrder} size="sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Work Order</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -428,22 +563,48 @@ export default function WorkOrder() {
         </div>
       ) : (
         <div>
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            {isInspectionUser && (
+              <div className="relative max-w-xs w-full sm:w-auto space-y-1">
+                <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Scan barcode"
+                  value={inspectionBarcode}
+                  onChange={(e) => {
+                    setInspectionBarcode(e.target.value)
+                    setBarcodeScanError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleBarcodeScan()
+                    }
+                  }}
+                  disabled={isBarcodeChecking}
+                  className="pl-9"
+                />
+                {barcodeScanError && (
+                  <p className="text-sm text-red-500">{barcodeScanError}</p>
+                )}
+              </div>
+            )}
+            <div className={`relative flex-1 max-w-xs ${isInspectionUser ? "sm:ml-auto" : ""}`}>
+              <Search
+                className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 ${isInspectionUser ? "right-3" : "left-3"}`}
+              />
               <Input
                 type="text"
                 placeholder="Work order number"
                 value={woNumberSearch}
                 onChange={(e) => setWoNumberSearch(e.target.value)}
-                className="pl-9"
+                className={isInspectionUser ? "pr-9 text-right" : "pl-9"}
               />
             </div>
           </div>
           <DataTable
             columns={getWorkOrderColumns({
-              onEdit: handleEditWorkOrderOpen,
-              onDelete: handleDeleteWorkOrder,
+              ...(isInspectionUser ? {} : { onEdit: handleEditWorkOrderOpen, onDelete: handleDeleteWorkOrder }),
             })}
             data={workOrders.filter((wo) => {
               if (!woNumberSearch.trim()) return true
@@ -463,6 +624,88 @@ export default function WorkOrder() {
             No work orders found. Create your first work order to get started.
         </p>
       </div>
+      )}
+
+      {inspectionAddJobCardOpen && inspectionJobCardPayload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle>Add Inspection Job Card</CardTitle>
+                <CardDescription>
+                  Scanned barcode: {inspectionJobCardPayload.barcode}. Select operator to create job card and load this roll.
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setInspectionAddJobCardOpen(false)
+                  setInspectionJobCardPayload(null)
+                  setInspectionJobCardError(null)
+                }}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Job card number</span>
+                  <p className="font-medium">
+                    {inspectionJobCardPayload.jobCardNumber || INSPECTION_JOB_CARD_NUMBER_PLACEHOLDER}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Work order</span>
+                  <p className="font-medium">{inspectionJobCardPayload.woNumber ?? `WO ${inspectionJobCardPayload.workOrderId}`}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Operation</span>
+                  <p className="font-medium">{inspectionJobCardPayload.operation}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Shift</span>
+                  <p className="font-medium">{inspectionJobCardPayload.shift}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inspection-operator">Operator name *</Label>
+                <Select
+                  value={inspectionJobCardPayload.operatorName || undefined}
+                  onValueChange={(value) =>
+                    setInspectionJobCardPayload((prev) =>
+                      prev ? { ...prev, operatorName: value } : null
+                    )
+                  }
+                >
+                  <SelectTrigger id="inspection-operator" className="w-full">
+                    <SelectValue placeholder="Select operator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inspectionJobCardPayload.inspectionOperators.map((op) => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {inspectionJobCardError && (
+                <p className="text-sm text-red-500">{inspectionJobCardError}</p>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button
+                onClick={handleInspectionJobCardSubmit}
+                disabled={inspectionJobCardSubmitting}
+              >
+                {inspectionJobCardSubmitting ? "Creating…" : "Create Job Card and Load Roll"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       )}
 
       {isAddWorkOrderOpen && (

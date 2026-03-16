@@ -41,7 +41,7 @@ export default function StockReport() {
       setError(null)
       const start = reset ? 0 : nextSkipRef.current
       const limit = PAGE_SIZE
-      const data = await getAllRollsStock(start, limit, false)
+      const data = await getAllRollsStock(start, limit, false, "virgin_rm")
       if (reset) {
         setRollsStock(data)
         nextSkipRef.current = data.length
@@ -96,7 +96,7 @@ export default function StockReport() {
   const handleItemWiseExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockItemWiseXlsx(false)
+      const blob = await exportRollsStockItemWiseXlsx(false, "virgin_rm")
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -116,7 +116,7 @@ export default function StockReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false)
+      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false, "virgin_rm")
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -146,8 +146,8 @@ export default function StockReport() {
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock."}
+              ? `Viewing virgin RM film stock for item: ${itemCodeFilter}`
+              : "View and analyze RM film stock (virgin RM stage only)."}
           </p>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -169,8 +169,8 @@ export default function StockReport() {
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock."}
+              ? `Viewing virgin RM film stock for item: ${itemCodeFilter}`
+              : "View and analyze RM film stock (virgin RM stage only)."}
           </p>
         </div>
         <div className="flex items-center gap-2">

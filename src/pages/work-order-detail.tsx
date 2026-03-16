@@ -109,11 +109,13 @@ export default function WorkOrderDetail() {
       const cards = await getAllJobCards(0, 1000, parseInt(id))
       setJobCards(cards)
 
-      // Fetch current loaded roll for each Printing job card
-      const printingCards = cards.filter((c) => c.operation === "Printing")
-      if (printingCards.length > 0) {
+      // Fetch current loaded roll for each Printing and Inspection job card
+      const cardsWithRoll = cards.filter(
+        (c) => c.operation === "Printing" || c.operation === "Inspection"
+      )
+      if (cardsWithRoll.length > 0) {
         const results = await Promise.all(
-          printingCards.map(async (c) => {
+          cardsWithRoll.map(async (c) => {
             try {
               const roll = await getCurrentRoll(c.id)
               return { id: c.id, roll }
@@ -398,66 +400,70 @@ export default function WorkOrderDetail() {
                             </div>
                           )}
                         </div>
-                        {card.operation === "Printing" && (
+                        {(card.operation === "Printing" || card.operation === "Inspection") && (
                           <div className="mt-1 max-w-xs">
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                              Scan roll barcode (then Enter)
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <div className="relative flex-1">
-                                <Input
-                                  type="text"
-                                  placeholder="Scan roll barcode..."
-                                  className="pr-8"
-                                  value={scanValue[card.id] ?? ""}
-                                  onChange={(e) =>
-                                    setScanValue((prev) => ({
-                                      ...prev,
-                                      [card.id]: e.target.value,
-                                    }))
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault()
-                                      handleScanRoll(
-                                        card,
-                                        scanValue[card.id] ?? ""
-                                      )
+                            {card.operation === "Printing" && (
+                              <>
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                  Scan roll barcode (then Enter)
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <Input
+                                      type="text"
+                                      placeholder="Scan roll barcode..."
+                                      className="pr-8"
+                                      value={scanValue[card.id] ?? ""}
+                                      onChange={(e) =>
+                                        setScanValue((prev) => ({
+                                          ...prev,
+                                          [card.id]: e.target.value,
+                                        }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault()
+                                          handleScanRoll(
+                                            card,
+                                            scanValue[card.id] ?? ""
+                                          )
+                                        }
+                                      }}
+                                      disabled={scanningCardId === card.id}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="sm:hidden absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
+                                      onClick={() => fileInputRef.current?.click()}
+                                    >
+                                      <ScanBarcode className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                  />
+                                </div>
+                                {scanMessage[card.id] && (
+                                  <p
+                                    className={
+                                      scanMessage[card.id].type === "success"
+                                        ? "text-sm text-green-600 dark:text-green-400 mt-1"
+                                        : "text-sm text-red-600 dark:text-red-400 mt-1"
                                     }
-                                  }}
-                                  disabled={scanningCardId === card.id}
-                                />
-                                <button
-                                  type="button"
-                                  className="sm:hidden absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center text-gray-500 hover:text-gray-700"
-                                  onClick={() => fileInputRef.current?.click()}
-                                >
-                                  <ScanBarcode className="h-4 w-4" />
-                                </button>
-                              </div>
-                              <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                              />
-                            </div>
-                            {scanMessage[card.id] && (
-                              <p
-                                className={
-                                  scanMessage[card.id].type === "success"
-                                    ? "text-sm text-green-600 dark:text-green-400 mt-1"
-                                    : "text-sm text-red-600 dark:text-red-400 mt-1"
-                                }
-                              >
-                                {scanMessage[card.id].text}
-                              </p>
+                                  >
+                                    {scanMessage[card.id].text}
+                                  </p>
+                                )}
+                              </>
                             )}
                             {currentRollByCard[card.id] && (
                               <div className="mt-2">
                                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                  Loaded rolls
+                                  Loaded roll
                                 </p>
                                 <div className="overflow-x-auto">
                                   <table className="min-w-full border border-gray-200 dark:border-gray-700 text-[11px]">

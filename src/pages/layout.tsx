@@ -64,6 +64,15 @@ const isPrintingUserBlockedPath = (path: string) =>
   path.startsWith("/manufacturing/stock-entry/") ||
   PRINTING_USER_BLOCKED_PATHS.includes(path);
 
+// Inspection department: only work-order and job-card; block home, stock-entry, reports, masters
+const isInspectUserBlockedPath = (path: string) =>
+  path === "/home" ||
+  path === "/manufacturing/stock-entry" ||
+  path.startsWith("/manufacturing/stock-entry/") ||
+  path.startsWith("/manufacturing/reports") ||
+  path.startsWith("/masters/") ||
+  path === "/users";
+
 export default function Layout() {
   const location = useLocation();
   const { user, isLoading: authLoading } = useAuth();
@@ -75,6 +84,12 @@ export default function Layout() {
     !!user &&
     user.role === "user" &&
     (user.department?.toLowerCase() === "floor" || user.department === "Floor");
+
+  const isInspectUser =
+    !authLoading &&
+    !!user &&
+    user.role === "user" &&
+    (user.department?.toLowerCase() === "inspection" || user.department === "Inspection");
 
   // Block work-order and job-card for stock department users (role=user, department=stock)
   useEffect(() => {
@@ -128,6 +143,10 @@ export default function Layout() {
   }, [location.pathname]);
 
   const renderContent = () => {
+    // Inspection department: only work-order and job-card; redirect blocked paths to work-order
+    if (isInspectUser && isInspectUserBlockedPath(location.pathname)) {
+      return <Navigate to="/manufacturing/work-order" replace />;
+    }
     const isBlockedPath =
       location.pathname === "/manufacturing/work-order" ||
       location.pathname === "/manufacturing/job-card" ||

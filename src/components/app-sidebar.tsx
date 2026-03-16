@@ -175,6 +175,11 @@ export function AppSidebar() {
     currentUser?.role === "user" &&
     (currentUser?.department?.toLowerCase() === "floor" || currentUser?.department === "Floor");
 
+  // Inspection department user: only Job Card and Work Order; no Home, Stock Entry, or Reports
+  const isInspectUser =
+    currentUser?.role === "user" &&
+    (currentUser?.department?.toLowerCase() === "inspection" || currentUser?.department === "Inspection");
+
   const toggleMasters = () => {
     setIsMastersOpen(!isMastersOpen);
   };
@@ -424,9 +429,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {/* Filter items based on user role - hide admin-only items for non-admin users */}
-              {/* Hide items for gate users if hideForGate is true */}
+              {/* Inspection department: no Home (main screen is Work Order) */}
               {items
                 .filter(item => {
+                  if (isInspectUser && item.path === "/home") return false;
                   // Hide admin-only items for non-admin users
                   if (item.adminOnly && currentUser?.role !== 'admin' && currentUser?.role !== 'superuser') {
                     return false;
@@ -468,6 +474,10 @@ export function AppSidebar() {
                   if (isPrintingUser && item.title === "Stock Entry") {
                     return false;
                   }
+                  // Inspection user: only Work Order and Job Card
+                  if (isInspectUser) {
+                    return item.title === "Work Order" || item.title === "Job Card";
+                  }
                   return true;
                 })
                 .map((item) => (
@@ -481,6 +491,8 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               ))}
+              {!isPrintingUser && !isInspectUser && (
+              <>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={toggleReports}
@@ -755,6 +767,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </div>
+              )}
+              </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

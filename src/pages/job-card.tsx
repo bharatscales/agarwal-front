@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { ArrowRight, Plus, RefreshCw, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getJobCardColumns, type JobCardMaster } from "@/components/columns/job-card-columns"
@@ -37,6 +38,7 @@ type JobCardForm = {
 }
 
 export default function JobCard() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const fallbackOperations = ["Printing", "Inspection", "Sliter", "ECL", "Lamination"]
   const fallbackShifts = ["A", "B"]
   const [isAddJobCardOpen, setIsAddJobCardOpen] = useState(false)
@@ -412,6 +414,16 @@ export default function JobCard() {
     fetchOperations()
     fetchJobCards()
   }, [])
+
+  // Open Add Job Card modal when navigated with ?openAdd=1 (e.g. from inspection barcode scan)
+  useEffect(() => {
+    if (searchParams.get("openAdd") === "1") {
+      setIsAddJobCardOpen(true)
+      searchParams.delete("openAdd")
+      searchParams.delete("scannedBarcode")
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   return (
     <div className="px-6 pt-2 pb-6">

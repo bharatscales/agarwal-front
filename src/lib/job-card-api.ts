@@ -188,3 +188,70 @@ export const addRollMovementOut = async (
   })
 }
 
+/** Create a WIP printed roll and its out-movement in one request (roll always has a movement). */
+export type AddPrintedRollPayload = {
+  itemId: number
+  rollno?: string
+  size?: number
+  micron?: number
+  netweight?: number
+  grossweight?: number
+  gradeId?: number
+  parentRollIds?: number[]
+  weightAtTime?: number
+}
+
+export type AddPrintedRollResponse = {
+  id: number
+  barcode: string
+  item_id: number
+  item_name?: string | null
+  size?: number | null
+  micron?: number | null
+  netweight?: number | null
+  grossweight?: number | null
+}
+
+export const addPrintedRoll = async (
+  jobCardId: number,
+  payload: AddPrintedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const response = await api.post<AddPrintedRollResponse>(
+    `/job-card/${jobCardId}/add-printed-roll`,
+    {
+      item_id: payload.itemId,
+      rollno: payload.rollno ?? undefined,
+      size: payload.size,
+      micron: payload.micron,
+      netweight: payload.netweight,
+      grossweight: payload.grossweight,
+      grade_id: payload.gradeId ?? undefined,
+      parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+
+/** Create a WIP inspection roll and its out-movement in one request (roll always has a movement). */
+export const addInspectionRoll = async (
+  jobCardId: number,
+  payload: AddPrintedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const response = await api.post<AddPrintedRollResponse>(
+    `/job-card/${jobCardId}/add-inspection-roll`,
+    {
+      item_id: payload.itemId,
+      rollno: payload.rollno ?? undefined,
+      size: payload.size,
+      micron: payload.micron,
+      netweight: payload.netweight,
+      grossweight: payload.grossweight,
+      grade_id: payload.gradeId ?? undefined,
+      parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+

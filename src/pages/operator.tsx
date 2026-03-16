@@ -133,6 +133,8 @@ export default function Operator() {
       .catch((err) => {
         console.error("Error creating operator:", err)
         setFormErrors({ operatorName: "Failed to create operator. Please try again." })
+        // Refetch so if the operator was actually created (e.g. 500 after commit), list stays in sync
+        fetchOperators()
       })
   }
 

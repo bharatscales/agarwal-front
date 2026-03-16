@@ -30,8 +30,8 @@ export type WorkOrderMaster = {
 }
 
 type WorkOrderColumnHandlers = {
-  onEdit: (workOrder: WorkOrderMaster) => void
-  onDelete: (workOrder: WorkOrderMaster) => void
+  onEdit?: (workOrder: WorkOrderMaster) => void
+  onDelete?: (workOrder: WorkOrderMaster) => void
 }
 
 const getStatusColor = (status: string) => {
@@ -65,7 +65,9 @@ const getPriorityColor = (priority?: string | null) => {
 export const getWorkOrderColumns = ({
   onEdit,
   onDelete,
-}: WorkOrderColumnHandlers): ColumnDef<WorkOrderMaster>[] => [
+}: WorkOrderColumnHandlers): ColumnDef<WorkOrderMaster>[] => {
+  const hasActions = onEdit != null || onDelete != null
+  const columns: ColumnDef<WorkOrderMaster>[] = [
   {
     accessorKey: "woNumber",
     header: ({ column }) => (
@@ -160,33 +162,42 @@ export const getWorkOrderColumns = ({
       )
     },
   },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const workOrder = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onEdit(workOrder)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit work order
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600" onClick={() => onDelete(workOrder)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete work order
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
-]
+      ...(hasActions
+    ? [
+        {
+          id: "actions",
+          cell: ({ row }: { row: { original: WorkOrderMaster } }) => {
+            const workOrder = row.original
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  {onEdit != null && (
+                    <DropdownMenuItem onClick={() => onEdit(workOrder)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit work order
+                    </DropdownMenuItem>
+                  )}
+                  {onDelete != null && (
+                    <DropdownMenuItem className="text-red-600" onClick={() => onDelete(workOrder)}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete work order
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          },
+        },
+      ]
+    : []),
+  ]
+  return columns
+}
 

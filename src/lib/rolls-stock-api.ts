@@ -11,7 +11,10 @@ export type RollsStockPayload = {
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
   stockVoucherId?: number
   stage?: string
+  /** Single parent (backward compatible). */
   parentRollId?: number
+  /** Multiple parents: use when creating a roll from multiple parent rolls. */
+  parentRollIds?: number[]
 }
 
 type RollsStockResponse = {
@@ -33,6 +36,7 @@ type RollsStockResponse = {
   issued_at?: string | null
   stage?: string | null
   parent_roll_id?: number | null
+  parent_roll_ids?: number[] | null
   consumed?: boolean
   consumed_at?: string | null
 }
@@ -56,6 +60,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   issuedAt: rollsStock.issued_at ?? null,
   stage: rollsStock.stage ?? null,
   parentRollId: rollsStock.parent_roll_id ?? null,
+  parentRollIds: rollsStock.parent_roll_ids ?? null,
   consumed: rollsStock.consumed ?? false,
   consumedAt: rollsStock.consumed_at ?? null,
 })
@@ -70,13 +75,15 @@ export const getRollsStockByVoucher = async (voucherId: number) => {
 export const getAllRollsStock = async (
   skip = 0,
   limit = 1000,
-  issued?: boolean
+  issued?: boolean,
+  stage?: string
 ) => {
-  const params: { skip: number; limit: number; issued?: boolean } = {
+  const params: { skip: number; limit: number; issued?: boolean; stage?: string } = {
     skip,
     limit,
   }
   if (issued !== undefined) params.issued = issued
+  if (stage != null && stage !== "") params.stage = stage
   const response = await api.get<RollsStockResponse[]>(`/rolls-stock/`, {
     params,
   })
@@ -84,7 +91,7 @@ export const getAllRollsStock = async (
 }
 
 export const createRollsStock = async (payload: RollsStockPayload) => {
-  const response = await api.post<RollsStockResponse>("/rolls-stock/", {
+  const body: Record<string, unknown> = {
     item_id: payload.itemId,
     rollno: payload.rollno,
     size: payload.size,
@@ -94,8 +101,13 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
-    parent_roll_id: payload.parentRollId,
-  })
+  }
+  if (payload.parentRollIds != null && payload.parentRollIds.length > 0) {
+    body.parent_roll_ids = payload.parentRollIds
+  } else if (payload.parentRollId != null) {
+    body.parent_roll_id = payload.parentRollId
+  }
+  const response = await api.post<RollsStockResponse>("/rolls-stock/", body)
   return mapRollsStock(response.data)
 }
 
@@ -122,6 +134,39 @@ export const updateRollsStock = async (
 export const getRollsStockById = async (id: number) => {
   const response = await api.get<RollsStockResponse>(`/rolls-stock/${id}`)
   return mapRollsStock(response.data)
+}
+
+/** Look up a roll by barcode (for inspection scan → add job card). Allowed for Inspection and Stock/Floor. */
+export const getRollByBarcode = async (barcode: string) => {
+  const trimmed = (barcode || "").trim()
+  if (!trimmed) return null
+  try {
+    const response = await api.get<RollsStockResponse>(
+      `/rolls-stock/by-barcode/${encodeURIComponent(trimmed)}`
+    )
+    return mapRollsStock(response.data)
+  } catch {
+    return null
+  }
+}
+
+/** Get work order linked to a roll by barcode (child wip_printed → parent → job card → work order). For inspection add job card. */
+export const getWorkOrderByRollBarcode = async (
+  barcode: string
+): Promise<{ workOrderId: number; woNumber: string | null } | null> => {
+  const trimmed = (barcode || "").trim()
+  if (!trimmed) return null
+  try {
+    const response = await api.get<{ work_order_id: number; wo_number: string | null }>(
+      `/rolls-stock/by-barcode/${encodeURIComponent(trimmed)}/work-order`
+    )
+    return {
+      workOrderId: response.data.work_order_id,
+      woNumber: response.data.wo_number ?? null,
+    }
+  } catch {
+    return null
+  }
 }
 
 /** Fetch rolls whose parent_roll_id is in the given list (e.g. children of consumed/loaded rolls). */
@@ -157,14 +202,18 @@ export const bulkRestoreRollsStock = async (ids: number[]): Promise<{ updated: n
 /**
  * Request full item-wise export from server (full dataset, no pagination).
  * When issued is false, exports only non-issued rolls; when true, only issued.
+ * When stage is provided (e.g. "virgin_rm"), exports only rolls with that stage.
  * Returns blob for download; server generates the .xlsx.
  */
 export const exportRollsStockItemWiseXlsx = async (
-  issued?: boolean
+  issued?: boolean,
+  stage?: string
 ): Promise<Blob> => {
-  const params = issued !== undefined ? { issued } : undefined
+  const params: { issued?: boolean; stage?: string } = {}
+  if (issued !== undefined) params.issued = issued
+  if (stage != null && stage !== "") params.stage = stage
   const response = await api.get("/rolls-stock/export/item-wise", {
-    params,
+    params: Object.keys(params).length ? params : undefined,
     responseType: "blob",
     timeout: 120000,
   })
@@ -175,15 +224,18 @@ export const exportRollsStockItemWiseXlsx = async (
  * Request summary export from server: single sheet grouped by (item code, micron, size).
  * When itemCode is provided, export contains only that item's summary; otherwise all items.
  * When issued is false, exports only non-issued rolls; when true, only issued.
+ * When stage is provided (e.g. "virgin_rm"), exports only rolls with that stage.
  * Returns blob for download.
  */
 export const exportRollsStockSummaryXlsx = async (
   itemCode?: string | null,
-  issued?: boolean
+  issued?: boolean,
+  stage?: string
 ): Promise<Blob> => {
-  const params: { item_code?: string; issued?: boolean } = {}
+  const params: { item_code?: string; issued?: boolean; stage?: string } = {}
   if (itemCode != null && itemCode.trim() !== "") params.item_code = itemCode.trim()
   if (issued !== undefined) params.issued = issued
+  if (stage != null && stage !== "") params.stage = stage
   const response = await api.get("/rolls-stock/export/summary", {
     params: Object.keys(params).length ? params : undefined,
     responseType: "blob",

@@ -26,12 +26,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/AuthContext"
 import api from "@/lib/axios"
-import { addRollMovementOut, getAllJobCards, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
+import { addInspectionRoll, addPrintedRoll, getAllJobCards, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import {
   getRollsStockById,
-  createRollsStock,
   updateRollsStock,
   getRollsStockByParentIds,
 } from "@/lib/rolls-stock-api"
@@ -44,9 +43,9 @@ const homeActions = [
   { label: "Work Order", icon: Factory, path: "/manufacturing/work-order" },
   { label: "Printing", icon: Printer },
   { label: "Inspection", icon: ClipboardCheck },
-  { label: "Slitter", icon: Scissors },
   { label: "ECL Department", icon: Factory },
   { label: "Laminations", icon: Layers },
+  { label: "Slitter", icon: Scissors },
   { label: "Dispatch", icon: Truck },
 ]
 
@@ -56,8 +55,8 @@ export type FloorDepartmentId = "printing" | "inspection" | "lamination" | "ecl"
 const floorDepartmentBlocks: { id: FloorDepartmentId; label: string; icon: typeof Printer }[] = [
   { id: "printing", label: "Printing", icon: Printer },
   { id: "inspection", label: "Inspection", icon: ClipboardCheck },
-  { id: "lamination", label: "Lamination", icon: Layers },
   { id: "ecl", label: "ECL", icon: Factory },
+  { id: "lamination", label: "Lamination", icon: Layers },
   { id: "slitting", label: "Slitting", icon: Scissors },
 ]
 
@@ -118,6 +117,36 @@ export default function Home() {
   const [printingChildRollsLoading, setPrintingChildRollsLoading] = useState(false)
   const [wipPrintingTemplate, setWipPrintingTemplate] = useState<TemplateMaster | null>(null)
   const [printingPrintStatus, setPrintingPrintStatus] = useState<"idle" | "printing" | "done">("idle")
+
+  // Floor Inspection (mirror of Floor Printing)
+  const [inspectionWorkOrders, setInspectionWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [inspectionLoading, setInspectionLoading] = useState(false)
+  const [inspectionError, setInspectionError] = useState<string | null>(null)
+  const [inspectionSelectedWo, setInspectionSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [inspectionRollsLoading, setInspectionRollsLoading] = useState(false)
+  const [inspectionLoadedRolls, setInspectionLoadedRolls] = useState<
+    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
+  >([])
+  const [inspectionCreateChildLoading, setInspectionCreateChildLoading] = useState(false)
+  const [inspectionCreateChildMessage, setInspectionCreateChildMessage] = useState<string | null>(null)
+  const [inspectionAddRollForm, setInspectionAddRollForm] = useState<{
+    jobCardNumber: string
+    jobCardId: number
+    roll: CurrentRoll
+    parent: { gradeId?: number }
+    size: string
+    micron: string
+    netweight: string
+    grossweight: string
+  } | null>(null)
+  const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
+    null | "size" | "micron" | "netweight" | "grossweight"
+  >(null)
+  const [inspectionFormCommittedForRollId, setInspectionFormCommittedForRollId] = useState<number | null>(null)
+  const [inspectionChildRollsFromDb, setInspectionChildRollsFromDb] = useState<
+    Awaited<ReturnType<typeof getRollsStockByParentIds>>
+  >([])
+  const [inspectionChildRollsLoading, setInspectionChildRollsLoading] = useState(false)
 
   const isStockUser =
     user?.role === "user" &&
@@ -209,6 +238,53 @@ export default function Home() {
     }
   }, [isFloorUser, floorView])
 
+  // Floor Inspection page: work orders that have an Inspection job card with current loaded roll
+  useEffect(() => {
+    if (!isFloorUser || floorView !== "inspection") return
+    let cancelled = false
+    const run = async () => {
+      setInspectionLoading(true)
+      setInspectionError(null)
+      try {
+        const cards = await getAllJobCards(0, 500, undefined, "Inspection")
+        const workOrderIdsWithRoll = new Set<number>()
+        const BATCH = 15
+        for (let i = 0; i < cards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = cards.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (c) => {
+              try {
+                const roll = await getCurrentRoll(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+              } catch {
+                return { workOrderId: c.workOrderId, hasRoll: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+        const allWos = await getAllWorkOrders(0, 500)
+        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        if (!cancelled) setInspectionWorkOrders(filtered)
+      } catch (err) {
+        if (!cancelled) {
+          setInspectionError("Failed to load work orders.")
+          setInspectionWorkOrders([])
+        }
+      } finally {
+        if (!cancelled) setInspectionLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [isFloorUser, floorView])
+
   // When Floor user selects a work order in Printing section, fetch current loaded roll(s) and show form for first roll
   useEffect(() => {
     if (!printingSelectedWo) {
@@ -280,11 +356,88 @@ export default function Home() {
     }
   }, [printingSelectedWo?.id])
 
+  // When Floor user selects a work order in Inspection section, fetch current loaded roll(s) and show form for first roll
+  useEffect(() => {
+    if (!inspectionSelectedWo) {
+      setInspectionLoadedRolls([])
+      setInspectionAddRollForm(null)
+      setInspectionAddRollEditingField(null)
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      setInspectionRollsLoading(true)
+      try {
+        const cards = await getAllJobCards(0, 20, inspectionSelectedWo.id, "Inspection")
+        const results = await Promise.all(
+          cards.map(async (c) => {
+            try {
+              const roll = await getCurrentRoll(c.id)
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+            } catch {
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+            }
+          })
+        )
+        if (!cancelled) {
+          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          setInspectionLoadedRolls(loaded)
+          if (loaded.length > 0) {
+            const first = loaded[0]
+            try {
+              const parent = await getRollsStockById(first.roll.id)
+              if (!cancelled) {
+                setInspectionAddRollEditingField(null)
+                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+                setInspectionAddRollForm({
+                  jobCardNumber: first.jobCardNumber,
+                  jobCardId: first.jobCardId,
+                  roll: first.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: first.roll.size != null ? String(first.roll.size) : "",
+                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                })
+              }
+            } catch {
+              if (!cancelled) {
+                setInspectionAddRollForm(null)
+                setInspectionAddRollEditingField(null)
+              }
+            }
+          } else {
+            setInspectionAddRollForm(null)
+            setInspectionAddRollEditingField(null)
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setInspectionLoadedRolls([])
+          setInspectionAddRollForm(null)
+          setInspectionAddRollEditingField(null)
+        }
+      } finally {
+        if (!cancelled) setInspectionRollsLoading(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [inspectionSelectedWo?.id])
+
   // Reset committed state and child rolls when switching work order
   useEffect(() => {
     setPrintingFormCommittedForRollId(null)
     setPrintingChildRollsFromDb([])
   }, [printingSelectedWo])
+
+  // Reset inspection committed state and child rolls when switching work order
+  useEffect(() => {
+    setInspectionFormCommittedForRollId(null)
+    setInspectionChildRollsFromDb([])
+  }, [inspectionSelectedWo])
 
   // Fetch child rolls (WIP printed) for consumed/loaded rolls from DB so table survives refresh
   useEffect(() => {
@@ -310,6 +463,30 @@ export default function Home() {
     }
   }, [printingLoadedRolls])
 
+  // Fetch child rolls (WIP inspection) for loaded rolls in Inspection section
+  useEffect(() => {
+    if (inspectionLoadedRolls.length === 0) {
+      setInspectionChildRollsFromDb([])
+      return
+    }
+    const parentIds = inspectionLoadedRolls.map((r) => r.roll.id)
+    let cancelled = false
+    setInspectionChildRollsLoading(true)
+    getRollsStockByParentIds(parentIds, "wip_inspection")
+      .then((rows) => {
+        if (!cancelled) setInspectionChildRollsFromDb(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setInspectionChildRollsFromDb([])
+      })
+      .finally(() => {
+        if (!cancelled) setInspectionChildRollsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [inspectionLoadedRolls])
+
   // Fetch WIP printing template when on Floor Printing view (for Print button)
   useEffect(() => {
     if (!isFloorUser || floorView !== "printing") return
@@ -325,6 +502,11 @@ export default function Home() {
   useEffect(() => {
     if (printingAddRollForm && scaleWeight != null) {
       setPrintingAddRollForm((prev) =>
+        prev ? { ...prev, grossweight: String(scaleWeight) } : null
+      )
+    }
+    if (inspectionAddRollForm && scaleWeight != null) {
+      setInspectionAddRollForm((prev) =>
         prev ? { ...prev, grossweight: String(scaleWeight) } : null
       )
     }
@@ -475,8 +657,8 @@ export default function Home() {
             </div>
           ) : (
             /* In-place page for selected department (title bar and bottom bar unchanged) */
-            <div className={floorView === "printing" ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
-              {floorView === "printing" && printingSelectedWo ? (
+            <div className={(floorView === "printing" || floorView === "inspection") ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
+              {(floorView === "printing" && printingSelectedWo) || (floorView === "inspection" && inspectionSelectedWo) ? (
                 <div className="flex items-center relative w-full">
                   <Button
                     type="button"
@@ -489,7 +671,7 @@ export default function Home() {
                     Back to Departments
                   </Button>
                   <h2 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize pointer-events-none">
-                    Printing
+                    {floorView === "printing" ? "Printing" : "Inspection"}
                   </h2>
                   <div className="shrink-0 w-[180px]" aria-hidden />
                 </div>
@@ -506,27 +688,30 @@ export default function Home() {
                 </Button>
               )}
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
-                {floorView === "printing" && printingSelectedWo ? (
+                {(floorView === "printing" && printingSelectedWo) || (floorView === "inspection" && inspectionSelectedWo) ? (
                   <div className="flex items-center justify-between gap-4">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="gap-2 -ml-2 shrink-0"
-                      onClick={() => setPrintingSelectedWo(null)}
+                      onClick={() => {
+                        if (floorView === "printing") setPrintingSelectedWo(null)
+                        else setInspectionSelectedWo(null)
+                      }}
                     >
                       <ArrowLeft className="h-4 w-4" />
                       Back to work orders
                     </Button>
                     <div className="space-y-0.5 text-center flex-1 min-w-0">
                       <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                        Work order number — {printingSelectedWo.woNumber ?? `WO ${printingSelectedWo.id}`}
+                        Work order number — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.woNumber ?? `WO ${(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.id}`}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Customer — {printingSelectedWo.partyName ?? "—"}
+                        Customer — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.partyName ?? "—"}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Variety — {printingSelectedWo.itemName ?? "—"}
+                        Variety — {(floorView === "printing" ? printingSelectedWo : inspectionSelectedWo)?.itemName ?? "—"}
                       </p>
                     </div>
                     <div className="w-[180px] shrink-0" aria-hidden />
@@ -917,7 +1102,8 @@ export default function Home() {
                                     try {
                                       setPrintingCreateChildLoading(true)
                                       setPrintingCreateChildMessage(null)
-                                      const newRoll = await createRollsStock({
+                                      const parentIds = printingLoadedRolls.map((r) => r.roll.id)
+                                      const created = await addPrintedRoll(form.jobCardId, {
                                         itemId: wo.itemId,
                                         rollno: "",
                                         size: form.size ? parseFloat(form.size) : undefined,
@@ -925,13 +1111,20 @@ export default function Home() {
                                         netweight: form.netweight ? parseFloat(form.netweight) : undefined,
                                         grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
                                         gradeId: form.parent.gradeId,
-                                        stage: "wip_printed",
-                                        parentRollId: form.roll.id,
+                                        parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
                                       })
-                                      const weight = form.grossweight ? parseFloat(form.grossweight) : undefined
-                                      await addRollMovementOut(form.jobCardId, newRoll.id, weight)
+                                      const newRoll = {
+                                        id: created.id,
+                                        barcode: created.barcode,
+                                        itemId: created.item_id,
+                                        itemName: created.item_name ?? null,
+                                        size: created.size ?? null,
+                                        micron: created.micron ?? null,
+                                        netweight: created.netweight ?? null,
+                                        grossweight: created.grossweight ?? null,
+                                      }
                                       setPrintingFormCommittedForRollId(form.roll.id)
-                                      const parentIds = printingLoadedRolls.map((r) => r.roll.id)
                                       getRollsStockByParentIds(parentIds, "wip_printed").then(
                                         setPrintingChildRollsFromDb
                                       )
@@ -1050,10 +1243,13 @@ export default function Home() {
                                       setPrintingCreateChildMessage(null)
                                       await updateRollsStock(form.roll.id, { consumed: true })
                                       setPrintingCreateChildMessage("Loaded roll marked as consumed.")
-                                      navigate("/home")
+                                      setPrintingCreateChildLoading(false)
+                                      setTimeout(() => {
+                                        setPrintingSelectedWo(null)
+                                        setFloorView(null)
+                                      }, 0)
                                     } catch {
                                       setPrintingCreateChildMessage("Failed to mark roll as consumed.")
-                                    } finally {
                                       setPrintingCreateChildLoading(false)
                                     }
                                   }}
@@ -1128,9 +1324,493 @@ export default function Home() {
                       )}
                     </>
                   )
+                ) : floorView === "inspection" ? (
+                  inspectionSelectedWo ? (
+                    /* Inspection: current loaded roll for selected work order (UI matches Printing) */
+                    <div className="space-y-4 mt-4">
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
+                        <div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                              Loaded roll
+                            </h4>
+                            {inspectionRollsLoading ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+                            ) : inspectionLoadedRolls.length === 0 ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                No roll currently loaded for this work order.
+                              </p>
+                            ) : (
+                              <div className="space-y-4">
+                                {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }) => (
+                                  <div
+                                    key={`${jobCardNumber}-${roll.id}`}
+                                    className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm"
+                                  >
+                                    <div className="font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                      Job card: {jobCardNumber}
+                                    </div>
+                                    <dl className="grid grid-cols-5 gap-x-6 gap-y-2 text-gray-600 dark:text-gray-400">
+                                      <div>
+                                        <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Barcode</dt>
+                                        <dd className="font-mono text-gray-900 dark:text-gray-100">{roll.barcode}</dd>
+                                      </div>
+                                      {(roll.item_name ?? roll.itemName) != null && (
+                                        <div>
+                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Item</dt>
+                                          <dd>{roll.item_name ?? roll.itemName}</dd>
+                                        </div>
+                                      )}
+                                      {roll.size != null && (
+                                        <div>
+                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Size</dt>
+                                          <dd>{roll.size}</dd>
+                                        </div>
+                                      )}
+                                      {roll.micron != null && (
+                                        <div>
+                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Micron</dt>
+                                          <dd>{roll.micron}</dd>
+                                        </div>
+                                      )}
+                                      {roll.netweight != null && (
+                                        <div>
+                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Net weight</dt>
+                                          <dd>{Number(roll.netweight).toFixed(2)} kg</dd>
+                                        </div>
+                                      )}
+                                    </dl>
+                                    {!(inspectionAddRollForm?.roll.id === roll.id) && (
+                                      <div className="mt-4 pt-3 flex items-center justify-end">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-1"
+                                          disabled={inspectionCreateChildLoading}
+                                          onClick={async () => {
+                                            try {
+                                              setInspectionCreateChildLoading(true)
+                                              setInspectionCreateChildMessage(null)
+                                              const parent = await getRollsStockById(roll.id)
+                                              setInspectionAddRollEditingField(null)
+                                              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+                                              setInspectionAddRollForm({
+                                                jobCardNumber,
+                                                jobCardId,
+                                                roll,
+                                                parent: { gradeId: parent.gradeId },
+                                                size: roll.size != null ? String(roll.size) : "",
+                                                micron: roll.micron != null ? String(roll.micron) : "",
+                                                netweight: roll.netweight != null ? String(roll.netweight) : "",
+                                                grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (roll.netweight != null ? String(roll.netweight) : "")),
+                                              })
+                                            } catch {
+                                              setInspectionCreateChildMessage("Failed to load parent roll.")
+                                            } finally {
+                                              setInspectionCreateChildLoading(false)
+                                            }
+                                          }}
+                                        >
+                                          Add to stock
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {(inspectionChildRollsLoading || inspectionChildRollsFromDb.length > 0) && (
+                            <div className="mb-4">
+                              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Produced rolls
+                              </h4>
+                              {inspectionChildRollsLoading ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
+                              ) : (
+                                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Barcode
+                                        </th>
+                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Size
+                                        </th>
+                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Micron
+                                        </th>
+                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Net weight
+                                        </th>
+                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
+                                          Gross weight
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {inspectionChildRollsFromDb.map((r) => (
+                                        <tr
+                                          key={r.id}
+                                          className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+                                        >
+                                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">
+                                            {r.barcode || "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                                            {r.size != null ? String(r.size) : "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                                            {r.micron != null ? String(r.micron) : "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                                            {r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}
+                                          </td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                                            {r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {inspectionAddRollForm && inspectionFormCommittedForRollId !== inspectionAddRollForm.roll.id && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <div className="col-span-2 sm:col-span-4">
+                                  <Label className="text-xs">Item (from work order)</Label>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5">
+                                    {inspectionSelectedWo?.itemName ?? "—"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Size</Label>
+                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
+                                    {inspectionAddRollEditingField === "size" ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          step="any"
+                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                                          value={inspectionAddRollForm.size}
+                                          onChange={(e) =>
+                                            setInspectionAddRollForm((prev) =>
+                                              prev ? { ...prev, size: e.target.value } : null
+                                            )
+                                          }
+                                          autoFocus
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField(null)}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                                          {inspectionAddRollForm.size || "—"}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField("size")}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Micron</Label>
+                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
+                                    {inspectionAddRollEditingField === "micron" ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          step="any"
+                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                                          value={inspectionAddRollForm.micron}
+                                          onChange={(e) =>
+                                            setInspectionAddRollForm((prev) =>
+                                              prev ? { ...prev, micron: e.target.value } : null
+                                            )
+                                          }
+                                          autoFocus
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField(null)}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                                          {inspectionAddRollForm.micron || "—"}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField("micron")}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Net weight (kg)</Label>
+                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
+                                    {inspectionAddRollEditingField === "netweight" ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          step="any"
+                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                                          value={inspectionAddRollForm.netweight}
+                                          onChange={(e) =>
+                                            setInspectionAddRollForm((prev) =>
+                                              prev ? { ...prev, netweight: e.target.value } : null
+                                            )
+                                          }
+                                          autoFocus
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField(null)}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                                          {inspectionAddRollForm.netweight || "—"}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField("netweight")}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Gross weight (kg)</Label>
+                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
+                                    {inspectionAddRollEditingField === "grossweight" ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          step="any"
+                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                                          value={inspectionAddRollForm.grossweight}
+                                          onChange={(e) =>
+                                            setInspectionAddRollForm((prev) =>
+                                              prev ? { ...prev, grossweight: e.target.value } : null
+                                            )
+                                          }
+                                          autoFocus
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField(null)}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                                          {inspectionAddRollForm.grossweight || "—"}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 shrink-0"
+                                          onClick={() => setInspectionAddRollEditingField("grossweight")}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4 flex-wrap">
+                          {!inspectionRollsLoading && inspectionLoadedRolls.length > 0 && (
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="default"
+                                size="sm"
+                                className="gap-2"
+                                disabled={
+                                  inspectionCreateChildLoading ||
+                                  (inspectionAddRollForm != null && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id)
+                                }
+                                onClick={async () => {
+                                  const form = inspectionAddRollForm
+                                  const wo = inspectionSelectedWo
+                                  if (form && wo?.itemId != null) {
+                                    try {
+                                      setInspectionCreateChildLoading(true)
+                                      setInspectionCreateChildMessage(null)
+                                      const parentIds = inspectionLoadedRolls.map((r) => r.roll.id)
+                                      await addInspectionRoll(form.jobCardId, {
+                                        itemId: wo.itemId,
+                                        rollno: "",
+                                        size: form.size ? parseFloat(form.size) : undefined,
+                                        micron: form.micron ? parseFloat(form.micron) : undefined,
+                                        netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                                        grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                        gradeId: form.parent.gradeId,
+                                        parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                      })
+                                      setInspectionFormCommittedForRollId(form.roll.id)
+                                      getRollsStockByParentIds(parentIds, "wip_inspection").then(setInspectionChildRollsFromDb)
+                                      setInspectionCreateChildMessage("Roll added and movement recorded.")
+                                    } catch {
+                                      setInspectionCreateChildMessage("Failed to add roll or record movement.")
+                                    } finally {
+                                      setInspectionCreateChildLoading(false)
+                                    }
+                                  }
+                                }}
+                              >
+                                <Plus className="h-4 w-4" />
+                                Add roll
+                              </Button>
+                              {inspectionAddRollForm &&
+                                inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-2"
+                                    onClick={() => {
+                                      setInspectionFormCommittedForRollId(null)
+                                      setInspectionAddRollForm((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              size: prev.roll.size != null ? String(prev.roll.size) : "",
+                                              micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
+                                              netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
+                                              grossweight: "",
+                                            }
+                                          : null
+                                      )
+                                    }}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    Add new roll
+                                  </Button>
+                                )}
+                            </div>
+                          )}
+                          {inspectionCreateChildMessage && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              {inspectionCreateChildMessage}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {inspectionLoading ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+                      ) : inspectionError ? (
+                        <p className="text-sm text-red-600 dark:text-red-400">{inspectionError}</p>
+                      ) : inspectionWorkOrders.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-200 dark:border-gray-600">
+                                <th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">WO Number</th>
+                                <th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Party</th>
+                                <th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Item</th>
+                                <th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Status</th>
+                                <th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {inspectionWorkOrders.map((wo) => (
+                                <tr
+                                  key={wo.id}
+                                  className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                                  onClick={() => setInspectionSelectedWo(wo)}
+                                >
+                                  <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td>
+                                  <td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td>
+                                  <td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
+                                  <td className="py-2">
+                                    <span
+                                      className={
+                                        wo.status === "in_progress"
+                                          ? "text-blue-600 dark:text-blue-400"
+                                          : wo.status === "completed"
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-gray-600 dark:text-gray-400"
+                                      }
+                                    >
+                                      {wo.status?.replace("_", " ") ?? "-"}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Click to view loaded roll
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )
                 ) : (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    {floorView === "inspection" && "Inspection department view. Add content here."}
                     {floorView === "lamination" && "Lamination department view. Add content here."}
                     {floorView === "ecl" && "ECL department view. Add content here."}
                     {floorView === "slitting" && "Slitting department view. Add content here."}

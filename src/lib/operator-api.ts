@@ -17,12 +17,12 @@ type OperatorResponse = {
 }
 
 const mapOperator = (operator: OperatorResponse) => ({
-  id: operator.id,
-  operatorName: operator.operator_name,
-  machineId: operator.machine_id,
-  machineCode: operator.machine_code,
-  machineName: operator.machine_name,
-  operation: operator.operation,
+  id: operator?.id ?? 0,
+  operatorName: operator?.operator_name ?? "",
+  machineId: operator?.machine_id ?? null,
+  machineCode: operator?.machine_code ?? null,
+  machineName: operator?.machine_name ?? null,
+  operation: operator?.operation ?? null,
 })
 
 export const getAllOperators = async (skip = 0, limit = 100) => {
@@ -35,7 +35,11 @@ export const createOperator = async (payload: OperatorPayload) => {
     operator_name: payload.operatorName,
     machine_id: payload.machineId || null,
   })
-  return mapOperator(response.data)
+  const data = response?.data
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid response when creating operator")
+  }
+  return mapOperator(data)
 }
 
 export const updateOperator = async (operatorId: number, payload: Partial<OperatorPayload>) => {
