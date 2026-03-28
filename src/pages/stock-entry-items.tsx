@@ -440,6 +440,9 @@ export default function StockEntryItems() {
         gradeId: row.gradeId,
         stockVoucherId: Number(voucherId),
       }
+      if (!row.id) {
+        payload.stage = "virgin_rm"
+      }
 
       if (row.id) {
         // Update existing
