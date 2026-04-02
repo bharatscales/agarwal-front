@@ -14,6 +14,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  ScanBarcode,
   Scissors,
   StickyNote,
   Truck,
@@ -42,6 +43,8 @@ import {
   getRollsStockById,
   updateRollsStock,
   getRollsStockByParentIds,
+  getRollByBarcode,
+  getWorkOrderByRollBarcode,
 } from "@/lib/rolls-stock-api"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
@@ -156,6 +159,10 @@ export default function Home() {
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
   const [inspectionChildRollsLoading, setInspectionChildRollsLoading] = useState(false)
+  /** Floor Inspection list: scan roll barcode to open that work order (same role/dept as floor dashboard). */
+  const [floorInspectionBarcode, setFloorInspectionBarcode] = useState("")
+  const [floorInspectionBarcodeError, setFloorInspectionBarcodeError] = useState<string | null>(null)
+  const [floorInspectionBarcodeChecking, setFloorInspectionBarcodeChecking] = useState(false)
 
   // Floor ECL (mirror of Inspection)
   const [eclWorkOrders, setEclWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -237,6 +244,40 @@ export default function Home() {
   const isFloorUser =
     user?.role === "user" &&
     (user?.department?.toLowerCase() === "floor" || user?.department === "Floor")
+
+  const handleFloorInspectionBarcodeSubmit = async () => {
+    const barcode = floorInspectionBarcode.trim()
+    if (!barcode) return
+    setFloorInspectionBarcodeError(null)
+    setFloorInspectionBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setFloorInspectionBarcodeError("Roll not found for this barcode.")
+        return
+      }
+      const woInfo = await getWorkOrderByRollBarcode(barcode)
+      if (!woInfo) {
+        setFloorInspectionBarcodeError(
+          "No work order linked to this roll (roll must come from a production job card)."
+        )
+        return
+      }
+      const wo = inspectionWorkOrders.find((w) => w.id === woInfo.workOrderId)
+      if (!wo) {
+        setFloorInspectionBarcodeError(
+          "This work order is not in the list (no loaded inspection roll for it here)."
+        )
+        return
+      }
+      setFloorInspectionBarcode("")
+      setInspectionSelectedWo(wo)
+    } catch {
+      setFloorInspectionBarcodeError("Could not look up roll. Try again.")
+    } finally {
+      setFloorInspectionBarcodeChecking(false)
+    }
+  }
 
   const fetchDefaultPrinter = async () => {
     try {
@@ -2065,6 +2106,12 @@ export default function Home() {
                                     {inspectionSelectedWo?.itemName ?? "—"}
                                   </p>
                                 </div>
+                                <div className="col-span-2 sm:col-span-4">
+                                  <Label className="text-xs">Barcode</Label>
+                                  <p className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100 mt-0.5">
+                                    {inspectionAddRollForm.roll.barcode ?? "—"}
+                                  </p>
+                                </div>
                                 <div>
                                   <Label className="text-xs">Size</Label>
                                   <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
@@ -2398,6 +2445,36 @@ export default function Home() {
                     </div>
                   ) : (
                     <>
+                      <div className="mb-4 space-y-1">
+                        <Label htmlFor="floor-inspection-barcode" className="text-xs text-gray-600 dark:text-gray-400">
+                          Barcode
+                        </Label>
+                        <div className="relative max-w-md">
+                          <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="floor-inspection-barcode"
+                            type="text"
+                            placeholder="Scan or enter roll barcode"
+                            value={floorInspectionBarcode}
+                            onChange={(e) => {
+                              setFloorInspectionBarcode(e.target.value)
+                              setFloorInspectionBarcodeError(null)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                void handleFloorInspectionBarcodeSubmit()
+                              }
+                            }}
+                            disabled={floorInspectionBarcodeChecking}
+                            className="pl-9"
+                            autoComplete="off"
+                          />
+                        </div>
+                        {floorInspectionBarcodeError && (
+                          <p className="text-sm text-red-500">{floorInspectionBarcodeError}</p>
+                        )}
+                      </div>
                       {inspectionLoading ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
                       ) : inspectionError ? (

@@ -29,6 +29,8 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void;
   getRowId?: (row: TData) => string;
   bulkActions?: (selectedRows: TData[]) => React.ReactNode;
+  /** When true, only one row can be selected at a time. */
+  singleRowSelection?: boolean;
   /** When true, table body is scrollable and pagination is hidden. */
   scrollable?: boolean;
   /** Height of the scrollable area (e.g. "60vh" or "500px"). Used when scrollable is true. */
@@ -49,6 +51,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   getRowId,
   bulkActions,
+  singleRowSelection = false,
   scrollable = false,
   scrollHeight = "80vh",
   onLoadMore,
@@ -67,6 +70,7 @@ export function DataTable<TData, TValue>({
     columns,
     getRowId,
     getCoreRowModel: getCoreRowModel(),
+    enableMultiRowSelection: !singleRowSelection,
     ...(scrollable
       ? {}
       : { getPaginationRowModel: getPaginationRowModel() }),

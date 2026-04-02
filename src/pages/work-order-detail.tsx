@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, RefreshCw, ScanBarcode } from "lucide-react"
+import { ArrowLeft, RefreshCw, ScanBarcode, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { DataTable } from "@/components/data-table"
+import { ColumnHeader } from "@/components/column-header"
+import { useAuth } from "@/contexts/AuthContext"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import { getAllJobCards, scanRoll, mapJobCard, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
+import { getAllRollsStock } from "@/lib/rolls-stock-api"
+import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 
 type JobCard = {
@@ -80,6 +85,7 @@ const formatDate = (dateString?: string | null) => {
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [workOrder, setWorkOrder] = useState<WorkOrderMaster | null>(null)
   const [jobCards, setJobCards] = useState<JobCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -88,6 +94,14 @@ export default function WorkOrderDetail() {
   const [scanMessage, setScanMessage] = useState<Record<number, { type: "success" | "error"; text: string }>>({})
   const [scanningCardId, setScanningCardId] = useState<number | null>(null)
   const [currentRollByCard, setCurrentRollByCard] = useState<Record<number, CurrentRoll | null>>({})
+
+  const isPrintingUser = user?.role === "user" && (user?.department ?? "").toLowerCase() === "printing"
+
+  const [stockSelectOpen, setStockSelectOpen] = useState(false)
+  const [stockSelectCard, setStockSelectCard] = useState<JobCard | null>(null)
+  const [stockSelectLoading, setStockSelectLoading] = useState(false)
+  const [stockSelectError, setStockSelectError] = useState<string | null>(null)
+  const [stockRows, setStockRows] = useState<RollsStockRow[]>([])
 
   const fetchData = async () => {
     if (!id) return
@@ -143,9 +157,9 @@ export default function WorkOrderDetail() {
     fetchData()
   }, [id])
 
-  const handleScanRoll = async (card: JobCard, barcode: string) => {
+  const handleScanRoll = async (card: JobCard, barcode: string): Promise<boolean> => {
     const trimmed = barcode.trim()
-    if (!trimmed) return
+    if (!trimmed) return false
     setScanningCardId(card.id)
     setScanMessage((prev) => ({ ...prev, [card.id]: { type: "success", text: "" } }))
     try {
@@ -183,6 +197,7 @@ export default function WorkOrderDetail() {
           return next
         })
       }, 4000)
+      return true
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } }; message?: string })
@@ -193,8 +208,43 @@ export default function WorkOrderDetail() {
         ...prev,
         [card.id]: { type: "error", text: msg },
       }))
+      return false
     } finally {
       setScanningCardId(null)
+    }
+  }
+
+  const closeStockSelectModal = () => {
+    setStockSelectOpen(false)
+    setStockSelectCard(null)
+    setStockSelectError(null)
+    setStockRows([])
+  }
+
+  const openStockSelectModal = async (card: JobCard) => {
+    if (!workOrder) return
+    if (card.operation !== "Printing") return
+
+    // For Printing operation, we load RM film stock from "virgin_rm" stage.
+    const stage = "virgin_rm"
+    setStockSelectOpen(true)
+    setStockSelectCard(card)
+    setStockSelectLoading(true)
+    setStockSelectError(null)
+    setStockRows([])
+
+    try {
+      const data = await getAllRollsStock(0, 500, false, stage)
+      // Show all available RM virgin rolls for Printing selection.
+      const filtered = data.filter((r) => !r.consumed)
+      setStockRows(filtered)
+      if (filtered.length === 0) {
+        setStockSelectError("No available virgin RM stock found. Try scanning a barcode instead.")
+      }
+    } catch {
+      setStockSelectError("Failed to load stock. Please try again.")
+    } finally {
+      setStockSelectLoading(false)
     }
   }
 
@@ -210,6 +260,19 @@ export default function WorkOrderDetail() {
 
   const operations = Object.keys(jobCardsByOperation).sort()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const stockColumns = [
+    ...getRollsStockColumns({ variant: "rm" }),
+    {
+      accessorKey: "barcode",
+      header: ({ column }: { column: any }) => (
+        <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+      ),
+      cell: ({ row }: { row: any }) => (
+        <div className="text-sm">{row.original.barcode || "-"}</div>
+      ),
+    },
+  ]
 
   if (isLoading) {
     return (
@@ -446,6 +509,18 @@ export default function WorkOrderDetail() {
                                       <ScanBarcode className="h-4 w-4" />
                                     </button>
                                   </div>
+                                  {isPrintingUser && card.operation === "Printing" && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="whitespace-nowrap"
+                                      disabled={stockSelectLoading || scanningCardId === card.id}
+                                      onClick={() => openStockSelectModal(card)}
+                                    >
+                                      Select Stock
+                                    </Button>
+                                  )}
                                   <input
                                     ref={fileInputRef}
                                     type="file"
@@ -542,6 +617,70 @@ export default function WorkOrderDetail() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {stockSelectOpen && stockSelectCard && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle>Select Roll Stock</CardTitle>
+                <CardDescription>
+                  Pick a roll to load into job card <span className="font-medium">{stockSelectCard.jobCardNumber}</span>.
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={closeStockSelectModal} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+
+            <CardContent>
+              {stockSelectLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-400">Loading stock…</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {stockSelectError && <p className="text-sm text-red-500 mb-3">{stockSelectError}</p>}
+                  <DataTable
+                    key={stockSelectCard.id}
+                    columns={stockColumns}
+                    data={stockRows}
+                    singleRowSelection
+                    scrollable
+                    scrollHeight="60vh"
+                    bulkActions={(selectedRows) => (
+                      <Button
+                        size="sm"
+                        disabled={scanningCardId === stockSelectCard.id}
+                        onClick={async () => {
+                          const selected = selectedRows[0]
+                          const barcode = selected?.barcode?.trim()
+                          if (!barcode) return
+                          const ok = await handleScanRoll(stockSelectCard, barcode)
+                          if (ok) closeStockSelectModal()
+                        }}
+                      >
+                        {scanningCardId === stockSelectCard.id ? "Loading…" : "Load Selected Roll"}
+                      </Button>
+                    )}
+                  />
+                </>
+              )}
+            </CardContent>
+
+            <CardFooter>
+              <div className="w-full flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeStockSelectModal}>
+                  Close
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+        </div>
       )}
     </div>
   )
