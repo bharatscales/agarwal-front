@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
   Box,
@@ -18,11 +18,16 @@ import {
   Scissors,
   StickyNote,
   Truck,
+  X,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { useSidebar } from "@/components/ui/sidebar"
+import { ColumnHeader } from "@/components/column-header"
+import { DataTable } from "@/components/data-table"
+import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/AuthContext"
@@ -45,6 +50,7 @@ import {
   getRollsStockByParentIds,
   getRollByBarcode,
   getWorkOrderByRollBarcode,
+  getAllRollsStock,
 } from "@/lib/rolls-stock-api"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
@@ -119,8 +125,8 @@ export default function Home() {
     netweight: string
     grossweight: string
   } | null>(null)
-  const [printingAddRollEditingField, setPrintingAddRollEditingField] = useState<
-    null | "size" | "micron" | "netweight" | "grossweight"
+  const [, setPrintingAddRollEditingField] = useState<
+    null | "netweight" | "grossweight"
   >(null)
   const [printingFormCommittedForRollId, setPrintingFormCommittedForRollId] = useState<number | null>(null)
   const [printingChildRollsFromDb, setPrintingChildRollsFromDb] = useState<
@@ -152,7 +158,7 @@ export default function Home() {
     grossweight: string
   } | null>(null)
   const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
-    null | "size" | "micron" | "netweight" | "grossweight"
+    null | "netweight" | "grossweight"
   >(null)
   const [inspectionFormCommittedForRollId, setInspectionFormCommittedForRollId] = useState<number | null>(null)
   const [inspectionChildRollsFromDb, setInspectionChildRollsFromDb] = useState<
@@ -163,6 +169,26 @@ export default function Home() {
   const [floorInspectionBarcode, setFloorInspectionBarcode] = useState("")
   const [floorInspectionBarcodeError, setFloorInspectionBarcodeError] = useState<string | null>(null)
   const [floorInspectionBarcodeChecking, setFloorInspectionBarcodeChecking] = useState(false)
+  const [floorInspectionWipPickerOpen, setFloorInspectionWipPickerOpen] = useState(false)
+  const [floorInspectionWipRolls, setFloorInspectionWipRolls] = useState<RollsStockRow[]>([])
+  const [floorInspectionWipRollsLoading, setFloorInspectionWipRollsLoading] = useState(false)
+  const [floorInspectionWipRollsError, setFloorInspectionWipRollsError] = useState<string | null>(null)
+
+  const floorInspectionWipStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "wip" }),
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
 
   // Floor ECL (mirror of Inspection)
   const [eclWorkOrders, setEclWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -245,8 +271,17 @@ export default function Home() {
     user?.role === "user" &&
     (user?.department?.toLowerCase() === "floor" || user?.department === "Floor")
 
-  const handleFloorInspectionBarcodeSubmit = async () => {
-    const barcode = floorInspectionBarcode.trim()
+  const closeFloorInspectionWipPicker = () => {
+    setFloorInspectionWipPickerOpen(false)
+    setFloorInspectionWipRollsError(null)
+    setFloorInspectionWipRolls([])
+  }
+
+  const applyFloorInspectionFromBarcode = async (
+    barcodeRaw: string,
+    options?: { closePicker?: boolean }
+  ) => {
+    const barcode = barcodeRaw.trim()
     if (!barcode) return
     setFloorInspectionBarcodeError(null)
     setFloorInspectionBarcodeChecking(true)
@@ -263,19 +298,54 @@ export default function Home() {
         )
         return
       }
-      const wo = inspectionWorkOrders.find((w) => w.id === woInfo.workOrderId)
+      // The table only lists WOs that already have a roll loaded on Inspection; picking a WIP printing roll
+      // usually targets a WO that is not in that subset yet — resolve the WO from the full list.
+      let wo = inspectionWorkOrders.find((w) => w.id === woInfo.workOrderId)
       if (!wo) {
-        setFloorInspectionBarcodeError(
-          "This work order is not in the list (no loaded inspection roll for it here)."
-        )
+        try {
+          const allWos = await getAllWorkOrders(0, 500)
+          wo = allWos.find((w) => w.id === woInfo.workOrderId)
+        } catch {
+          wo = undefined
+        }
+      }
+      if (!wo) {
+        setFloorInspectionBarcodeError("Work order not found for this roll.")
         return
       }
       setFloorInspectionBarcode("")
       setInspectionSelectedWo(wo)
+      if (options?.closePicker) closeFloorInspectionWipPicker()
     } catch {
       setFloorInspectionBarcodeError("Could not look up roll. Try again.")
     } finally {
       setFloorInspectionBarcodeChecking(false)
+    }
+  }
+
+  const handleFloorInspectionBarcodeSubmit = async () => {
+    await applyFloorInspectionFromBarcode(floorInspectionBarcode)
+  }
+
+  const openFloorInspectionWipPicker = async () => {
+    setFloorInspectionWipPickerOpen(true)
+    setFloorInspectionWipRollsLoading(true)
+    setFloorInspectionWipRollsError(null)
+    setFloorInspectionWipRolls([])
+    try {
+      const rolls = await getAllRollsStock(0, 500, false, "wip_printed")
+      const filtered = rolls.filter((r) => !r.consumed)
+      setFloorInspectionWipRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorInspectionWipRollsError(
+          "No available WIP printing rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorInspectionWipRollsError("Failed to load stock. Please try again.")
+      setFloorInspectionWipRolls([])
+    } finally {
+      setFloorInspectionWipRollsLoading(false)
     }
   }
 
@@ -1196,8 +1266,9 @@ export default function Home() {
                         <div>
                           {/* Table of rolls (children of consumed/loaded rolls) — fetched from DB so it survives refresh */}
                           
-                          {/* Consumed roll (full width; WO info now at top of card) */}
-                          <div>
+                          <div className="flex flex-col-reverse gap-4">
+                            {/* Consumed roll (full width; WO info now at top of card) */}
+                            <div>
                             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
                               Loaded roll
                             </h4>
@@ -1208,54 +1279,32 @@ export default function Home() {
                                 No roll currently loaded for this work order.
                               </p>
                             ) : (
-                              <div className="space-y-4">
-                                {printingLoadedRolls.map(({ jobCardNumber, jobCardId, roll }) => (
-                                  <div
-                                    key={`${jobCardNumber}-${roll.id}`}
-                                    className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm"
-                                  >
-                                    <div className="font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                      Job card: {jobCardNumber}
-                                    </div>
-                                    <dl className="grid grid-cols-5 gap-x-6 gap-y-2 text-gray-600 dark:text-gray-400">
-                                      <div>
-                                        <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Barcode</dt>
-                                        <dd className="font-mono text-gray-900 dark:text-gray-100">{roll.barcode}</dd>
-                                      </div>
-                                      {(roll.item_name ?? roll.itemName) != null && (
-                                        <div>
-                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Item</dt>
-                                          <dd>{roll.item_name ?? roll.itemName}</dd>
-                                        </div>
-                                      )}
-                                      {roll.size != null && (
-                                        <div>
-                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Size</dt>
-                                          <dd>{roll.size}</dd>
-                                        </div>
-                                      )}
-                                      {roll.micron != null && (
-                                        <div>
-                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Micron</dt>
-                                          <dd>{roll.micron}</dd>
-                                        </div>
-                                      )}
-                                      {roll.netweight != null && (
-                                        <div>
-                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Net weight</dt>
-                                          <dd>{Number(roll.netweight).toFixed(2)} kg</dd>
-                                        </div>
-                                      )}
-                                    </dl>
-                                    {!(printingAddRollForm?.roll.id === roll.id) && (
-                                      <div className="mt-4 pt-3 flex items-center justify-end">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          className="gap-1"
-                                          disabled={printingCreateChildLoading}
+                              <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                                <table className="w-full min-w-[1200px] text-sm">
+                                  <thead>
+                                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Loaded roll weight</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Item (variety)</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {printingLoadedRolls.map(({ jobCardNumber, jobCardId, roll }) => {
+                                      const isSelected = printingAddRollForm?.roll.id === roll.id
+                                      return (
+                                        <tr
+                                          key={`${jobCardNumber}-${roll.id}`}
+                                          className={`border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer ${
+                                            isSelected ? "bg-gray-50 dark:bg-gray-800/40" : ""
+                                          }`}
                                           onClick={async () => {
+                                            if (printingCreateChildLoading) return
                                             const woItemId = printingSelectedWo?.itemId
                                             if (woItemId == null) {
                                               setPrintingCreateChildMessage("Work order has no item.")
@@ -1286,18 +1335,64 @@ export default function Home() {
                                             }
                                           }}
                                         >
-                                          Add to stock
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                                          <td className="py-2 px-3 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
+                                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">{roll.barcode ?? "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{printingSelectedWo?.itemName ?? "—"}</td>
+                                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                                            <Input
+                                              type="number"
+                                              step="any"
+                                              className="h-8 min-w-[140px]"
+                                              disabled={!isSelected}
+                                              value={
+                                                isSelected
+                                                  ? printingAddRollForm.netweight
+                                                  : (roll.netweight != null ? String(roll.netweight) : "")
+                                              }
+                                              onChange={(e) =>
+                                                setPrintingAddRollForm((prev) =>
+                                                  prev && prev.roll.id === roll.id
+                                                    ? { ...prev, netweight: e.target.value }
+                                                    : prev
+                                                )
+                                              }
+                                            />
+                                          </td>
+                                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                                            <Input
+                                              type="number"
+                                              step="any"
+                                              className="h-8 min-w-[140px]"
+                                              disabled={!isSelected}
+                                              value={
+                                                isSelected
+                                                  ? printingAddRollForm.grossweight
+                                                  : (roll.netweight != null ? String(roll.netweight) : "")
+                                              }
+                                              onChange={(e) =>
+                                                setPrintingAddRollForm((prev) =>
+                                                  prev && prev.roll.id === roll.id
+                                                    ? { ...prev, grossweight: e.target.value }
+                                                    : prev
+                                                )
+                                              }
+                                            />
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
                             )}
                           </div>
 
-                          {(printingChildRollsLoading || printingChildRollsFromDb.length > 0) && (
-                            <div className="mb-4">
+                            {(printingChildRollsLoading || printingChildRollsFromDb.length > 0) && (
+                              <div>
                               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                 Produced rolls
                               </h4>
@@ -1429,203 +1524,10 @@ export default function Home() {
                                   </table>
                                 </div>
                               )}
-                            </div>
-                          )}
-
-                          {/* New roll to stock (WIP printed) — below Rolls added this session */}
-                          {printingAddRollForm && printingFormCommittedForRollId !== printingAddRollForm.roll.id && (
-                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <div className="col-span-2 sm:col-span-4">
-                                  <Label className="text-xs">Item (from work order)</Label>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5">
-                                    {printingSelectedWo?.itemName ?? "—"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Size</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {printingAddRollEditingField === "size" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={printingAddRollForm.size}
-                                          onChange={(e) =>
-                                            setPrintingAddRollForm((prev) =>
-                                              prev ? { ...prev, size: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {printingAddRollForm.size || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField("size")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Micron</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {printingAddRollEditingField === "micron" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={printingAddRollForm.micron}
-                                          onChange={(e) =>
-                                            setPrintingAddRollForm((prev) =>
-                                              prev ? { ...prev, micron: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {printingAddRollForm.micron || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField("micron")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Net weight (kg)</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {printingAddRollEditingField === "netweight" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={printingAddRollForm.netweight}
-                                          onChange={(e) =>
-                                            setPrintingAddRollForm((prev) =>
-                                              prev ? { ...prev, netweight: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {printingAddRollForm.netweight || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField("netweight")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Gross weight (kg)</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {printingAddRollEditingField === "grossweight" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={printingAddRollForm.grossweight}
-                                          onChange={(e) =>
-                                            setPrintingAddRollForm((prev) =>
-                                              prev ? { ...prev, grossweight: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {printingAddRollForm.grossweight || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setPrintingAddRollEditingField("grossweight")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
+
                         </div>
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4 flex-wrap">
                           {!printingRollsLoading && printingLoadedRolls.length > 0 && (
@@ -1896,7 +1798,7 @@ export default function Home() {
                                       </div>
                                       {(roll.item_name ?? roll.itemName) != null && (
                                         <div>
-                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Item</dt>
+                                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Structure</dt>
                                           <dd>{roll.item_name ?? roll.itemName}</dd>
                                         </div>
                                       )}
@@ -2099,108 +2001,18 @@ export default function Home() {
 
                           {inspectionAddRollForm && inspectionFormCommittedForRollId !== inspectionAddRollForm.roll.id && (
                             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <div className="col-span-2 sm:col-span-4">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label className="text-xs">Item (from work order)</Label>
                                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5">
                                     {inspectionSelectedWo?.itemName ?? "—"}
                                   </p>
                                 </div>
-                                <div className="col-span-2 sm:col-span-4">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label className="text-xs">Barcode</Label>
                                   <p className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100 mt-0.5">
                                     {inspectionAddRollForm.roll.barcode ?? "—"}
                                   </p>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Size</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {inspectionAddRollEditingField === "size" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={inspectionAddRollForm.size}
-                                          onChange={(e) =>
-                                            setInspectionAddRollForm((prev) =>
-                                              prev ? { ...prev, size: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setInspectionAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {inspectionAddRollForm.size || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setInspectionAddRollEditingField("size")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Micron</Label>
-                                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                                    {inspectionAddRollEditingField === "micron" ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          step="any"
-                                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                                          value={inspectionAddRollForm.micron}
-                                          onChange={(e) =>
-                                            setInspectionAddRollForm((prev) =>
-                                              prev ? { ...prev, micron: e.target.value } : null
-                                            )
-                                          }
-                                          autoFocus
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setInspectionAddRollEditingField(null)}
-                                        >
-                                          <Check className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">
-                                          {inspectionAddRollForm.micron || "—"}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 shrink-0"
-                                          onClick={() => setInspectionAddRollEditingField("micron")}
-                                        >
-                                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
                                 </div>
                                 <div>
                                   <Label className="text-xs">Net weight (kg)</Label>
@@ -2449,32 +2261,120 @@ export default function Home() {
                         <Label htmlFor="floor-inspection-barcode" className="text-xs text-gray-600 dark:text-gray-400">
                           Barcode
                         </Label>
-                        <div className="relative max-w-md">
-                          <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                          <Input
-                            id="floor-inspection-barcode"
-                            type="text"
-                            placeholder="Scan or enter roll barcode"
-                            value={floorInspectionBarcode}
-                            onChange={(e) => {
-                              setFloorInspectionBarcode(e.target.value)
-                              setFloorInspectionBarcodeError(null)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault()
-                                void handleFloorInspectionBarcodeSubmit()
-                              }
-                            }}
-                            disabled={floorInspectionBarcodeChecking}
-                            className="pl-9"
-                            autoComplete="off"
-                          />
+                        <div className="flex flex-wrap items-center gap-2 max-w-2xl">
+                          <div className="relative min-w-[min(100%,18rem)] flex-1">
+                            <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                              id="floor-inspection-barcode"
+                              type="text"
+                              placeholder="Scan or enter roll barcode"
+                              value={floorInspectionBarcode}
+                              onChange={(e) => {
+                                setFloorInspectionBarcode(e.target.value)
+                                setFloorInspectionBarcodeError(null)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault()
+                                  void handleFloorInspectionBarcodeSubmit()
+                                }
+                              }}
+                              disabled={floorInspectionBarcodeChecking}
+                              className="pl-9"
+                              autoComplete="off"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="whitespace-nowrap"
+                            disabled={
+                              floorInspectionBarcodeChecking ||
+                              floorInspectionWipRollsLoading
+                            }
+                            onClick={() => void openFloorInspectionWipPicker()}
+                          >
+                            Select Stock
+                          </Button>
                         </div>
                         {floorInspectionBarcodeError && (
                           <p className="text-sm text-red-500">{floorInspectionBarcodeError}</p>
                         )}
                       </div>
+                      {floorInspectionWipPickerOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                          <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                              <div>
+                                <CardTitle>Select WIP Printing roll</CardTitle>
+                                <CardDescription>
+                                  Pick a roll to load into inspection (same as scanning its barcode). Non-issued rolls
+                                  in WIP Printing stage are listed.
+                                </CardDescription>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={closeFloorInspectionWipPicker}
+                                className="h-8 w-8 p-0"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </CardHeader>
+                            <CardContent>
+                              {floorInspectionWipRollsLoading ? (
+                                <div className="flex items-center justify-center h-64">
+                                  <div className="text-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4" />
+                                    <p className="text-gray-600 dark:text-gray-400">Loading stock…</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  {floorInspectionWipRollsError && (
+                                    <p className="text-sm text-red-500 mb-3">{floorInspectionWipRollsError}</p>
+                                  )}
+                                  <DataTable
+                                    key="floor-inspection-wip-picker"
+                                    columns={floorInspectionWipStockColumns}
+                                    data={floorInspectionWipRolls}
+                                    getRowId={(row) => String(row.id)}
+                                    singleRowSelection
+                                    scrollable
+                                    scrollHeight="60vh"
+                                    bulkActions={(selectedRows) => (
+                                      <Button
+                                        size="sm"
+                                        disabled={floorInspectionBarcodeChecking}
+                                        onClick={async () => {
+                                          const selected = selectedRows[0]
+                                          const barcode = selected?.barcode?.trim()
+                                          if (!barcode) return
+                                          await applyFloorInspectionFromBarcode(barcode, {
+                                            closePicker: true,
+                                          })
+                                        }}
+                                      >
+                                        {floorInspectionBarcodeChecking
+                                          ? "Loading…"
+                                          : "Load Selected Roll"}
+                                      </Button>
+                                    )}
+                                  />
+                                </>
+                              )}
+                            </CardContent>
+                            <CardFooter>
+                              <div className="w-full flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={closeFloorInspectionWipPicker}>
+                                  Close
+                                </Button>
+                              </div>
+                            </CardFooter>
+                          </Card>
+                        </div>
+                      )}
                       {inspectionLoading ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
                       ) : inspectionError ? (
@@ -2543,16 +2443,14 @@ export default function Home() {
                                 <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
                                 <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
                                   <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
-                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Structure</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
                                   {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
                                   {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
                                   {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
                                 </dl>
                                 {eclAddRollForm?.roll.id === roll.id && (
                                   <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                      <div><Label className="text-xs">Size</Label><Input type="text" value={eclAddRollForm.size} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
-                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={eclAddRollForm.micron} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                                       <div><Label className="text-xs">Net weight</Label><Input type="text" value={eclAddRollForm.netweight} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
                                       <div><Label className="text-xs">Gross weight</Label><Input type="text" value={eclAddRollForm.grossweight} onChange={(e) => setEclAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
                                     </div>
@@ -2636,16 +2534,14 @@ export default function Home() {
                                 <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
                                 <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
                                   <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
-                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Structure</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
                                   {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
                                   {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
                                   {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
                                 </dl>
                                 {laminationAddRollForm?.roll.id === roll.id && (
                                   <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                      <div><Label className="text-xs">Size</Label><Input type="text" value={laminationAddRollForm.size} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
-                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={laminationAddRollForm.micron} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                                       <div><Label className="text-xs">Net weight</Label><Input type="text" value={laminationAddRollForm.netweight} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
                                       <div><Label className="text-xs">Gross weight</Label><Input type="text" value={laminationAddRollForm.grossweight} onChange={(e) => setLaminationAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
                                     </div>
@@ -2707,16 +2603,14 @@ export default function Home() {
                                 <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Job card: {jobCardNumber}</div>
                                 <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 text-gray-600 dark:text-gray-400">
                                   <div><dt className="text-xs uppercase text-gray-500">Barcode</dt><dd className="font-mono">{roll.barcode}</dd></div>
-                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Item</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
+                                  {(roll.item_name ?? roll.itemName) != null && <div><dt className="text-xs uppercase text-gray-500">Structure</dt><dd>{roll.item_name ?? roll.itemName}</dd></div>}
                                   {roll.size != null && <div><dt className="text-xs uppercase text-gray-500">Size</dt><dd>{roll.size}</dd></div>}
                                   {roll.micron != null && <div><dt className="text-xs uppercase text-gray-500">Micron</dt><dd>{roll.micron}</dd></div>}
                                   {roll.netweight != null && <div><dt className="text-xs uppercase text-gray-500">Net weight</dt><dd>{Number(roll.netweight).toFixed(2)} kg</dd></div>}
                                 </dl>
                                 {slittingAddRollForm?.roll.id === roll.id && (
                                   <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                      <div><Label className="text-xs">Size</Label><Input type="text" value={slittingAddRollForm.size} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, size: e.target.value } : null)} placeholder="Size" /></div>
-                                      <div><Label className="text-xs">Micron</Label><Input type="text" value={slittingAddRollForm.micron} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, micron: e.target.value } : null)} placeholder="Micron" /></div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                                       <div><Label className="text-xs">Net weight</Label><Input type="text" value={slittingAddRollForm.netweight} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, netweight: e.target.value } : null)} placeholder="Net weight" /></div>
                                       <div><Label className="text-xs">Gross weight</Label><Input type="text" value={slittingAddRollForm.grossweight} onChange={(e) => setSlittingAddRollForm((p) => p ? { ...p, grossweight: e.target.value } : null)} placeholder="Gross weight" /></div>
                                     </div>
