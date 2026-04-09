@@ -1,23 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
-  Box,
-  BarChart3,
   Check,
   CheckCircle,
-  ClipboardCheck,
-  Cylinder,
-  Droplets,
-  Factory,
-  FlaskConical,
-  Layers,
   Pencil,
   Plus,
   Printer,
   ScanBarcode,
-  Scissors,
-  StickyNote,
-  Truck,
   X,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -55,41 +44,13 @@ import {
 } from "@/lib/rolls-stock-api"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
+import { FloorDepartmentGrid } from "./home/components/FloorDepartmentGrid"
+import { FloorShell } from "./home/components/FloorShell"
+import { GeneralDashboard } from "./home/components/GeneralDashboard"
+import { StockDashboard } from "./home/components/StockDashboard"
+import { floorDepartmentBlocks, type FloorDepartmentId } from "./home/constants"
+import { useRoleFlags } from "./home/hooks/useRoleFlags"
 import WorkOrder from "./work-order"
-
-const homeActions = [
-  { label: "Stock", icon: Box, path: "/manufacturing/stock-entry" },
-  { label: "Work Order", icon: Factory, path: "/manufacturing/work-order" },
-  { label: "Printing", icon: Printer },
-  { label: "Inspection", icon: ClipboardCheck },
-  { label: "ECL Department", icon: Factory },
-  { label: "Laminations", icon: Layers },
-  { label: "Slitter", icon: Scissors },
-  { label: "Dispatch", icon: Truck },
-]
-
-// Floor department (role=user, department=Floor): blocks open in-place pages (title/bottom bar unchanged)
-export type FloorDepartmentId = "printing" | "inspection" | "lamination" | "ecl" | "slitting"
-
-const floorDepartmentBlocks: { id: FloorDepartmentId; label: string; icon: typeof Printer }[] = [
-  { id: "printing", label: "Printing", icon: Printer },
-  { id: "inspection", label: "Inspection", icon: ClipboardCheck },
-  { id: "ecl", label: "ECL", icon: Factory },
-  { id: "lamination", label: "Lamination", icon: Layers },
-  { id: "slitting", label: "Slitting", icon: Scissors },
-]
-
-// RM report blocks matching sidebar Reports menu (for stock-department homepage)
-const rmReportBlocks = [
-  { label: "Rm Film Stock", icon: Cylinder, path: "/manufacturing/reports/stock" },
-  { label: "Rm Film Issued", icon: Cylinder, path: "/manufacturing/reports/roll-issues" },
-  { label: "Rm Ink Stock", icon: Droplets, path: "/manufacturing/reports/ink-stock" },
-  { label: "Rm Ink Issued", icon: Droplets, path: "/manufacturing/reports/ink-issues" },
-  { label: "Rm Adhesive Stock", icon: StickyNote, path: "/manufacturing/reports/adhesive-stock" },
-  { label: "Rm Adhesive Issued", icon: StickyNote, path: "/manufacturing/reports/adhesive-issues" },
-  { label: "Rm Chemical Stock", icon: FlaskConical, path: "/manufacturing/reports/chemical-stock" },
-  { label: "Rm Chemical Issued", icon: FlaskConical, path: "/manufacturing/reports/chemical-issues" },
-]
 
 export default function Home() {
   const navigate = useNavigate()
@@ -423,17 +384,7 @@ export default function Home() {
   } | null>(null)
   const [slittingFormCommittedForRollId, setSlittingFormCommittedForRollId] = useState<number | null>(null)
 
-  const isStockUser =
-    user?.role === "user" &&
-    (user?.department?.toLowerCase() === "stock" || user?.department === "Stock")
-
-  const isPrintingUser =
-    user?.role === "user" &&
-    (user?.department?.toLowerCase() === "printing" || user?.department === "Printing")
-
-  const isFloorUser =
-    user?.role === "user" &&
-    (user?.department?.toLowerCase() === "floor" || user?.department === "Floor")
+  const { isStockUser, isPrintingUser, isFloorUser } = useRoleFlags(user)
 
   const closeFloorInspectionWipPicker = () => {
     setFloorInspectionWipPickerOpen(false)
@@ -559,6 +510,7 @@ export default function Home() {
         const filtered = allWos.filter(
           (wo) =>
             printingWorkOrderIds.has(wo.id) &&
+            wo.status !== "printed" &&
             wo.status !== "completed" &&
             wo.status !== "cancelled"
         )
@@ -1245,105 +1197,31 @@ export default function Home() {
 
   // Floor department: dedicated home (no Manufacturing menu) with title + printer status bars
   if (isFloorUser) {
-    return (
-      <div className="pt-16 pb-10">
-        {/* Title bar fixed at top */}
-        <div
-          className="fixed top-0 h-16 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-50 transition-all duration-200"
-          style={{
-            left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
-            right: 0,
-          }}
-        >
-          {floorView !== null && (
-            <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
-                {floorDepartmentBlocks.find((b) => b.id === floorView)?.label ?? floorView}
-              </h2>
-            </div>
-          )}
-          <div className="flex items-center gap-3">
-            {floorView !== null && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-2 -ml-2 shrink-0 h-auto py-1.5 px-2"
-                onClick={() => setFloorView(null)}
-                aria-label="Back to Departments"
-                title="Back to Departments"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span className="flex flex-col items-start leading-tight">
-                  <span className="text-sm font-semibold">Floor Dashboard</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">
-                    Welcome, {user?.username ?? "User"}.
-                  </span>
-                </span>
-              </Button>
-            )}
-            {floorView === null && (
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Floor Dashboard
-                </span>
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  Welcome, {user?.username ?? "User"}.
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            {/* Weight window: Connect inside when not connected; value only when connected */}
-            <div className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 min-w-[130px] text-center flex flex-col items-center justify-center gap-1">
-              <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-medium">
-                Weight
-              </div>
-              {isScaleConnected || isScaleConnecting ? (
-                <div className="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
-                  {scaleWeightError
-                    ? scaleWeightError
-                    : scaleWeight != null
-                      ? `${Number(scaleWeight).toFixed(2)} kg`
-                      : "…"}
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  className="h-8 min-w-[90px] px-3 text-xs font-semibold"
-                  onClick={connectScale}
-                  disabled={!isSerialSupported || isScaleConnecting}
-                >
-                  {!isSerialSupported ? "No Serial" : "Connect"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+    const floorViewLabel = floorView !== null
+      ? floorDepartmentBlocks.find((block) => block.id === floorView)?.label ?? floorView
+      : null
 
-        <div className="px-6 pt-4 pb-6">
+    return (
+      <FloorShell
+        isMobile={isMobile}
+        sidebarState={sidebarState}
+        floorView={floorView}
+        floorViewLabel={floorViewLabel}
+        userName={user?.username}
+        onBackToDepartments={() => setFloorView(null)}
+        isScaleConnected={isScaleConnected}
+        isScaleConnecting={isScaleConnecting}
+        scaleWeight={scaleWeight}
+        scaleWeightError={scaleWeightError}
+        isSerialSupported={isSerialSupported}
+        onConnectScale={connectScale}
+        printerName={printerName}
+        printerAvailable={printerAvailable}
+        websocketConnected={websocketConnected}
+        printingPrintStatus={printingPrintStatus}
+      >
           {floorView === null ? (
-            /* Department blocks: click opens in-place page */
-            <div className="space-y-4">
-              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300">
-                Departments
-              </h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 max-w-4xl">
-                {floorDepartmentBlocks.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setFloorView(id)}
-                    className="h-28 sm:h-32 flex flex-col items-center justify-center gap-2 text-base rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                  >
-                    <Icon className="h-7 w-7 text-gray-600 dark:text-gray-400" />
-                    <span className="text-center leading-tight font-medium text-gray-700 dark:text-gray-300">{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FloorDepartmentGrid onSelect={setFloorView} />
           ) : (
             /* In-place page for selected department (title bar and bottom bar unchanged) */
             <div className={(floorView === "printing" || floorView === "inspection" || floorView === "ecl" || floorView === "lamination" || floorView === "slitting") ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
@@ -1779,8 +1657,8 @@ export default function Home() {
                                   try {
                                     setPrintingCreateChildLoading(true)
                                     setPrintingCreateChildMessage(null)
-                                    await updateWorkOrder(wo.id, { status: "completed" })
-                                    setPrintingCreateChildMessage("Work order marked as completed.")
+                                    await updateWorkOrder(wo.id, { status: "printed" })
+                                    setPrintingCreateChildMessage("Work order marked as printed.")
                                     setPrintingWorkOrders((prev) => prev.filter((x) => x.id !== wo.id))
                                     setPrintingSelectedWo(null)
                                   } catch {
@@ -1840,7 +1718,7 @@ export default function Home() {
                                       className={
                                         wo.status === "in_progress"
                                           ? "text-blue-600 dark:text-blue-400"
-                                          : wo.status === "completed"
+                                          : wo.status === "completed" || wo.status === "printed"
                                             ? "text-green-600 dark:text-green-400"
                                             : "text-gray-600 dark:text-gray-400"
                                       }
@@ -2502,7 +2380,7 @@ export default function Home() {
                                       className={
                                         wo.status === "in_progress"
                                           ? "text-blue-600 dark:text-blue-400"
-                                          : wo.status === "completed"
+                                          : wo.status === "completed" || wo.status === "printed"
                                             ? "text-green-600 dark:text-green-400"
                                             : "text-gray-600 dark:text-gray-400"
                                       }
@@ -2606,7 +2484,7 @@ export default function Home() {
                               {eclWorkOrders.map((wo) => (
                                 <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setEclSelectedWo(wo)}>
                                   <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
-                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : (wo.status === "completed" || wo.status === "printed") ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
                                   <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
                                 </tr>
                               ))}
@@ -2675,7 +2553,7 @@ export default function Home() {
                               {laminationWorkOrders.map((wo) => (
                                 <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setLaminationSelectedWo(wo)}>
                                   <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
-                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : (wo.status === "completed" || wo.status === "printed") ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
                                   <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
                                 </tr>
                               ))}
@@ -2744,7 +2622,7 @@ export default function Home() {
                               {slittingWorkOrders.map((wo) => (
                                 <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setSlittingSelectedWo(wo)}>
                                   <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
-                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : wo.status === "completed" ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
+                                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : (wo.status === "completed" || wo.status === "printed") ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
                                   <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
                                 </tr>
                               ))}
@@ -2763,146 +2641,13 @@ export default function Home() {
                 )}
             </div>
           )}
-        </div>
-
-        {/* Printer status bar - same as stock entry page */}
-        <div
-          className="fixed bottom-0 h-7 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 z-50 transition-all duration-200"
-          style={{
-            left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
-            right: 0,
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Printer:</span>
-            <span className="text-xs text-gray-900 dark:text-gray-100 font-semibold">{printerName || "Loading..."}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Status:</span>
-            <span
-              className={`text-xs font-semibold ${
-                !printerAvailable
-                  ? "text-red-600 dark:text-red-400"
-                  : printingPrintStatus === "printing"
-                    ? "text-blue-600 dark:text-blue-400"
-                    : printingPrintStatus === "done"
-                      ? "text-green-600 dark:text-green-400"
-                      : websocketConnected
-                        ? "text-gray-600 dark:text-gray-400"
-                        : "text-yellow-600 dark:text-yellow-400"
-              }`}
-            >
-              {!printerAvailable
-                ? "Not available"
-                : printingPrintStatus === "printing"
-                  ? "Printing..."
-                  : printingPrintStatus === "done"
-                    ? "Done"
-                    : websocketConnected
-                      ? "Idle"
-                      : "Poll"}
-            </span>
-          </div>
-        </div>
-      </div>
+      </FloorShell>
     )
   }
 
   if (isStockUser) {
-    return (
-      <div className="px-6 pt-2 pb-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold">Home Dashboard</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            Welcome to Production ERP
-          </p>
-        </div>
-
-        {/* 2 main blocks for stock user */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-2xl mb-8">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 text-base"
-            onClick={() => navigate("/manufacturing/stock-entry")}
-          >
-            <Box className="h-6 w-6" />
-            <span>Stock Entry</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 text-base"
-            onClick={() => navigate("/manufacturing/reports/stock")}
-          >
-            <BarChart3 className="h-6 w-6" />
-            <span>Stock Report</span>
-          </Button>
-        </div>
-
-        {/* RM Report: all report blocks as in menu bar */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            RM Report
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {rmReportBlocks.map(({ label, icon: Icon, path }) => (
-              <Button
-                key={path}
-                type="button"
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center gap-1.5 text-sm"
-                onClick={() => navigate(path)}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-center leading-tight">{label}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
+    return <StockDashboard onNavigate={navigate} />
   }
 
-  return (
-    <div className="px-6 pt-2 pb-6">
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Home Dashboard</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Welcome to Production ERP
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 max-w-4xl">
-        {homeActions
-          .filter(({ path, label }) => {
-            // Printing user: hide Stock Entry
-            if (isPrintingUser && (path === "/manufacturing/stock-entry" || label === "Stock")) {
-              return false
-            }
-            return true
-          })
-          .map(({ label, icon: Icon, path }) => (
-          <Button
-            key={label}
-            type="button"
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 text-base"
-            onClick={() => {
-              if (path) {
-                navigate(path)
-              }
-            }}
-          >
-            <Icon className="h-6 w-6" />
-            <span>{label}</span>
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
+  return <GeneralDashboard isPrintingUser={isPrintingUser} onNavigate={navigate} />
 }
