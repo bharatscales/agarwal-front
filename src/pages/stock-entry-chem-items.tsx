@@ -81,6 +81,23 @@ export default function StockEntryChemItems() {
   const colorInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const qtyInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
+  const formatVoucherDate = (dateValue?: string) => {
+    if (!dateValue) return "-"
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return dateValue
+    return date.toLocaleDateString("en-GB")
+  }
+
+  const formatVoucherDateForPrint = (dateValue?: string) => {
+    if (!dateValue) return ""
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return dateValue
+    const day = String(date.getDate()).padStart(2, "0")
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}-${month}-${year}`
+  }
+
   const fetchChemStock = async () => {
     if (!voucherId) return
     try {
@@ -552,7 +569,7 @@ export default function StockEntryChemItems() {
           vendor: stockVoucher.vendor,
           vendorId: stockVoucher.vendorId,
           invoiceNo: stockVoucher.invoiceNo,
-          invoiceDate: stockVoucher.invoiceDate,
+          invoiceDate: formatVoucherDateForPrint(stockVoucher.invoiceDate),
           stockType: stockVoucher.stockType,
         } : null,
       }
@@ -645,7 +662,7 @@ export default function StockEntryChemItems() {
             vendor: stockVoucher.vendor,
             vendorId: stockVoucher.vendorId,
             invoiceNo: stockVoucher.invoiceNo,
-            invoiceDate: stockVoucher.invoiceDate,
+            invoiceDate: formatVoucherDateForPrint(stockVoucher.invoiceDate),
             stockType: stockVoucher.stockType,
           } : null,
         }
@@ -961,7 +978,7 @@ export default function StockEntryChemItems() {
         </div>
       )}
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -997,6 +1014,14 @@ export default function StockEntryChemItems() {
               {selectedRows.size} row{selectedRows.size === 1 ? '' : 's'} selected
             </span>
           )}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm text-gray-600 dark:text-gray-300 text-right">
+          <span>
+            Invoice No: <span className="font-medium text-gray-900 dark:text-gray-100">{stockVoucher?.invoiceNo || "-"}</span>
+          </span>
+          <span>
+            Invoice Date: <span className="font-medium text-gray-900 dark:text-gray-100">{formatVoucherDate(stockVoucher?.invoiceDate)}</span>
+          </span>
         </div>
       </div>
 

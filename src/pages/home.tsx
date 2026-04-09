@@ -1285,12 +1285,12 @@ export default function Home() {
                                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Item (variety)</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Loaded roll weight</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Item (variety)</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
                                     </tr>
                                   </thead>
@@ -1337,11 +1337,11 @@ export default function Home() {
                                         >
                                           <td className="py-2 px-3 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
                                           <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">{roll.barcode ?? "—"}</td>
+                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{printingSelectedWo?.itemName ?? "—"}</td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
                                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—"}</td>
-                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{printingSelectedWo?.itemName ?? "—"}</td>
                                           <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                                             <Input
                                               type="number"
@@ -1696,7 +1696,7 @@ export default function Home() {
                                   }}
                                 >
                                   <CheckCircle className="h-4 w-4" />
-                                  Finish
+                                  Roll Finish
                                 </Button>
                               )}
                             </div>
