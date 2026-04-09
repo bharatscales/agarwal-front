@@ -42,12 +42,13 @@ import {
   getCurrentRoll,
   type CurrentRoll,
 } from "@/lib/job-card-api"
-import { getAllWorkOrders } from "@/lib/work-order-api"
+import { getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import {
   getRollsStockById,
   updateRollsStock,
   getRollsStockByParentIds,
+  getRollsStockByWorkOrder,
   getRollByBarcode,
   getWorkOrderByRollBarcode,
   getAllRollsStock,
@@ -124,6 +125,7 @@ export default function Home() {
     micron: string
     netweight: string
     grossweight: string
+    wastage: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -189,6 +191,168 @@ export default function Home() {
     ],
     []
   )
+
+  const handlePrintingProducedRollReprint = async (r: any) => {
+    const wo = printingSelectedWo
+    if (!wo || !wipPrintingTemplate) return
+    try {
+      setPrintingCreateChildLoading(true)
+      const printData = {
+        workOrder: {
+          id: wo.id,
+          woNumber: wo.woNumber,
+          partyName: wo.partyName,
+          partyCode: wo.partyCode,
+          itemName: wo.itemName,
+          itemCode: wo.itemCode,
+          plannedQty: wo.plannedQty,
+          producedQty: wo.producedQty,
+          status: wo.status,
+          priority: wo.priority,
+          createdAt: wo.createdAt,
+          startedAt: wo.startedAt,
+          completedAt: wo.completedAt,
+        },
+        roll: {
+          id: r.id,
+          barcode: r.barcode,
+          size: r.size,
+          micron: r.micron,
+          netweight: r.netweight,
+          grossweight: r.grossweight,
+          itemName: wo.itemName ?? r.itemName ?? null,
+        },
+      }
+      const job = await createPrintJob({
+        name: `WIP Printing Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
+        template_id: wipPrintingTemplate.id,
+        data: printData,
+        copies: 1,
+      })
+      setPrintingCreateChildMessage("Label reprint sent to printer.")
+      setPrintingPrintStatus("printing")
+      let pollCount = 0
+      const maxPolls = 30
+      const pollInterval = setInterval(async () => {
+        pollCount++
+        try {
+          const updatedJob = await getPrintJob(job.id)
+          if (updatedJob.status === "done") {
+            clearInterval(pollInterval)
+            setPrintingPrintStatus("done")
+            setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+          } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+            clearInterval(pollInterval)
+            setPrintingPrintStatus("idle")
+          }
+        } catch {
+          clearInterval(pollInterval)
+          setPrintingPrintStatus("idle")
+        }
+      }, 1000)
+    } catch {
+      setPrintingCreateChildMessage("Failed to send reprint to printer.")
+    } finally {
+      setPrintingCreateChildLoading(false)
+    }
+  }
+
+  const printingProducedRollColumns = [
+      {
+        id: "sno",
+        header: () => <div>S. no.</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.index + 1}</div>
+        ),
+      },
+      {
+        accessorKey: "jobCardNumber",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Loaded job card" column={column} placeholder="Filter job card..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.original.jobCardNumber || "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "size",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "micron",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "netweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Net weight (kg)" column={column} placeholder="Filter net weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "wastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Wastage (kg)" column={column} placeholder="Filter wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+      },
+      {
+        id: "reprint",
+        header: () => <div className="text-left">Reprint</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={!wipPrintingTemplate || printingCreateChildLoading}
+              onClick={() => handlePrintingProducedRollReprint(row.original)}
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ]
+
+  const printingProducedTotals = useMemo(() => {
+    return printingChildRollsFromDb.reduce(
+      (acc, row) => {
+        acc.rollCount += 1
+        acc.netWeight += Number(row.netweight || 0)
+        acc.netWastage += Number(row.wastage || 0)
+        return acc
+      },
+      { rollCount: 0, netWeight: 0, netWastage: 0 }
+    )
+  }, [printingChildRollsFromDb])
 
   // Floor ECL (mirror of Inspection)
   const [eclWorkOrders, setEclWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -380,7 +544,7 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [isFloorUser])
 
-  // Floor Printing page: work orders that have a Printing job card with current loaded roll
+  // Floor Printing page: show active work orders that have a Printing job card
   useEffect(() => {
     if (!isFloorUser || floorView !== "printing") return
     let cancelled = false
@@ -389,28 +553,15 @@ export default function Home() {
       setPrintingError(null)
       try {
         const cards = await getAllJobCards(0, 500, undefined, "Printing")
-        const workOrderIdsWithRoll = new Set<number>()
-        const BATCH = 15
-        for (let i = 0; i < cards.length; i += BATCH) {
-          if (cancelled) return
-          const batch = cards.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (c) => {
-              try {
-                const roll = await getCurrentRoll(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: roll != null }
-              } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
-          })
-        }
+        const printingWorkOrderIds = new Set<number>(cards.map((c) => c.workOrderId))
         if (cancelled) return
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        const filtered = allWos.filter(
+          (wo) =>
+            printingWorkOrderIds.has(wo.id) &&
+            wo.status !== "completed" &&
+            wo.status !== "cancelled"
+        )
         if (!cancelled) setPrintingWorkOrders(filtered)
       } catch (err) {
         if (!cancelled) {
@@ -657,6 +808,7 @@ export default function Home() {
                   micron: first.roll.micron != null ? String(first.roll.micron) : "",
                   netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
                   grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                  wastage: parent.wastage != null ? String(parent.wastage) : "0",
                 })
               }
             } catch {
@@ -949,16 +1101,15 @@ export default function Home() {
     setInspectionChildRollsFromDb([])
   }, [inspectionSelectedWo])
 
-  // Fetch child rolls (WIP printed) for consumed/loaded rolls from DB so table survives refresh
+  // Fetch produced rolls (WIP printed) for selected work order from DB.
   useEffect(() => {
-    if (printingLoadedRolls.length === 0) {
+    if (!printingSelectedWo) {
       setPrintingChildRollsFromDb([])
       return
     }
-    const parentIds = printingLoadedRolls.map((r) => r.roll.id)
     let cancelled = false
     setPrintingChildRollsLoading(true)
-    getRollsStockByParentIds(parentIds, "wip_printed")
+    getRollsStockByWorkOrder(printingSelectedWo.id, "wip_printed")
       .then((rows) => {
         if (!cancelled) setPrintingChildRollsFromDb(rows)
       })
@@ -971,7 +1122,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [printingLoadedRolls])
+  }, [printingSelectedWo?.id])
 
   // Fetch child rolls (WIP inspection) for loaded rolls in Inspection section
   useEffect(() => {
@@ -1104,15 +1255,43 @@ export default function Home() {
             right: 0,
           }}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                Floor Dashboard
-              </span>
-              <span className="text-xs text-gray-600 dark:text-gray-400">
-                Welcome, {user?.username ?? "User"}.
-              </span>
+          {floorView !== null && (
+            <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
+                {floorDepartmentBlocks.find((b) => b.id === floorView)?.label ?? floorView}
+              </h2>
             </div>
+          )}
+          <div className="flex items-center gap-3">
+            {floorView !== null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-2 -ml-2 shrink-0 h-auto py-1.5 px-2"
+                onClick={() => setFloorView(null)}
+                aria-label="Back to Departments"
+                title="Back to Departments"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="flex flex-col items-start leading-tight">
+                  <span className="text-sm font-semibold">Floor Dashboard</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    Welcome, {user?.username ?? "User"}.
+                  </span>
+                </span>
+              </Button>
+            )}
+            {floorView === null && (
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Floor Dashboard
+                </span>
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  Welcome, {user?.username ?? "User"}.
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-4">
             {/* Weight window: Connect inside when not connected; value only when connected */}
@@ -1168,54 +1347,12 @@ export default function Home() {
           ) : (
             /* In-place page for selected department (title bar and bottom bar unchanged) */
             <div className={(floorView === "printing" || floorView === "inspection" || floorView === "ecl" || floorView === "lamination" || floorView === "slitting") ? "space-y-4 w-full" : "space-y-4 max-w-4xl"}>
-              {(floorView === "printing" && printingSelectedWo) ||
-              (floorView === "inspection" && inspectionSelectedWo) ||
-              (floorView === "ecl" && eclSelectedWo) ||
-              (floorView === "lamination" && laminationSelectedWo) ||
-              (floorView === "slitting" && slittingSelectedWo) ? (
-                <div className="flex items-center relative w-full">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 -ml-2 shrink-0"
-                    onClick={() => setFloorView(null)}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Departments
-                  </Button>
-                  <h2 className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize pointer-events-none">
-                    {floorView === "printing"
-                      ? "Printing"
-                      : floorView === "inspection"
-                        ? "Inspection"
-                        : floorView === "ecl"
-                          ? "ECL"
-                          : floorView === "lamination"
-                            ? "Lamination"
-                            : "Slitting"}
-                  </h2>
-                  <div className="shrink-0 w-[180px]" aria-hidden />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 -ml-2"
-                  onClick={() => setFloorView(null)}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Departments
-                </Button>
-              )}
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
                 {(floorView === "printing" && printingSelectedWo) ||
                 (floorView === "inspection" && inspectionSelectedWo) ||
                 (floorView === "ecl" && eclSelectedWo) ||
                 (floorView === "lamination" && laminationSelectedWo) ||
                 (floorView === "slitting" && slittingSelectedWo) ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
                     <Button
                       type="button"
                       variant="ghost"
@@ -1230,20 +1367,33 @@ export default function Home() {
                       }}
                     >
                       <ArrowLeft className="h-4 w-4" />
-                      Back to work orders
+                      Work Order - #
+                      {(floorView === "printing"
+                        ? printingSelectedWo
+                        : floorView === "inspection"
+                          ? inspectionSelectedWo
+                          : floorView === "ecl"
+                            ? eclSelectedWo
+                            : floorView === "lamination"
+                              ? laminationSelectedWo
+                              : slittingSelectedWo)?.woNumber ??
+                        String(
+                          (floorView === "printing"
+                            ? printingSelectedWo
+                            : floorView === "inspection"
+                              ? inspectionSelectedWo
+                              : floorView === "ecl"
+                                ? eclSelectedWo
+                                : floorView === "lamination"
+                                  ? laminationSelectedWo
+                                  : slittingSelectedWo)?.id ?? ""
+                        )}
                     </Button>
-                    <div className="space-y-0.5 text-center flex-1 min-w-0">
-                      <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                        Work order number — {(floorView === "printing"
-                          ? printingSelectedWo
-                          : floorView === "inspection"
-                            ? inspectionSelectedWo
-                            : floorView === "ecl"
-                              ? eclSelectedWo
-                              : floorView === "lamination"
-                                ? laminationSelectedWo
-                                : slittingSelectedWo)?.woNumber ?? `WO ${(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.id}`}
-                      </p>
+                    <div
+                      className="h-6 w-px bg-gray-300 dark:bg-gray-600 shrink-0"
+                      aria-hidden
+                    />
+                    <div className="space-y-0.5 text-left min-w-0">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Customer — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.partyName ?? "—"}
                       </p>
@@ -1251,22 +1401,17 @@ export default function Home() {
                         Variety — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.itemName ?? "—"}
                       </p>
                     </div>
-                    <div className="w-[180px] shrink-0" aria-hidden />
                   </div>
-                ) : (
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize text-center">
-                    {floorDepartmentBlocks.find((b) => b.id === floorView)?.label ?? floorView}
-                  </h2>
-                )}
+                ) : null}
                 {floorView === "printing" ? (
                   printingSelectedWo ? (
                     /* Page: current loaded roll for selected work order */
                     <div className="space-y-4 mt-4">
-                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
+                      
                         <div>
                           {/* Table of rolls (children of consumed/loaded rolls) — fetched from DB so it survives refresh */}
                           
-                          <div className="flex flex-col-reverse gap-4">
+                          <div className="flex flex-col-reverse gap-2">
                             {/* Consumed roll (full width; WO info now at top of card) */}
                             <div>
                             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -1289,9 +1434,9 @@ export default function Home() {
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
                                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight</th>
-                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
+                                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1327,6 +1472,7 @@ export default function Home() {
                                                 micron: roll.micron != null ? String(roll.micron) : "",
                                                 netweight: roll.netweight != null ? String(roll.netweight) : "",
                                                 grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (roll.netweight != null ? String(roll.netweight) : "")),
+                                                wastage: parent.wastage != null ? String(parent.wastage) : "0",
                                               })
                                             } catch {
                                               setPrintingCreateChildMessage("Failed to load parent roll.")
@@ -1368,15 +1514,11 @@ export default function Home() {
                                               step="any"
                                               className="h-8 min-w-[140px]"
                                               disabled={!isSelected}
-                                              value={
-                                                isSelected
-                                                  ? printingAddRollForm.grossweight
-                                                  : (roll.netweight != null ? String(roll.netweight) : "")
-                                              }
+                                              value={isSelected ? printingAddRollForm.wastage : ""}
                                               onChange={(e) =>
                                                 setPrintingAddRollForm((prev) =>
                                                   prev && prev.roll.id === roll.id
-                                                    ? { ...prev, grossweight: e.target.value }
+                                                    ? { ...prev, wastage: e.target.value }
                                                     : prev
                                                 )
                                               }
@@ -1391,141 +1533,57 @@ export default function Home() {
                             )}
                           </div>
 
-                            {(printingChildRollsLoading || printingChildRollsFromDb.length > 0) && (
-                              <div>
-                              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Produced rolls
-                              </h4>
-                              {printingChildRollsLoading ? (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
-                              ) : (
-                                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                            <div>
+                              <div className="flex items-center justify-between gap-3 mb-1">
+                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                  Produced rolls
+                                </h4>
+                                {!printingChildRollsLoading && (
+                                  <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
                                   <table className="w-full text-sm">
-                                    <thead>
-                                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Barcode
-                                        </th>
-                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Size
-                                        </th>
-                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Micron
-                                        </th>
-                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Net weight
-                                        </th>
-                                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Gross weight
-                                        </th>
-                                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">
-                                          Reprint
-                                        </th>
-                                      </tr>
-                                    </thead>
                                     <tbody>
-                                      {printingChildRollsFromDb.map((r) => (
-                                        <tr
-                                          key={r.id}
-                                          className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
-                                        >
-                                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">
-                                            {r.barcode || "—"}
-                                          </td>
-                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                                            {r.size != null ? String(r.size) : "—"}
-                                          </td>
-                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                                            {r.micron != null ? String(r.micron) : "—"}
-                                          </td>
-                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                                            {r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}
-                                          </td>
-                                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                                            {r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}
-                                          </td>
-                                          <td className="py-2 px-3 text-right">
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              disabled={!wipPrintingTemplate || printingCreateChildLoading}
-                                              onClick={async () => {
-                                                const wo = printingSelectedWo
-                                                if (!wo || !wipPrintingTemplate) return
-                                                try {
-                                                  setPrintingCreateChildLoading(true)
-                                                  const printData = {
-                                                    workOrder: {
-                                                      id: wo.id,
-                                                      woNumber: wo.woNumber,
-                                                      partyName: wo.partyName,
-                                                      partyCode: wo.partyCode,
-                                                      itemName: wo.itemName,
-                                                      itemCode: wo.itemCode,
-                                                      plannedQty: wo.plannedQty,
-                                                      producedQty: wo.producedQty,
-                                                      status: wo.status,
-                                                      priority: wo.priority,
-                                                      createdAt: wo.createdAt,
-                                                      startedAt: wo.startedAt,
-                                                      completedAt: wo.completedAt,
-                                                    },
-                                                    roll: {
-                                                      id: r.id,
-                                                      barcode: r.barcode,
-                                                      size: r.size,
-                                                      micron: r.micron,
-                                                      netweight: r.netweight,
-                                                      grossweight: r.grossweight,
-                                                      itemName: wo.itemName ?? r.itemName ?? null,
-                                                    },
-                                                  }
-                                                  const job = await createPrintJob({
-                                                    name: `WIP Printing Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
-                                                    template_id: wipPrintingTemplate.id,
-                                                    data: printData,
-                                                    copies: 1,
-                                                  })
-                                                  setPrintingCreateChildMessage("Label reprint sent to printer.")
-                                                  setPrintingPrintStatus("printing")
-                                                  let pollCount = 0
-                                                  const maxPolls = 30
-                                                  const pollInterval = setInterval(async () => {
-                                                    pollCount++
-                                                    try {
-                                                      const updatedJob = await getPrintJob(job.id)
-                                                      if (updatedJob.status === "done") {
-                                                        clearInterval(pollInterval)
-                                                        setPrintingPrintStatus("done")
-                                                        setTimeout(() => setPrintingPrintStatus("idle"), 3000)
-                                                      } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
-                                                        clearInterval(pollInterval)
-                                                        setPrintingPrintStatus("idle")
-                                                      }
-                                                    } catch {
-                                                      clearInterval(pollInterval)
-                                                      setPrintingPrintStatus("idle")
-                                                    }
-                                                  }, 1000)
-                                                } catch {
-                                                  setPrintingCreateChildMessage("Failed to send reprint to printer.")
-                                                } finally {
-                                                  setPrintingCreateChildLoading(false)
-                                                }
-                                              }}
-                                            >
-                                              <Printer className="h-4 w-4" />
-                                            </Button>
-                                          </td>
-                                        </tr>
-                                      ))}
+                                      <tr>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                                          Total produced rolls
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">
+                                          {printingProducedTotals.rollCount}
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                                          Total net weight (kg)
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">
+                                          {printingProducedTotals.netWeight.toFixed(2)} kg
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                                          Total net wastage (kg)
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">
+                                          {printingProducedTotals.netWastage.toFixed(2)} kg
+                                        </td>
+                                      </tr>
                                     </tbody>
                                   </table>
-                                </div>
-                              )}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                              {printingChildRollsLoading ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
+                              ) : printingChildRollsFromDb.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  No produced rolls found for this work order.
+                                </p>
+                              ) : (
+                                <DataTable
+                                  columns={printingProducedRollColumns}
+                                  data={printingChildRollsFromDb}
+                                  scrollable
+                                  scrollHeight="45vh"
+                                  compact
+                                  showSelectionSummary={false}
+                                />
+                              )}
+                            </div>
                           </div>
 
                         </div>
@@ -1549,6 +1607,8 @@ export default function Home() {
                                       setPrintingCreateChildLoading(true)
                                       setPrintingCreateChildMessage(null)
                                       const parentIds = printingLoadedRolls.map((r) => r.roll.id)
+                                      const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
+                                      const wastageValue = form.wastage ? parseFloat(form.wastage) : undefined
                                       if (wipPrintingTemplate) {
                                         const printData = {
                                           workOrder: {
@@ -1573,8 +1633,9 @@ export default function Home() {
                                           roll: {
                                             size: form.size ? parseFloat(form.size) : undefined,
                                             micron: form.micron ? parseFloat(form.micron) : undefined,
-                                            netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                                            grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                            netweight: netweightValue,
+                                            grossweight: netweightValue,
+                                            wastage: wastageValue,
                                             itemName: wo.itemName ?? null,
                                           },
                                         }
@@ -1611,14 +1672,15 @@ export default function Home() {
                                         rollno: "",
                                         size: form.size ? parseFloat(form.size) : undefined,
                                         micron: form.micron ? parseFloat(form.micron) : undefined,
-                                        netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                                        grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                        netweight: netweightValue,
+                                        grossweight: netweightValue,
+                                        wastage: wastageValue,
                                         gradeId: form.parent.gradeId,
                                         parentRollIds: parentIds.length > 0 ? parentIds : undefined,
-                                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                                        weightAtTime: netweightValue,
                                       })
                                       setPrintingFormCommittedForRollId(form.roll.id)
-                                      getRollsStockByParentIds(parentIds, "wip_printed").then(
+                                      getRollsStockByWorkOrder(wo.id, "wip_printed").then(
                                         setPrintingChildRollsFromDb
                                       )
 
@@ -1659,6 +1721,7 @@ export default function Home() {
                                               micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
                                               netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
                                               grossweight: "",
+                                              wastage: "0",
                                             }
                                           : null
                                       )
@@ -1701,13 +1764,44 @@ export default function Home() {
                               )}
                             </div>
                           )}
+                          {!printingRollsLoading && printingLoadedRolls.length === 0 && printingSelectedWo && (
+                            <div className="ml-auto">
+                              <Button
+                                type="button"
+                                variant="default"
+                                size="sm"
+                                className="gap-2"
+                                disabled={printingCreateChildLoading}
+                                onClick={async () => {
+                                  const wo = printingSelectedWo
+                                  if (!wo) return
+                                  if (!window.confirm("Are you sure you want to finish this work order?")) return
+                                  try {
+                                    setPrintingCreateChildLoading(true)
+                                    setPrintingCreateChildMessage(null)
+                                    await updateWorkOrder(wo.id, { status: "completed" })
+                                    setPrintingCreateChildMessage("Work order marked as completed.")
+                                    setPrintingWorkOrders((prev) => prev.filter((x) => x.id !== wo.id))
+                                    setPrintingSelectedWo(null)
+                                  } catch {
+                                    setPrintingCreateChildMessage("Failed to finish work order.")
+                                  } finally {
+                                    setPrintingCreateChildLoading(false)
+                                  }
+                                }}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Finish WO
+                              </Button>
+                            </div>
+                          )}
                           {printingCreateChildMessage && (
                             <p className="text-xs text-gray-600 dark:text-gray-400">
                               {printingCreateChildMessage}
                             </p>
                           )}
                         </div>
-                      </div>
+                      
                     </div>
                   ) : (
                     /* List of work orders with Printing job card that has loaded roll */
@@ -2667,7 +2761,6 @@ export default function Home() {
                     {floorView === "slitting" && "Slitting department view. Add content here."}
                   </p>
                 )}
-              </div>
             </div>
           )}
         </div>

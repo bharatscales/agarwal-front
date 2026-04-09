@@ -196,6 +196,7 @@ export type AddPrintedRollPayload = {
   micron?: number
   netweight?: number
   grossweight?: number
+  wastage?: number
   gradeId?: number
   parentRollIds?: number[]
   weightAtTime?: number
@@ -210,6 +211,7 @@ export type AddPrintedRollResponse = {
   micron?: number | null
   netweight?: number | null
   grossweight?: number | null
+  wastage?: number | null
 }
 
 export const addPrintedRoll = async (
@@ -225,6 +227,7 @@ export const addPrintedRoll = async (
       micron: payload.micron,
       netweight: payload.netweight,
       grossweight: payload.grossweight,
+      wastage: payload.wastage,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
@@ -247,6 +250,7 @@ export const addInspectionRoll = async (
       micron: payload.micron,
       netweight: payload.netweight,
       grossweight: payload.grossweight,
+      wastage: payload.wastage,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
@@ -269,6 +273,7 @@ export const addEclRoll = async (
       micron: payload.micron,
       netweight: payload.netweight,
       grossweight: payload.grossweight,
+      wastage: payload.wastage,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
@@ -291,6 +296,7 @@ export const addLaminationRoll = async (
       micron: payload.micron,
       netweight: payload.netweight,
       grossweight: payload.grossweight,
+      wastage: payload.wastage,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
@@ -313,6 +319,7 @@ export const addSlittingRoll = async (
       micron: payload.micron,
       netweight: payload.netweight,
       grossweight: payload.grossweight,
+      wastage: payload.wastage,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,

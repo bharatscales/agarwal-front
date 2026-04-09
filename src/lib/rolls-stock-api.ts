@@ -7,6 +7,7 @@ export type RollsStockPayload = {
   micron?: number
   netweight?: number
   grossweight?: number
+  wastage?: number
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
   stockVoucherId?: number
@@ -31,6 +32,7 @@ type RollsStockResponse = {
   micron?: number | null
   netweight?: number | null
   grossweight?: number | null
+  wastage?: number | null
   stock_voucher_id?: number | null
   issued?: boolean
   issued_at?: string | null
@@ -39,6 +41,7 @@ type RollsStockResponse = {
   parent_roll_ids?: number[] | null
   consumed?: boolean
   consumed_at?: string | null
+  job_card_number?: string | null
 }
 
 const mapRollsStock = (rollsStock: RollsStockResponse) => ({
@@ -55,6 +58,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   micron: rollsStock.micron ?? 0,
   netweight: rollsStock.netweight ?? 0,
   grossweight: rollsStock.grossweight ?? 0,
+  wastage: rollsStock.wastage ?? 0,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
   issued: rollsStock.issued ?? false,
   issuedAt: rollsStock.issued_at ?? null,
@@ -63,6 +67,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   parentRollIds: rollsStock.parent_roll_ids ?? null,
   consumed: rollsStock.consumed ?? false,
   consumedAt: rollsStock.consumed_at ?? null,
+  jobCardNumber: rollsStock.job_card_number ?? null,
 })
 
 export const getRollsStockByVoucher = async (voucherId: number) => {
@@ -98,6 +103,7 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     micron: payload.micron,
     netweight: payload.netweight,
     grossweight: payload.grossweight,
+    wastage: payload.wastage,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
@@ -122,6 +128,7 @@ export const updateRollsStock = async (
     micron: payload.micron,
     netweight: payload.netweight,
     grossweight: payload.grossweight,
+    wastage: payload.wastage,
     grade_id: payload.gradeId,
     stage: payload.stage,
     parent_roll_id: payload.parentRollId,
@@ -180,6 +187,20 @@ export const getRollsStockByParentIds = async (
   const response = await api.get<RollsStockResponse[]>(`/rolls-stock/by-parent`, {
     params,
   })
+  return response.data.map(mapRollsStock)
+}
+
+/** Fetch rolls linked to a work order via parent roll in-movements (e.g. all produced rolls for WO). */
+export const getRollsStockByWorkOrder = async (
+  workOrderId: number,
+  stage?: string
+) => {
+  const params: Record<string, string> = {}
+  if (stage != null && stage !== "") params.stage = stage
+  const response = await api.get<RollsStockResponse[]>(
+    `/rolls-stock/by-work-order/${workOrderId}`,
+    { params: Object.keys(params).length ? params : undefined }
+  )
   return response.data.map(mapRollsStock)
 }
 

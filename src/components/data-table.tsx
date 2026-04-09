@@ -41,6 +41,10 @@ interface DataTableProps<TData, TValue> {
   isLoadingMore?: boolean;
   /** Whether there is more data to load. */
   hasMore?: boolean;
+  /** Compact spacing for denser row height. */
+  compact?: boolean;
+  /** Show selected-row summary text in footer. */
+  showSelectionSummary?: boolean;
 }
 
 const LOAD_MORE_THRESHOLD_PX = 120;
@@ -57,6 +61,8 @@ export function DataTable<TData, TValue>({
   onLoadMore,
   isLoadingMore = false,
   hasMore = false,
+  compact = false,
+  showSelectionSummary = true,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -121,7 +127,7 @@ export function DataTable<TData, TValue>({
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className="sticky top-0 z-20 bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                        className={`sticky top-0 z-20 bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)] ${compact ? "py-1" : ""}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -156,7 +162,7 @@ export function DataTable<TData, TValue>({
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
-                          className="p-1 pl-2 border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm"
+                          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm`}
                         >
                           {flexRender(
                             cell.column.columnDef.cell,
@@ -195,7 +201,7 @@ export function DataTable<TData, TValue>({
                     return (
                       <TableHead
                         key={header.id}
-                        className="bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2"
+                        className={`bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${compact ? "py-1" : ""}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -231,7 +237,7 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="p-1 pl-2 border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm"
+                        className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm`}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -255,13 +261,15 @@ export function DataTable<TData, TValue>({
           </Table>
         )}
       </div>
-      <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
+      <div className="flex items-center justify-between py-1 gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {table.getFilteredSelectedRowModel().rows.length > 0 && bulkActions?.(table.getFilteredSelectedRowModel().rows.map((r) => r.original))}
-          <span className="text-muted-foreground dark:text-muted-foreground text-black text-sm">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </span>
+          {showSelectionSummary && (
+            <span className="text-muted-foreground dark:text-muted-foreground text-black text-sm">
+              {table.getFilteredSelectedRowModel().rows.length} of{" "}
+              {table.getFilteredRowModel().rows.length} row(s) selected.
+            </span>
+          )}
         </div>
         {showPagination && (
           <div className="flex items-center space-x-2">
