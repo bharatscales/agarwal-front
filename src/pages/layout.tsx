@@ -13,6 +13,7 @@ import WorkOrder from "./work-order"
 import WorkOrderDetail from "./work-order-detail"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
+import StockEntryPartyIndex from "./stock-entry-party-index"
 import StockEntryItems from "./stock-entry-items"
 import StockEntryChemItems from "./stock-entry-chem-items"
 import Reports from "./reports"
@@ -197,10 +198,16 @@ export default function Layout() {
       case "/manufacturing/job-card":
         return <JobCard />;
       case "/manufacturing/stock-entry":
-        return <StockEntry />;
+        return <StockEntryPartyIndex />;
       default:
         if (location.pathname.startsWith("/manufacturing/work-order/") && location.pathname !== "/manufacturing/work-order") {
           return <WorkOrderDetail />;
+        }
+        if (
+          location.pathname.startsWith("/manufacturing/stock-entry/party/") &&
+          location.pathname !== "/manufacturing/stock-entry/party"
+        ) {
+          return <StockEntry />;
         }
         if (location.pathname.startsWith("/manufacturing/stock-entry/") && location.pathname !== "/manufacturing/stock-entry") {
           // Check if it's a chem stock entry page

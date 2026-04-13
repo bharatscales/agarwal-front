@@ -79,6 +79,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/stock-entry/party/:partyId" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/manufacturing/stock-entry/:voucherId/chem" element={
               <ProtectedRoute>
                 <Layout />

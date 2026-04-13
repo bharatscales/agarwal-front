@@ -493,7 +493,7 @@ export default function Home() {
     }
   }, [isFloorUser, floorView])
 
-  // Floor Inspection page: work orders that have an Inspection job card with current loaded roll
+  // Floor Inspection page: work orders linked to available WIP Printing rolls
   useEffect(() => {
     if (!isFloorUser || floorView !== "inspection") return
     let cancelled = false
@@ -501,29 +501,36 @@ export default function Home() {
       setInspectionLoading(true)
       setInspectionError(null)
       try {
-        const cards = await getAllJobCards(0, 500, undefined, "Inspection")
-        const workOrderIdsWithRoll = new Set<number>()
+        const wipPrintingRolls = await getAllRollsStock(0, 500, false, "wip_printed")
+        const workOrderIdsWithWipRoll = new Set<number>()
         const BATCH = 15
-        for (let i = 0; i < cards.length; i += BATCH) {
+        for (let i = 0; i < wipPrintingRolls.length; i += BATCH) {
           if (cancelled) return
-          const batch = cards.slice(i, i + BATCH)
+          const batch = wipPrintingRolls.slice(i, i + BATCH)
           const results = await Promise.all(
-            batch.map(async (c) => {
+            batch.map(async (roll) => {
               try {
-                const roll = await getCurrentRoll(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+                const barcode = roll.barcode?.trim()
+                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
+                const woInfo = await getWorkOrderByRollBarcode(barcode)
+                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
               } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
+                return { workOrderId: null, hasWorkOrder: false }
               }
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+            if (r.hasWorkOrder && r.workOrderId != null) workOrderIdsWithWipRoll.add(r.workOrderId)
           })
         }
         if (cancelled) return
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        const filtered = allWos.filter(
+          (wo) =>
+            workOrderIdsWithWipRoll.has(wo.id) &&
+            wo.status !== "completed" &&
+            wo.status !== "cancelled"
+        )
         if (!cancelled) setInspectionWorkOrders(filtered)
       } catch (err) {
         if (!cancelled) {

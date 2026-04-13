@@ -1,24 +1,13 @@
-import { useEffect, useRef, useState } from "react"
-import { Plus, RefreshCw, X } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useCallback, useEffect, useState } from "react"
+import { Link, useNavigate, useParams } from "react-router-dom"
+import { ChevronRight, Plus, RefreshCw } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getStockVoucherColumns, type StockVoucher } from "@/components/columns/stock-voucher-columns"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import api from "@/lib/axios"
-import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
-import { createStockVoucher, deleteStockVoucher, getStockVouchers, updateStockVoucher } from "@/lib/stock-voucher-api"
-import { STOCK_TYPE_OPTIONS } from "@/lib/enums"
-
-type StockVoucherForm = {
-  vendorId: string
-  invoiceNo: string
-  invoiceDate: string
-  stockType: string
-}
+import type { CreatableOption } from "@/components/ui/creatable-combobox"
+import { deleteStockVoucher, getStockVouchers } from "@/lib/stock-voucher-api"
+import { StockVoucherFormDialog } from "@/components/stock-voucher-form-dialog"
 
 type VendorOption = {
   id: number
@@ -28,153 +17,55 @@ type VendorOption = {
 }
 
 export default function StockEntry() {
+  const { partyId } = useParams<{ partyId: string }>()
   const navigate = useNavigate()
+  const vendorFilterId = partyId ? Number(partyId) : NaN
+
   const [isAddVoucherOpen, setIsAddVoucherOpen] = useState(false)
   const [isEditVoucherOpen, setIsEditVoucherOpen] = useState(false)
   const [editingVoucher, setEditingVoucher] = useState<StockVoucher | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formData, setFormData] = useState<StockVoucherForm>({
-    vendorId: "",
-    invoiceNo: "",
-    invoiceDate: "",
-    stockType: "",
-  })
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof StockVoucherForm, string>>>({})
   const [stockVouchers, setStockVouchers] = useState<StockVoucher[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [, setVendorOptions] = useState<VendorOption[]>([])
   const [vendorSelectOptions, setVendorSelectOptions] = useState<CreatableOption[]>([])
-  const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
+  const [partyLabel, setPartyLabel] = useState<string>("")
 
-  const fetchVendors = async () => {
+  const loadPage = useCallback(async () => {
+    if (!partyId || Number.isNaN(vendorFilterId)) {
+      setError("Invalid party.")
+      setIsLoading(false)
+      return
+    }
     try {
-      const response = await api.get<VendorOption[]>("/meta/party-vendors")
-      setVendorOptions(response.data)
+      setIsLoading(true)
+      setError(null)
+      const [vendorsRes, vouchersData] = await Promise.all([
+        api.get<VendorOption[]>("/meta/party-vendors"),
+        getStockVouchers(0, 100, vendorFilterId),
+      ])
       setVendorSelectOptions(
-        response.data.map((vendor) => ({
+        vendorsRes.data.map((vendor) => ({
           value: vendor.id.toString(),
           label: vendor.party_code,
           description: `${vendor.party_name} (${vendor.party_type})`,
         }))
       )
-    } catch (error) {
-      console.error("Failed to load vendors:", error)
-      setVendorOptions([])
-      setVendorSelectOptions([])
+      const v = vendorsRes.data.find((x) => x.id === vendorFilterId)
+      setPartyLabel(v ? `${v.party_code} — ${v.party_name}` : `Party #${partyId}`)
+      setStockVouchers(vouchersData)
+    } catch (err: unknown) {
+      console.error("Error loading stock entry party page:", err)
+      setError("Failed to load data. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
-  }
+  }, [partyId, vendorFilterId])
 
   const handleRefresh = () => {
-    fetchVendors()
-    fetchStockVouchers()
-  }
-
-  const handleAddVoucher = () => {
-    setIsAddVoucherOpen(true)
-  }
-
-  const handleInputChange = (field: keyof StockVoucherForm, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: undefined }))
-    }
-  }
-
-  const handleEnterKey = (event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>, index: number) => {
-    if (event.key !== "Enter") return
-    const nextField = addFieldRefs.current[index + 1]
-    if (nextField) {
-      event.preventDefault()
-      nextField.focus()
-    }
-  }
-
-  const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof StockVoucherForm, string>> = {}
-
-    if (!formData.vendorId.trim()) {
-      errors.vendorId = "Vendor is required"
-    }
-    if (!formData.invoiceNo.trim()) {
-      errors.invoiceNo = "Invoice number is required"
-    }
-    if (!formData.invoiceDate.trim()) {
-      errors.invoiceDate = "Invoice date is required"
-    }
-    if (!formData.stockType.trim()) {
-      errors.stockType = "Stock type is required"
-    }
-
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateForm()) return
-
-    setIsSubmitting(true)
-    const payload = {
-      vendorId: Number(formData.vendorId),
-      invoiceNo: formData.invoiceNo.trim(),
-      invoiceDate: formData.invoiceDate,
-      stockType: formData.stockType.trim(),
-    }
-
-    const promise = editingVoucher
-      ? updateStockVoucher(editingVoucher.id, payload)
-      : createStockVoucher(payload)
-
-    promise
-      .then((voucher) => {
-        if (editingVoucher) {
-          setStockVouchers(prev => prev.map(v => v.id === voucher.id ? voucher : v))
-          setIsEditVoucherOpen(false)
-        } else {
-          setStockVouchers(prev => [voucher, ...prev])
-          setIsAddVoucherOpen(false)
-          // Navigate to appropriate page based on stock type
-          if (voucher.stockType === "rolls") {
-            navigate(`/manufacturing/stock-entry/${voucher.id}`)
-          } else if (voucher.stockType === "ink/adhesive/chemical") {
-            navigate(`/manufacturing/stock-entry/${voucher.id}/chem`)
-          }
-        }
-        setFormData({
-          vendorId: "",
-          invoiceNo: "",
-          invoiceDate: "",
-          stockType: "",
-        })
-        setFormErrors({})
-        setEditingVoucher(null)
-      })
-      .catch((err) => {
-        console.error("Error creating stock voucher:", err)
-        setFormErrors({ invoiceNo: "Failed to create voucher. Please try again." })
-      })
-      .finally(() => setIsSubmitting(false))
-  }
-
-  const handleCloseModal = () => {
-    setIsAddVoucherOpen(false)
-    setFormData({
-      vendorId: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      stockType: "",
-    })
-    setFormErrors({})
+    void loadPage()
   }
 
   const handleEditVoucher = (voucher: StockVoucher) => {
-    setFormData({
-      vendorId: voucher.vendorId.toString(),
-      invoiceNo: voucher.invoiceNo,
-      invoiceDate: voucher.invoiceDate,
-      stockType: voucher.stockType,
-    })
     setEditingVoucher(voucher)
     setIsEditVoucherOpen(true)
   }
@@ -185,7 +76,7 @@ export default function StockEntry() {
     }
     deleteStockVoucher(voucher.id)
       .then(() => {
-        setStockVouchers(prev => prev.filter(row => row.id !== voucher.id))
+        setStockVouchers((prev) => prev.filter((row) => row.id !== voucher.id))
         setError(null)
       })
       .catch((err) => {
@@ -194,61 +85,58 @@ export default function StockEntry() {
       })
   }
 
-  const handleCloseEditModal = () => {
-    setIsEditVoucherOpen(false)
-    setEditingVoucher(null)
-    setFormData({
-      vendorId: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      stockType: "",
-    })
-    setFormErrors({})
-  }
+  useEffect(() => {
+    void loadPage()
+  }, [loadPage])
 
-  const fetchStockVouchers = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-      const data = await getStockVouchers()
-      setStockVouchers(data)
-    } catch (err: any) {
-      console.error("Error fetching stock vouchers:", err)
-      setError("Failed to fetch stock vouchers. Please try again.")
-    } finally {
-      setIsLoading(false)
+  const handleFormSuccess = (voucher: StockVoucher, action: "add" | "edit") => {
+    if (action === "edit") {
+      setStockVouchers((prev) => prev.map((v) => (v.id === voucher.id ? voucher : v)))
+      setIsEditVoucherOpen(false)
+      setEditingVoucher(null)
+      return
+    }
+    setStockVouchers((prev) => [voucher, ...prev])
+    setIsAddVoucherOpen(false)
+    if (voucher.stockType === "rolls") {
+      navigate(`/manufacturing/stock-entry/${voucher.id}`)
+    } else if (voucher.stockType === "ink/adhesive/chemical") {
+      navigate(`/manufacturing/stock-entry/${voucher.id}/chem`)
     }
   }
 
-  useEffect(() => {
-    fetchVendors()
-    fetchStockVouchers()
-  }, [])
-
-  useEffect(() => {
-    if (isAddVoucherOpen) {
-      requestAnimationFrame(() => {
-        addFieldRefs.current[0]?.focus()
-      })
-    }
-  }, [isAddVoucherOpen])
+  if (!partyId || Number.isNaN(vendorFilterId)) {
+    return (
+      <div className="px-6 pt-2 pb-6">
+        <p className="text-red-600 dark:text-red-400">Missing or invalid party.</p>
+        <Button asChild variant="link" className="mt-2 p-0 h-auto">
+          <Link to="/manufacturing/stock-entry">Back to Stock Entry</Link>
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="px-6 pt-2 pb-6">
       <div className="mb-6">
+        <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <Link to="/manufacturing/stock-entry" className="hover:text-gray-900 dark:hover:text-gray-100">
+            Stock Entry
+          </Link>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+          <span className="text-gray-900 dark:text-gray-100">{partyLabel || `Party #${partyId}`}</span>
+        </nav>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-bold">Stock Entry</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Manage stock entries.
-            </p>
+            <h1 className="text-lg sm:text-xl font-bold">Stock vouchers</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Vouchers for this party.</p>
           </div>
           <div className="flex items-center space-x-2">
             <Button onClick={handleRefresh} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={handleAddVoucher} size="sm">
+            <Button onClick={() => setIsAddVoucherOpen(true)} size="sm">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Stock Voucher</span>
             </Button>
@@ -259,16 +147,14 @@ export default function StockEntry() {
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4" />
             <p className="text-gray-600 dark:text-gray-400">Loading stock vouchers...</p>
           </div>
         </div>
       ) : error ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
-              Error Loading Stock Vouchers
-            </h3>
+            <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Error Loading Stock Vouchers</h3>
             <p className="text-red-600 dark:text-red-300 mb-4">{error}</p>
             <Button onClick={handleRefresh} variant="outline">
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -285,7 +171,6 @@ export default function StockEntry() {
             })}
             data={stockVouchers}
             onRowClick={(voucher) => {
-              // Navigate to appropriate page based on stock type
               if (voucher.stockType === "rolls") {
                 navigate(`/manufacturing/stock-entry/${voucher.id}`)
               } else if (voucher.stockType === "ink/adhesive/chemical") {
@@ -301,140 +186,31 @@ export default function StockEntry() {
       {stockVouchers.length === 0 && !isLoading && !error && (
         <div className="text-center py-8">
           <p className="text-gray-500 dark:text-gray-400">
-            No stock vouchers found. Create your first voucher to get started.
+            No stock vouchers for this party. Create one to get started.
           </p>
         </div>
       )}
 
-      {(isAddVoucherOpen || isEditVoucherOpen) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div>
-                <CardTitle>{editingVoucher ? "Edit Stock Voucher" : "Add Stock Voucher"}</CardTitle>
-                <CardDescription>
-                  {editingVoucher ? "Update stock voucher entry." : "Create a new stock voucher entry."}
-                </CardDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={isEditVoucherOpen ? handleCloseEditModal : handleCloseModal}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
+      <StockVoucherFormDialog
+        open={isAddVoucherOpen}
+        onOpenChange={setIsAddVoucherOpen}
+        mode="add"
+        initialVendorId={partyId}
+        vendorSelectOptions={vendorSelectOptions}
+        onSuccess={handleFormSuccess}
+      />
 
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="vendor">Vendor *</Label>
-                    <CreatableCombobox
-                      options={vendorSelectOptions}
-                      value={formData.vendorId || null}
-                      onValueChange={(value) => handleInputChange("vendorId", value ?? "")}
-                      placeholder="Select vendor"
-                      searchPlaceholder="Search vendor..."
-                      onInputKeyDown={(e) => handleEnterKey(e, 0)}
-                      triggerRef={(el) => {
-                        addFieldRefs.current[0] = el
-                      }}
-                    />
-                    {formErrors.vendorId && (
-                      <p className="text-sm text-red-500">{formErrors.vendorId}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="invoiceNo">Invoice No *</Label>
-                    <Input
-                      id="invoiceNo"
-                      ref={(el) => {
-                        addFieldRefs.current[1] = el
-                      }}
-                      value={formData.invoiceNo}
-                      onChange={(e) => handleInputChange("invoiceNo", e.target.value)}
-                      onKeyDown={(e) => handleEnterKey(e, 1)}
-                      placeholder="Enter invoice number"
-                      className={formErrors.invoiceNo ? "border-red-500" : ""}
-                    />
-                    {formErrors.invoiceNo && (
-                      <p className="text-sm text-red-500">{formErrors.invoiceNo}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="invoiceDate">Invoice Date *</Label>
-                    <Input
-                      id="invoiceDate"
-                      type="date"
-                      ref={(el) => {
-                        addFieldRefs.current[2] = el
-                      }}
-                      value={formData.invoiceDate}
-                      onChange={(e) => handleInputChange("invoiceDate", e.target.value)}
-                      onKeyDown={(e) => handleEnterKey(e, 2)}
-                      className={formErrors.invoiceDate ? "border-red-500" : ""}
-                    />
-                    {formErrors.invoiceDate && (
-                      <p className="text-sm text-red-500">{formErrors.invoiceDate}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="stockType">Stock Type *</Label>
-                    <Select
-                      value={formData.stockType ? formData.stockType : undefined}
-                      onValueChange={(value) => handleInputChange("stockType", value || "")}
-                    >
-                      <SelectTrigger
-                        id="stockType"
-                        ref={(el) => {
-                          addFieldRefs.current[3] = el
-                        }}
-                        onKeyDown={(e) => handleEnterKey(e, 3)}
-                        className={`w-full ${formErrors.stockType ? "border-red-500" : ""}`}
-                      >
-                        <SelectValue placeholder="Select stock type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STOCK_TYPE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formErrors.stockType && (
-                      <p className="text-sm text-red-500">{formErrors.stockType}</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-
-              <CardFooter className="flex gap-2 mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={isEditVoucherOpen ? handleCloseEditModal : handleCloseModal}
-                  className="flex-1"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                  {editingVoucher ? "Update Voucher" : "Create Voucher"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
+      <StockVoucherFormDialog
+        open={isEditVoucherOpen}
+        onOpenChange={(open) => {
+          setIsEditVoucherOpen(open)
+          if (!open) setEditingVoucher(null)
+        }}
+        mode="edit"
+        editingVoucher={editingVoucher ?? undefined}
+        vendorSelectOptions={vendorSelectOptions}
+        onSuccess={handleFormSuccess}
+      />
     </div>
   )
 }
-

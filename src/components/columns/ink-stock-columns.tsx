@@ -20,6 +20,12 @@ const issuedAtColumn: ColumnDef<InkStockRow> = {
   ),
 }
 
+const formatInvoiceDate = (invoiceDate?: string | null) => {
+  if (!invoiceDate) return "-"
+  const parsed = new Date(invoiceDate)
+  return Number.isNaN(parsed.getTime()) ? invoiceDate : parsed.toLocaleDateString()
+}
+
 export const getInkStockColumns = (options?: {
   showIssuedAt?: boolean
   /** When true (e.g. Issued report), Qty column shows issuedQty; otherwise shows available (qty - issuedQty) */
@@ -104,6 +110,24 @@ export const getInkStockColumns = (options?: {
     ),
     cell: ({ row }) => (
       <div className="text-sm">{row.getValue("uom") || "-"}</div>
+    ),
+  },
+  {
+    accessorKey: "invoiceNo",
+    header: ({ column }) => (
+      <ColumnHeader title="Invoice No" column={column} placeholder="Filter invoice..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">{row.original.invoiceNo || "-"}</div>
+    ),
+  },
+  {
+    accessorKey: "invoiceDate",
+    header: ({ column }) => (
+      <ColumnHeader title="Invoice Date" column={column} placeholder="Filter date..." />
+    ),
+    cell: ({ row }) => (
+      <div className="text-sm">{formatInvoiceDate(row.original.invoiceDate)}</div>
     ),
   },
   ...(options?.showIssuedAt ? [issuedAtColumn] : []),

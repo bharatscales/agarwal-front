@@ -34,10 +34,25 @@ const mapVoucher = (voucher: StockVoucherResponse) => ({
   stockType: voucher.stock_type ?? "",
 })
 
-export const getStockVouchers = async (skip = 0, limit = 100) => {
-  const response = await api.get<StockVoucherResponse[]>(
-    `/stock-voucher/?skip=${skip}&limit=${limit}`
-  )
+export type PartyStockSummaryResponse = {
+  vendor_id: number
+  vendor_code?: string | null
+  vendor_name?: string | null
+  voucher_count: number
+  rolls_count: number
+}
+
+export const getPartyStockSummaries = async () => {
+  const response = await api.get<PartyStockSummaryResponse[]>("/stock-voucher/party-summary")
+  return response.data
+}
+
+export const getStockVouchers = async (skip = 0, limit = 100, vendorId?: number) => {
+  let url = `/stock-voucher/?skip=${skip}&limit=${limit}`
+  if (vendorId != null) {
+    url += `&vendor_id=${vendorId}`
+  }
+  const response = await api.get<StockVoucherResponse[]>(url)
   return response.data.map(mapVoucher)
 }
 

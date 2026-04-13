@@ -958,11 +958,22 @@ export default function StockEntryChemItems() {
   return (
     <div className="px-6 pt-2 pb-10">
       <div className="mb-6">
-        <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4 flex-wrap">
           <Link to="/manufacturing/stock-entry" className="hover:text-gray-900 dark:hover:text-gray-100">
             Stock Entry
           </Link>
-          <ChevronRight className="h-4 w-4" />
+          {stockVoucher?.vendorId ? (
+            <>
+              <ChevronRight className="h-4 w-4 shrink-0" />
+              <Link
+                to={`/manufacturing/stock-entry/party/${stockVoucher.vendorId}`}
+                className="hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                {stockVoucher.vendor || `Party #${stockVoucher.vendorId}`}
+              </Link>
+            </>
+          ) : null}
+          <ChevronRight className="h-4 w-4 shrink-0" />
           <span className="text-gray-900 dark:text-gray-100">
             Voucher #{voucherId}
           </span>

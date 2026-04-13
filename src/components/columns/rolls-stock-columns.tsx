@@ -8,6 +8,8 @@ export type RollsStockRow = {
   itemCode: string
   itemName: string
   vendorCode: string
+  invoiceNo?: string
+  invoiceDate?: string
   customerName?: string | null
   gradeId?: number
   grade?: string
@@ -21,6 +23,12 @@ export type RollsStockRow = {
   issuedAt: string | null
   stage?: string | null
   consumed?: boolean
+}
+
+const formatInvoiceDate = (invoiceDate?: string | null) => {
+  if (!invoiceDate) return "-"
+  const parsed = new Date(invoiceDate)
+  return Number.isNaN(parsed.getTime()) ? invoiceDate : parsed.toLocaleDateString()
 }
 
 const issuedAtColumn: ColumnDef<RollsStockRow> = {
@@ -156,6 +164,24 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         ),
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("vendorCode") || "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "invoiceNo",
+        header: ({ column }) => (
+          <ColumnHeader title="Invoice No" column={column} placeholder="Filter invoice..." />
+        ),
+        cell: ({ row }) => (
+          <div className="text-sm">{row.original.invoiceNo || "-"}</div>
+        ),
+      },
+      {
+        accessorKey: "invoiceDate",
+        header: ({ column }) => (
+          <ColumnHeader title="Invoice Date" column={column} placeholder="Filter date..." />
+        ),
+        cell: ({ row }) => (
+          <div className="text-sm">{formatInvoiceDate(row.original.invoiceDate)}</div>
         ),
       },
     ]

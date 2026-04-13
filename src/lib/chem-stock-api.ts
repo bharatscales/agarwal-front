@@ -26,6 +26,8 @@ export type ChemStockRow = {
   gradeId?: number
   grade: string
   stockVoucherId: number
+  invoiceNo: string
+  invoiceDate: string
   issued: boolean
   issuedAt: string | null
 }
@@ -49,6 +51,8 @@ type ChemStockResponse = {
   grade_id?: number | null
   grade?: string | null
   stock_voucher_id?: number | null
+  invoice_no?: string | null
+  invoice_date?: string | null
   issued?: boolean
   issued_at?: string | null
 }
@@ -67,6 +71,8 @@ const mapChemStock = (row: ChemStockResponse): ChemStockRow => ({
   gradeId: row.grade_id ?? undefined,
   grade: row.grade ?? "",
   stockVoucherId: row.stock_voucher_id ?? 0,
+  invoiceNo: row.invoice_no ?? "",
+  invoiceDate: row.invoice_date ?? "",
   issued: row.issued ?? false,
   issuedAt: row.issued_at ?? null,
 })

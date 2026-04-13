@@ -34,6 +34,8 @@ type RollsStockResponse = {
   grossweight?: number | null
   wastage?: number | null
   stock_voucher_id?: number | null
+  invoice_no?: string | null
+  invoice_date?: string | null
   issued?: boolean
   issued_at?: string | null
   stage?: string | null
@@ -60,6 +62,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
+  invoiceNo: rollsStock.invoice_no ?? "",
+  invoiceDate: rollsStock.invoice_date ?? "",
   issued: rollsStock.issued ?? false,
   issuedAt: rollsStock.issued_at ?? null,
   stage: rollsStock.stage ?? null,
