@@ -306,7 +306,7 @@ export default function Item() {
   }
 
   const handleDeleteItem = async (item: Item) => {
-    if (!window.confirm(`Delete item "${item.itemCode}"? This cannot be undone.`)) {
+    if (!window.confirm(`Remove item "${item.itemCode}"? It will no longer appear in new entries. Existing records keep their link.`)) {
       return
     }
 

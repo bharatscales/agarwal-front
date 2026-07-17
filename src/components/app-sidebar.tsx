@@ -31,7 +31,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -966,17 +965,17 @@ export function AppSidebar() {
                     Switch to {theme === "dark" ? "light" : "dark"} mode
                   </span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    logout();
+                  }}
+                >
+                  <LucidePower className="h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <SidebarMenuAction
-              asChild
-              className="min-h-10 min-w-10 m-2 p-3"
-              onClick={() => {
-                logout();
-              }}
-            >
-              <LucidePower />
-            </SidebarMenuAction>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

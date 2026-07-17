@@ -209,7 +209,7 @@ export default function Party() {
   }
 
   const handleDeleteParty = (party: PartyMaster) => {
-    if (!window.confirm(`Delete party "${party.partyName}"? This cannot be undone.`)) {
+    if (!window.confirm(`Remove party "${party.partyName}"? It will no longer appear in new entries. Existing records keep their link.`)) {
       return
     }
     deleteParty(party.id)

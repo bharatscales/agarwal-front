@@ -385,7 +385,7 @@ export default function Template() {
   }
 
   const handleDeleteTemplate = (template: TemplateMaster) => {
-    if (!window.confirm(`Delete template "${template.name}"? This cannot be undone.`)) {
+    if (!window.confirm(`Remove template "${template.name}"? It will no longer appear in new entries. Existing print jobs keep their link.`)) {
       return
     }
     deleteTemplate(template.id)

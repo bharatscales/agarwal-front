@@ -38,6 +38,9 @@ type WorkOrderForm = {
 export default function WorkOrder() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const isPrintingUser =
+    user?.role === "user" &&
+    (user?.department?.toLowerCase() === "printing" || user?.department === "Printing")
   const isInspectionUser =
     user?.role === "user" &&
     (user?.department?.toLowerCase() === "inspection" || user?.department === "Inspection")
@@ -606,6 +609,7 @@ export default function WorkOrder() {
               ...(isInspectionUser ? {} : { onEdit: handleEditWorkOrderOpen, onDelete: handleDeleteWorkOrder }),
             })}
             data={workOrders.filter((wo) => {
+              if (isPrintingUser && wo.status !== "planned" && wo.status !== "in_progress") return false
               if (!woNumberSearch.trim()) return true
               const woNum = (wo.woNumber ?? "").toString()
               return woNum.toLowerCase().includes(woNumberSearch.trim().toLowerCase())

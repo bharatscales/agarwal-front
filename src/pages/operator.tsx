@@ -159,7 +159,7 @@ export default function Operator() {
   }
 
   const handleDeleteOperator = (operator: OperatorMaster) => {
-    if (!window.confirm(`Delete operator "${operator.operatorName}"? This cannot be undone.`)) {
+    if (!window.confirm(`Remove operator "${operator.operatorName}"? It will no longer appear in new entries.`)) {
       return
     }
     deleteOperator(operator.id)
