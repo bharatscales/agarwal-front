@@ -24,7 +24,7 @@ export function ImpersonationBar() {
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-50 flex h-9 items-center justify-between border-b border-orange-500/40 bg-orange-600 px-3 text-white shadow-md"
+      className="fixed inset-x-0 top-0 z-[60] flex h-9 items-center justify-between border-b border-orange-500/40 bg-orange-600 px-3 text-white shadow-md"
       style={{ height: IMPERSONATION_BAR_HEIGHT }}
     >
       <div className="flex min-w-0 items-center gap-2 text-sm">

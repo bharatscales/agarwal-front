@@ -2,6 +2,8 @@ import { ArrowLeft } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/contexts/AuthContext"
+import { IMPERSONATION_BAR_HEIGHT } from "@/components/ImpersonationBar"
 import type { FloorDepartmentId } from "../constants"
 
 type FloorShellProps = {
@@ -43,11 +45,15 @@ export function FloorShell({
   printingPrintStatus,
   children,
 }: FloorShellProps) {
+  const { impersonatedBy } = useAuth()
+  const impersonationOffset = impersonatedBy ? IMPERSONATION_BAR_HEIGHT : 0
+
   return (
     <div className="pt-16 pb-10">
       <div
-        className="fixed top-0 h-16 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-50 transition-all duration-200"
+        className="fixed h-16 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40 transition-all duration-200"
         style={{
+          top: impersonationOffset,
           left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
           right: 0,
         }}
