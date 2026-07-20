@@ -568,7 +568,8 @@ export default function Home() {
     }
   }, [isFloorUser, floorView])
 
-  // Floor Inspection page: work orders linked to available WIP Printing rolls
+  // Floor Inspection page: WOs with available WIP Printing rolls to load,
+  // plus WOs that already have an Inspection job card with a loaded roll.
   useEffect(() => {
     if (!isFloorUser || floorView !== "inspection") return
     let cancelled = false
@@ -576,8 +577,10 @@ export default function Home() {
       setInspectionLoading(true)
       setInspectionError(null)
       try {
+        const workOrderIds = new Set<number>()
+
+        // 1) WOs linked to available (unissued) WIP Printing rolls — ready to load
         const wipPrintingRolls = await getAllRollsStock(0, 500, false, "wip_printed")
-        const workOrderIdsWithWipRoll = new Set<number>()
         const BATCH = 15
         for (let i = 0; i < wipPrintingRolls.length; i += BATCH) {
           if (cancelled) return
@@ -585,6 +588,7 @@ export default function Home() {
           const results = await Promise.all(
             batch.map(async (roll) => {
               try {
+                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
                 const barcode = roll.barcode?.trim()
                 if (!barcode) return { workOrderId: null, hasWorkOrder: false }
                 const woInfo = await getWorkOrderByRollBarcode(barcode)
@@ -595,14 +599,37 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasWorkOrder && r.workOrderId != null) workOrderIdsWithWipRoll.add(r.workOrderId)
+            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
+
+        // 2) WOs that already have a roll loaded on an Inspection job card —
+        // keeps the WO visible after load (issued WIP roll no longer matches filter 1)
+        const inspectionCards = await getAllJobCards(0, 500, undefined, "Inspection")
+        for (let i = 0; i < inspectionCards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = inspectionCards.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (c) => {
+              try {
+                const roll = await getCurrentRoll(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+              } catch {
+                return { workOrderId: c.workOrderId, hasRoll: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasRoll) workOrderIds.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+
         const allWos = await getAllWorkOrders(0, 500)
         const filtered = allWos.filter(
           (wo) =>
-            workOrderIdsWithWipRoll.has(wo.id) &&
+            workOrderIds.has(wo.id) &&
             wo.status !== "completed" &&
             wo.status !== "cancelled"
         )
@@ -620,7 +647,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [isFloorUser, floorView])
+  }, [isFloorUser, floorView, inspectionRollsRefreshKey])
 
   // Floor ECL: work orders that have an ECL job card with current loaded roll
   useEffect(() => {
