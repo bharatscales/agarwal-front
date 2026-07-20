@@ -29,6 +29,7 @@ import ChemicalIssuesReport from "./chemical-issues-report"
 import { useLocation } from "react-router-dom"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ImpersonationBar, IMPERSONATION_BAR_HEIGHT } from "@/components/ImpersonationBar"
 import { getCurrentUser } from "@/lib/user-api"
 import { useState, useEffect } from "react"
 import { Navigate } from "react-router-dom"
@@ -77,7 +78,7 @@ const isInspectUserBlockedPath = (path: string) =>
 
 export default function Layout() {
   const location = useLocation();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, impersonatedBy } = useAuth();
   const [stockUserBlock, setStockUserBlock] = useState<boolean | null>(null);
   const [printingUserBlock, setPrintingUserBlock] = useState<boolean | null>(null);
 
@@ -263,6 +264,8 @@ export default function Layout() {
     }
   };
 
+  const impersonationOffset = impersonatedBy ? IMPERSONATION_BAR_HEIGHT : 0;
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen p-8">
@@ -272,14 +275,19 @@ export default function Layout() {
   }
 
   return (
-    <SidebarProvider defaultOpen={!isFloorUser}>
-      <AppSidebar/>
-      <main className="min-h-screen overflow-hidden dark:bg-gradient-to-br from-zinc-900 via-black to-zinc-900 w-full dark:text-white">
-        <div className="flex-1 overflow-auto">
-          {renderContent()}
-        </div>
-      </main>
-      <MobileMenuToggle />
-    </SidebarProvider>
+    <>
+      <ImpersonationBar />
+      <div style={{ paddingTop: impersonationOffset }}>
+        <SidebarProvider defaultOpen={!isFloorUser}>
+          <AppSidebar/>
+          <main className="min-h-screen overflow-hidden dark:bg-gradient-to-br from-zinc-900 via-black to-zinc-900 w-full dark:text-white">
+            <div className="flex-1 overflow-auto">
+              {renderContent()}
+            </div>
+          </main>
+          <MobileMenuToggle />
+        </SidebarProvider>
+      </div>
+    </>
   )
 }

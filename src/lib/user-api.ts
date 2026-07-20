@@ -113,3 +113,13 @@ export const createUserApiKey = async (userId: number): Promise<ApiKey> => {
     throw error
   }
 }
+
+export const startImpersonation = async (userId: number): Promise<{ access_token: string; token_type: string }> => {
+  const response = await api.post(`/user/${userId}/impersonate`)
+  return response.data
+}
+
+export const stopImpersonation = async (): Promise<{ access_token: string; token_type: string }> => {
+  const response = await api.post('/user/impersonate/stop')
+  return response.data
+}

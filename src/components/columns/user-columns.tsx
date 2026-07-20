@@ -2,7 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
 import { ColumnHeaderSelect } from "@/components/column-header-select"
-import { MoreVertical, Edit, Trash2, UserCheck, UserX, Key } from "lucide-react"
+import { MoreVertical, Edit, Trash2, UserCheck, UserX, Key, VenetianMask } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/contexts/AuthContext"
+import { useNavigate } from "react-router-dom"
 
 // Backend User model structure
 export interface User {
@@ -185,6 +187,32 @@ export const getUserColumns = ({
     
     cell: ({ row }) => {
       const user = row.original
+      const { user: currentUser, impersonate } = useAuth()
+      const navigate = useNavigate()
+
+      const canImpersonate = currentUser?.role === "superuser"
+
+      const showImpersonate =
+        canImpersonate &&
+        user.isEnable &&
+        user.role !== "superuser" &&
+        user.id.toString() !== currentUser?.id
+
+      const handleImpersonate = async () => {
+        try {
+          const impersonatedUser = await impersonate(user.id)
+          if (!impersonatedUser) return
+
+          const dept = impersonatedUser.department?.toLowerCase()
+          if (dept === "inspection") {
+            navigate("/manufacturing/work-order")
+          } else {
+            navigate("/home")
+          }
+        } catch {
+          // Error already logged in AuthContext
+        }
+      }
 
       return (
         <DropdownMenu>
@@ -205,6 +233,12 @@ export const getUserColumns = ({
               <Edit className="mr-2 h-4 w-4" />
               Edit user
             </DropdownMenuItem>
+            {showImpersonate && (
+              <DropdownMenuItem onClick={handleImpersonate}>
+                <VenetianMask className="mr-2 h-4 w-4" />
+                Impersonate
+              </DropdownMenuItem>
+            )}
             {canManage && (
               <DropdownMenuItem
                 className={user.isEnable ? "text-yellow-600" : "text-green-600"}
