@@ -16,8 +16,10 @@ import {
   addLaminationRoll,
   addPrintedRoll,
   addSlittingRoll,
+  createJobCard,
   getAllJobCards,
   getCurrentRoll,
+  scanRoll,
   type CurrentRoll,
 } from "@/lib/job-card-api"
 import { getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
@@ -31,6 +33,8 @@ import {
   getWorkOrderByRollBarcode,
   getAllRollsStock,
 } from "@/lib/rolls-stock-api"
+import { getAllMachines } from "@/lib/machine-api"
+import { getAllOperators } from "@/lib/operator-api"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
 import { FloorDepartmentGrid } from "./home/components/FloorDepartmentGrid"
@@ -100,6 +104,7 @@ export default function Home() {
   const [inspectionLoading, setInspectionLoading] = useState(false)
   const [inspectionError, setInspectionError] = useState<string | null>(null)
   const [inspectionSelectedWo, setInspectionSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [inspectionRollsRefreshKey, setInspectionRollsRefreshKey] = useState(0)
   const [inspectionRollsLoading, setInspectionRollsLoading] = useState(false)
   const [inspectionLoadedRolls, setInspectionLoadedRolls] = useState<
     { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
@@ -400,6 +405,18 @@ export default function Home() {
         setFloorInspectionBarcodeError("Roll not found for this barcode.")
         return
       }
+      if (roll.consumed) {
+        setFloorInspectionBarcodeError("This roll is already consumed.")
+        return
+      }
+      const stage = (roll.stage ?? "").toLowerCase()
+      const isWipPrinting = stage === "wip_printed" || stage === "wip-printing"
+      if (!isWipPrinting) {
+        setFloorInspectionBarcodeError(
+          `Roll must be in WIP Printing stage. Current stage: ${roll.stage || "—"}`
+        )
+        return
+      }
       const woInfo = await getWorkOrderByRollBarcode(barcode)
       if (!woInfo) {
         setFloorInspectionBarcodeError(
@@ -422,11 +439,69 @@ export default function Home() {
         setFloorInspectionBarcodeError("Work order not found for this roll.")
         return
       }
+
+      // Find an Inspection job card to load onto (prefer one with no current roll).
+      const cards = await getAllJobCards(0, 50, wo.id, "Inspection")
+      let targetCardId: number | null = null
+      for (const card of cards) {
+        try {
+          const current = await getCurrentRoll(card.id)
+          if (!current) {
+            targetCardId = card.id
+            break
+          }
+        } catch {
+          // ignore and try next card
+        }
+      }
+      if (targetCardId == null && cards.length > 0) {
+        targetCardId = cards[0].id
+      }
+
+      // No Inspection job card yet — create one, then load the roll (same as Work Order scan flow).
+      if (targetCardId == null) {
+        const [operatorsList, machinesList] = await Promise.all([
+          getAllOperators(0, 500),
+          getAllMachines(0, 500),
+        ])
+        const inspectionMachine = machinesList.find(
+          (m) => (m.operation ?? "").toLowerCase() === "inspection"
+        )
+        if (!inspectionMachine) {
+          setFloorInspectionBarcodeError("No machine configured for Inspection operation.")
+          return
+        }
+        const inspectionOperators = operatorsList.filter(
+          (op) => (op.operation ?? "").toLowerCase() === "inspection"
+        )
+        const operatorName =
+          inspectionOperators[0]?.operatorName?.trim() ||
+          user?.username?.trim() ||
+          "Floor"
+        const newJobCard = await createJobCard({
+          jobCardNumber: "",
+          workOrderId: wo.id,
+          operation: "Inspection",
+          machineId: inspectionMachine.id,
+          operatorName,
+          shift: "A",
+        })
+        targetCardId = newJobCard.id
+      }
+
+      await scanRoll(targetCardId, barcode)
+
       setFloorInspectionBarcode("")
       setInspectionSelectedWo(wo)
+      setInspectionRollsRefreshKey((key) => key + 1)
       if (options?.closePicker) closeFloorInspectionWipPicker()
-    } catch {
-      setFloorInspectionBarcodeError("Could not look up roll. Try again.")
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not load roll. Try again."
+      setFloorInspectionBarcodeError(detail)
     } finally {
       setFloorInspectionBarcodeChecking(false)
     }
@@ -829,7 +904,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [inspectionSelectedWo?.id])
+  }, [inspectionSelectedWo?.id, inspectionRollsRefreshKey])
 
   // When Floor user selects a work order in ECL section, fetch loaded roll(s) and show form
   useEffect(() => {
