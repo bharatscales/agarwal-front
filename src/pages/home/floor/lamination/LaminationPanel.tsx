@@ -1,8 +1,11 @@
 import { Plus } from "lucide-react"
+import { useMemo } from "react"
 
+import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type LaminationPanelProps = any
 
@@ -25,6 +28,8 @@ export function LaminationPanel(props: LaminationPanelProps) {
     laminationWorkOrders,
     setLaminationSelectedWo,
   } = props
+
+  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
 
   return laminationSelectedWo ? (
     <div className="space-y-4 mt-4">
@@ -76,21 +81,22 @@ export function LaminationPanel(props: LaminationPanelProps) {
     </div>
   ) : (
     <>
-      {laminationLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p> : laminationError ? <p className="text-sm text-red-600 dark:text-red-400">{laminationError}</p> : laminationWorkOrders.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-gray-200 dark:border-gray-600"><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">WO Number</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Party</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Item</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Status</th><th className="text-left py-2 font-medium text-gray-700 dark:text-gray-300">Action</th></tr></thead>
-            <tbody>
-              {laminationWorkOrders.map((wo: any) => (
-                <tr key={wo.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => setLaminationSelectedWo(wo)}>
-                  <td className="py-2 text-gray-900 dark:text-gray-100">{wo.woNumber ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.partyName ?? "-"}</td><td className="py-2 text-gray-700 dark:text-gray-300">{wo.itemName ?? "-"}</td>
-                  <td className="py-2"><span className={wo.status === "in_progress" ? "text-blue-600 dark:text-blue-400" : (wo.status === "completed" || wo.status === "printed") ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"}>{wo.status?.replace("_", " ") ?? "-"}</span></td>
-                  <td className="py-2 text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {laminationLoading ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+      ) : laminationError ? (
+        <p className="text-sm text-red-600 dark:text-red-400">{laminationError}</p>
+      ) : laminationWorkOrders.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p>
+      ) : (
+        <DataTable
+          columns={floorWorkOrderColumns}
+          data={laminationWorkOrders}
+          getRowId={(row) => String(row.id)}
+          onRowClick={(wo) => setLaminationSelectedWo(wo)}
+          scrollable
+          scrollHeight="65vh"
+          showSelectionSummary={false}
+        />
       )}
     </>
   )
