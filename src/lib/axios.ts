@@ -1,11 +1,18 @@
 import axios, {
   type AxiosError,
+  type AxiosRequestConfig,
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
 import conf from '../conf/conf';
 
-export type AgaarwalAxiosRequestConfig = InternalAxiosRequestConfig & {
+export type AgaarwalAxiosRequestConfig = AxiosRequestConfig & {
+  skipAuth?: boolean;
+  skipAuthRefresh?: boolean;
+  _retry?: boolean;
+};
+
+type AgaarwalInternalAxiosRequestConfig = InternalAxiosRequestConfig & {
   skipAuth?: boolean;
   skipAuthRefresh?: boolean;
   _retry?: boolean;
@@ -113,7 +120,7 @@ function refreshAccessToken(): Promise<string | null> {
 }
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const c = config as AgaarwalAxiosRequestConfig;
+  const c = config as AgaarwalInternalAxiosRequestConfig;
   if (!c.skipAuth) {
     const token = getAccessToken();
     if (token) {
@@ -126,7 +133,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
-    const original = error.config as AgaarwalAxiosRequestConfig | undefined;
+    const original = error.config as AgaarwalInternalAxiosRequestConfig | undefined;
     const status = error.response?.status;
 
     if (status !== 401 || !original) {
