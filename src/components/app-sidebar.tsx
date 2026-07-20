@@ -19,7 +19,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getCurrentUser } from "@/lib/user-api";
 import { getItemsByGroupForMenu, type MenuItem as ItemMenuItem } from "@/lib/item-api";
 
 import {
@@ -126,14 +125,16 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { setOpenMobile, state, toggleSidebar } = useSidebar();
-  const [currentUser, setCurrentUser] = useState<{
-    username: string;
-    role: string;
-    department?: string;
-  } | null>(null);
+  const currentUser = user
+    ? {
+        username: user.username,
+        role: user.role ?? "user",
+        department: user.department,
+      }
+    : null;
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
@@ -147,7 +148,7 @@ export function AppSidebar() {
   const [rmInkMenuItems, setRmInkMenuItems] = useState<ItemMenuItem[]>([]);
   const [rmAdhesiveMenuItems, setRmAdhesiveMenuItems] = useState<ItemMenuItem[]>([]);
   const [rmChemicalMenuItems, setRmChemicalMenuItems] = useState<ItemMenuItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = authLoading;
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -322,31 +323,6 @@ export function AppSidebar() {
       fetchRmChemicalItems();
     }
   }, [isReportsOpen]);
-
-  // Fetch current user info
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const user = await getCurrentUser();
-        setCurrentUser({
-          username: user.username,
-          role: user.role,
-          department: user.department,
-        });
-      } catch (error) {
-        console.error("Error fetching current user:", error);
-        // Fallback to basic info if API fails - default to user role for security
-        setCurrentUser({
-          username: "User",
-          role: "user",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchCurrentUser();
-  }, []);
 
   // Show loading state while determining user role
   if (isLoading) {

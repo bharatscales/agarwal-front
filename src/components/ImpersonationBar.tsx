@@ -16,7 +16,7 @@ export function ImpersonationBar() {
   const handleExit = async () => {
     try {
       await exitImpersonation()
-      navigate("/users")
+      navigate("/users", { replace: true })
     } catch {
       // Error already logged in AuthContext
     }

@@ -72,6 +72,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setImpersonatedBy(impersonator);
     if (impersonator && userData.id != null) {
       setImpersonationTargetId(Number(userData.id));
+    } else {
+      clearImpersonationTargetId();
     }
     applyTheme(userData.theme as string | undefined);
     return mappedUser;
@@ -214,15 +216,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const exitImpersonation = async () => {
+    // Clear first so any token refresh during exit cannot re-apply impersonation.
+    clearImpersonationTargetId();
+
     try {
       const tokenResponse = await stopImpersonation();
       setAccessToken(tokenResponse.access_token);
-      clearImpersonationTargetId();
+    } catch (error) {
+      // Impersonation token may be expired; refresh cookie always belongs to the admin.
+      try {
+        const refreshResponse = await api.post('/login/refresh', {}, {
+          skipAuth: true,
+          skipAuthRefresh: true,
+        } as AgaarwalAxiosRequestConfig);
+        setAccessToken(refreshResponse.data.access_token);
+      } catch (refreshError) {
+        console.error('Exit impersonation failed:', error, refreshError);
+        throw error;
+      }
+    }
 
+    try {
       const userResponse = await api.get('/user/me');
       syncUserFromMeResponse(userResponse.data);
+      setImpersonatedBy(null);
+      clearImpersonationTargetId();
     } catch (error) {
-      console.error('Exit impersonation failed:', error);
+      console.error('Exit impersonation failed to restore user:', error);
       throw error;
     }
   };
