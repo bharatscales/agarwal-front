@@ -3,6 +3,7 @@ import { ColumnHeader } from "@/components/column-header"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { ChemStockRow } from "@/lib/chem-stock-api"
 import { availableQtyChem } from "@/lib/chem-stock-api"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type { ChemStockRow } from "@/lib/chem-stock-api"
 
@@ -61,6 +62,7 @@ export const getChemStockColumns = (options?: {
       <ColumnHeader title="ID" column={column} placeholder="Filter ID..." />
     ),
     cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
+    filterFn: includesStringFilterFn,
   },
   {
     id: "item",
@@ -111,6 +113,7 @@ export const getChemStockColumns = (options?: {
     cell: ({ row }) => (
       <div className="text-sm">{row.getValue("qty") ?? "-"}</div>
     ),
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "uom",

@@ -2,6 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { MoreVertical, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,7 @@ export const getStockVoucherColumns = ({
       const id = row.getValue("id") as number
       return <div className="font-medium">{id}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "vendor",

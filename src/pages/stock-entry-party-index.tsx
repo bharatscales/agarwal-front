@@ -10,6 +10,7 @@ import { getPartyStockSummaries, type PartyStockSummaryResponse } from "@/lib/st
 import type { CreatableOption } from "@/components/ui/creatable-combobox"
 import { StockVoucherFormDialog } from "@/components/stock-voucher-form-dialog"
 import type { StockVoucher } from "@/components/columns/stock-voucher-columns"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 type VendorOption = {
   id: number
@@ -38,11 +39,13 @@ function getPartyColumns(): ColumnDef<PartyRow>[] {
       accessorKey: "voucher_count",
       header: ({ column }) => <ColumnHeader title="VOUCHERS" column={column} placeholder="Filter..." />,
       cell: ({ row }) => <div className="font-medium tabular-nums">{row.getValue("voucher_count")}</div>,
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "rolls_count",
       header: ({ column }) => <ColumnHeader title="ROLLS" column={column} placeholder="Filter..." />,
       cell: ({ row }) => <div className="font-medium tabular-nums">{row.getValue("rolls_count")}</div>,
+      filterFn: includesStringFilterFn,
     },
   ]
 }

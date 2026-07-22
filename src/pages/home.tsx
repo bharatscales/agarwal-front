@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom"
 
 import { useSidebar } from "@/components/ui/sidebar"
 import { ColumnHeader } from "@/components/column-header"
-import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
+import { getRollsStockColumns, includesStringFilterFn, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/AuthContext"
 import {
@@ -235,6 +235,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{row.original.jobCardNumber || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "barcode",
@@ -244,6 +245,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "size",
@@ -253,6 +255,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "micron",
@@ -262,6 +265,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "netweight",
@@ -273,6 +277,7 @@ export default function Home() {
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "wastage",
@@ -284,6 +289,7 @@ export default function Home() {
             {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
           </div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         id: "reprint",
@@ -338,6 +344,60 @@ export default function Home() {
     grossweight: string
   } | null>(null)
   const [eclFormCommittedForRollId, setEclFormCommittedForRollId] = useState<number | null>(null)
+  const [eclRollsRefreshKey, setEclRollsRefreshKey] = useState(0)
+  const [eclAddRollEditingField, setEclAddRollEditingField] = useState<
+    null | "netweight" | "grossweight"
+  >(null)
+  const [eclChildRollsFromDb, setEclChildRollsFromDb] = useState<
+    Awaited<ReturnType<typeof getRollsStockByParentIds>>
+  >([])
+  const [eclChildRollsLoading, setEclChildRollsLoading] = useState(false)
+  const [floorEclBarcode, setFloorEclBarcode] = useState("")
+  const [floorEclBarcodeError, setFloorEclBarcodeError] = useState<string | null>(null)
+  const [floorEclBarcodeChecking, setFloorEclBarcodeChecking] = useState(false)
+  const [floorEclWipPickerOpen, setFloorEclWipPickerOpen] = useState(false)
+  const [floorEclWipRolls, setFloorEclWipRolls] = useState<RollsStockRow[]>([])
+  const [floorEclWipRollsLoading, setFloorEclWipRollsLoading] = useState(false)
+  const [floorEclWipRollsError, setFloorEclWipRollsError] = useState<string | null>(null)
+
+  const floorEclWipStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "wip" }),
+      {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Stage" column={column} placeholder="Filter stage..." />
+        ),
+        cell: ({ row }: { row: any }) => {
+          const stage = (row.original.stage ?? "").toLowerCase()
+          if (stage === "wip_printed" || stage === "wip-printing") return "WIP Printing"
+          if (stage === "wip_inspection" || stage === "wip-inspection") return "WIP Inspection"
+          return row.original.stage || "—"
+        },
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
+
+  const isEclInputStage = (stage: string | null | undefined) => {
+    const s = (stage ?? "").toLowerCase()
+    return (
+      s === "wip_printed" ||
+      s === "wip-printing" ||
+      s === "wip_inspection" ||
+      s === "wip-inspection"
+    )
+  }
 
   // Floor Lamination (mirror of Inspection)
   const [laminationWorkOrders, setLaminationWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -511,6 +571,151 @@ export default function Home() {
     await applyFloorInspectionFromBarcode(floorInspectionBarcode)
   }
 
+  const closeFloorEclWipPicker = () => {
+    setFloorEclWipPickerOpen(false)
+    setFloorEclWipRollsError(null)
+    setFloorEclWipRolls([])
+  }
+
+  const applyFloorEclFromBarcode = async (
+    barcodeRaw: string,
+    options?: { closePicker?: boolean }
+  ) => {
+    const barcode = barcodeRaw.trim()
+    if (!barcode) return
+    setFloorEclBarcodeError(null)
+    setFloorEclBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setFloorEclBarcodeError("Roll not found for this barcode.")
+        return
+      }
+      if (roll.consumed) {
+        setFloorEclBarcodeError("This roll is already consumed.")
+        return
+      }
+      if (!isEclInputStage(roll.stage)) {
+        setFloorEclBarcodeError(
+          `Roll must be in WIP Printing or WIP Inspection stage. Current stage: ${roll.stage || "—"}`
+        )
+        return
+      }
+      const woInfo = await getWorkOrderByRollBarcode(barcode)
+      if (!woInfo) {
+        setFloorEclBarcodeError(
+          "No work order linked to this roll (roll must come from a production job card)."
+        )
+        return
+      }
+      let wo = eclWorkOrders.find((w) => w.id === woInfo.workOrderId)
+      if (!wo) {
+        try {
+          const allWos = await getAllWorkOrders(0, 500)
+          wo = allWos.find((w) => w.id === woInfo.workOrderId)
+        } catch {
+          wo = undefined
+        }
+      }
+      if (!wo) {
+        setFloorEclBarcodeError("Work order not found for this roll.")
+        return
+      }
+
+      const cards = await getAllJobCards(0, 50, wo.id, "ECL")
+      let targetCardId: number | null = null
+      for (const card of cards) {
+        try {
+          const current = await getCurrentRoll(card.id)
+          if (!current) {
+            targetCardId = card.id
+            break
+          }
+        } catch {
+          // ignore and try next card
+        }
+      }
+      if (targetCardId == null && cards.length > 0) {
+        targetCardId = cards[0].id
+      }
+
+      if (targetCardId == null) {
+        const [operatorsList, machinesList] = await Promise.all([
+          getAllOperators(0, 500),
+          getAllMachines(0, 500),
+        ])
+        const eclMachine = machinesList.find(
+          (m) => (m.operation ?? "").toLowerCase() === "ecl"
+        )
+        if (!eclMachine) {
+          setFloorEclBarcodeError("No machine configured for ECL operation.")
+          return
+        }
+        const eclOperators = operatorsList.filter(
+          (op) => (op.operation ?? "").toLowerCase() === "ecl"
+        )
+        const operatorName =
+          eclOperators[0]?.operatorName?.trim() ||
+          user?.username?.trim() ||
+          "Floor"
+        const newJobCard = await createJobCard({
+          jobCardNumber: "",
+          workOrderId: wo.id,
+          operation: "ECL",
+          machineId: eclMachine.id,
+          operatorName,
+          shift: "A",
+        })
+        targetCardId = newJobCard.id
+      }
+
+      await scanRoll(targetCardId, barcode)
+
+      setFloorEclBarcode("")
+      setEclSelectedWo(wo)
+      setEclRollsRefreshKey((key) => key + 1)
+      if (options?.closePicker) closeFloorEclWipPicker()
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not load roll. Try again."
+      setFloorEclBarcodeError(detail)
+    } finally {
+      setFloorEclBarcodeChecking(false)
+    }
+  }
+
+  const handleFloorEclBarcodeSubmit = async () => {
+    await applyFloorEclFromBarcode(floorEclBarcode)
+  }
+
+  const openFloorEclWipPicker = async () => {
+    setFloorEclWipPickerOpen(true)
+    setFloorEclWipRollsLoading(true)
+    setFloorEclWipRollsError(null)
+    setFloorEclWipRolls([])
+    try {
+      const [wipPrinted, wipInspection] = await Promise.all([
+        getAllRollsStock(0, 500, false, "wip_printed"),
+        getAllRollsStock(0, 500, false, "wip_inspection"),
+      ])
+      const filtered = [...wipPrinted, ...wipInspection].filter((r) => !r.consumed)
+      setFloorEclWipRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorEclWipRollsError(
+          "No available WIP printing or inspection rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorEclWipRollsError("Failed to load stock. Please try again.")
+      setFloorEclWipRolls([])
+    } finally {
+      setFloorEclWipRollsLoading(false)
+    }
+  }
+
   const openFloorInspectionWipPicker = async () => {
     setFloorInspectionWipPickerOpen(true)
     setFloorInspectionWipRollsLoading(true)
@@ -649,7 +854,8 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, inspectionRollsRefreshKey])
 
-  // Floor ECL: work orders that have an ECL job card with current loaded roll
+  // Floor ECL: WOs with available WIP Printing or WIP Inspection rolls to load,
+  // plus WOs that already have an ECL job card with a loaded roll.
   useEffect(() => {
     if (!isFloorUser || floorView !== "ecl") return
     let cancelled = false
@@ -657,12 +863,40 @@ export default function Home() {
       setEclLoading(true)
       setEclError(null)
       try {
-        const cards = await getAllJobCards(0, 500, undefined, "ECL")
-        const workOrderIdsWithRoll = new Set<number>()
+        const workOrderIds = new Set<number>()
         const BATCH = 15
-        for (let i = 0; i < cards.length; i += BATCH) {
+
+        const [wipPrintedRolls, wipInspectionRolls] = await Promise.all([
+          getAllRollsStock(0, 500, false, "wip_printed"),
+          getAllRollsStock(0, 500, false, "wip_inspection"),
+        ])
+        const inputRolls = [...wipPrintedRolls, ...wipInspectionRolls]
+        for (let i = 0; i < inputRolls.length; i += BATCH) {
           if (cancelled) return
-          const batch = cards.slice(i, i + BATCH)
+          const batch = inputRolls.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (roll) => {
+              try {
+                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
+                const barcode = roll.barcode?.trim()
+                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
+                const woInfo = await getWorkOrderByRollBarcode(barcode)
+                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
+              } catch {
+                return { workOrderId: null, hasWorkOrder: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+
+        const eclCards = await getAllJobCards(0, 500, undefined, "ECL")
+        for (let i = 0; i < eclCards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = eclCards.slice(i, i + BATCH)
           const results = await Promise.all(
             batch.map(async (c) => {
               try {
@@ -674,12 +908,18 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+            if (r.hasRoll) workOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
+
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        const filtered = allWos.filter(
+          (wo) =>
+            workOrderIds.has(wo.id) &&
+            wo.status !== "completed" &&
+            wo.status !== "cancelled"
+        )
         if (!cancelled) setEclWorkOrders(filtered)
       } catch (err) {
         if (!cancelled) {
@@ -694,7 +934,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [isFloorUser, floorView])
+  }, [isFloorUser, floorView, eclRollsRefreshKey])
 
   // Floor Lamination: work orders that have a Lamination job card with current loaded roll
   useEffect(() => {
@@ -938,6 +1178,7 @@ export default function Home() {
     if (!eclSelectedWo) {
       setEclLoadedRolls([])
       setEclAddRollForm(null)
+      setEclAddRollEditingField(null)
       return
     }
     let cancelled = false
@@ -963,6 +1204,7 @@ export default function Home() {
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
+                setEclAddRollEditingField(null)
                 const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
                 setEclAddRollForm({
                   jobCardNumber: first.jobCardNumber,
@@ -976,14 +1218,21 @@ export default function Home() {
                 })
               }
             } catch {
-              if (!cancelled) setEclAddRollForm(null)
+              if (!cancelled) {
+                setEclAddRollForm(null)
+                setEclAddRollEditingField(null)
+              }
             }
-          } else setEclAddRollForm(null)
+          } else {
+            setEclAddRollForm(null)
+            setEclAddRollEditingField(null)
+          }
         }
       } catch {
         if (!cancelled) {
           setEclLoadedRolls([])
           setEclAddRollForm(null)
+          setEclAddRollEditingField(null)
         }
       } finally {
         if (!cancelled) setEclRollsLoading(false)
@@ -991,7 +1240,7 @@ export default function Home() {
     }
     run()
     return () => { cancelled = true }
-  }, [eclSelectedWo?.id])
+  }, [eclSelectedWo?.id, eclRollsRefreshKey])
 
   // When Floor user selects a work order in Lamination section, fetch loaded roll(s) and show form
   useEffect(() => {
@@ -1125,6 +1374,12 @@ export default function Home() {
     setInspectionChildRollsFromDb([])
   }, [inspectionSelectedWo])
 
+  // Reset ECL committed state and child rolls when switching work order
+  useEffect(() => {
+    setEclFormCommittedForRollId(null)
+    setEclChildRollsFromDb([])
+  }, [eclSelectedWo])
+
   // Fetch produced rolls (WIP printed) for selected work order from DB.
   useEffect(() => {
     if (!printingSelectedWo) {
@@ -1172,9 +1427,33 @@ export default function Home() {
     }
   }, [inspectionLoadedRolls])
 
-  // Fetch WIP printing template when on Floor Printing view (for Print button)
+  // Fetch child rolls (WIP ECL) for loaded rolls in ECL section
   useEffect(() => {
-    if (!isFloorUser || floorView !== "printing") return
+    if (eclLoadedRolls.length === 0) {
+      setEclChildRollsFromDb([])
+      return
+    }
+    const parentIds = eclLoadedRolls.map((r) => r.roll.id)
+    let cancelled = false
+    setEclChildRollsLoading(true)
+    getRollsStockByParentIds(parentIds, "wip_ecl")
+      .then((rows) => {
+        if (!cancelled) setEclChildRollsFromDb(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setEclChildRollsFromDb([])
+      })
+      .finally(() => {
+        if (!cancelled) setEclChildRollsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [eclLoadedRolls])
+
+  // Fetch WIP printing template when on Floor Printing/Inspection/ECL view (for Print button)
+  useEffect(() => {
+    if (!isFloorUser || (floorView !== "printing" && floorView !== "inspection" && floorView !== "ecl")) return
     getAllTemplates(0, 200)
       .then((data) => {
         const t = data.find((template) => template.defaultForm === "wip-printing")
@@ -1192,6 +1471,11 @@ export default function Home() {
     }
     if (inspectionAddRollForm && scaleWeight != null) {
       setInspectionAddRollForm((prev) =>
+        prev ? { ...prev, grossweight: String(scaleWeight) } : null
+      )
+    }
+    if (eclAddRollForm && scaleWeight != null) {
+      setEclAddRollForm((prev) =>
         prev ? { ...prev, grossweight: String(scaleWeight) } : null
       )
     }
@@ -1375,18 +1659,44 @@ export default function Home() {
                     eclRollsLoading={eclRollsLoading}
                     eclLoadedRolls={eclLoadedRolls}
                     eclAddRollForm={eclAddRollForm}
-                    setEclAddRollForm={setEclAddRollForm}
                     eclCreateChildLoading={eclCreateChildLoading}
-                    eclFormCommittedForRollId={eclFormCommittedForRollId}
                     setEclCreateChildLoading={setEclCreateChildLoading}
                     setEclCreateChildMessage={setEclCreateChildMessage}
+                    getRollsStockById={getRollsStockById}
+                    setEclAddRollEditingField={setEclAddRollEditingField}
+                    scaleWeight={scaleWeight}
+                    setEclAddRollForm={setEclAddRollForm}
+                    eclChildRollsLoading={eclChildRollsLoading}
+                    eclChildRollsFromDb={eclChildRollsFromDb}
+                    wipPrintingTemplate={wipPrintingTemplate}
+                    createPrintJob={createPrintJob}
+                    getPrintJob={getPrintJob}
+                    setPrintingPrintStatus={setPrintingPrintStatus}
+                    eclFormCommittedForRollId={eclFormCommittedForRollId}
+                    eclAddRollEditingField={eclAddRollEditingField}
                     addEclRoll={addEclRoll}
                     setEclFormCommittedForRollId={setEclFormCommittedForRollId}
+                    setEclChildRollsFromDb={setEclChildRollsFromDb}
                     eclCreateChildMessage={eclCreateChildMessage}
+                    floorEclBarcode={floorEclBarcode}
+                    setFloorEclBarcode={setFloorEclBarcode}
+                    setFloorEclBarcodeError={setFloorEclBarcodeError}
+                    floorEclBarcodeChecking={floorEclBarcodeChecking}
+                    handleFloorEclBarcodeSubmit={handleFloorEclBarcodeSubmit}
+                    floorEclWipRollsLoading={floorEclWipRollsLoading}
+                    openFloorEclWipPicker={openFloorEclWipPicker}
+                    floorEclBarcodeError={floorEclBarcodeError}
+                    floorEclWipPickerOpen={floorEclWipPickerOpen}
+                    closeFloorEclWipPicker={closeFloorEclWipPicker}
+                    floorEclWipRollsError={floorEclWipRollsError}
+                    floorEclWipStockColumns={floorEclWipStockColumns}
+                    floorEclWipRolls={floorEclWipRolls}
+                    applyFloorEclFromBarcode={applyFloorEclFromBarcode}
                     eclLoading={eclLoading}
                     eclError={eclError}
                     eclWorkOrders={eclWorkOrders}
                     setEclSelectedWo={setEclSelectedWo}
+                    getRollsStockByParentIds={getRollsStockByParentIds}
                   />
                 ) : floorView === "lamination" ? (
                   <LaminationPanel
@@ -1429,7 +1739,6 @@ export default function Home() {
                 ) : (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                     {floorView === "lamination" && "Lamination department view. Add content here."}
-                    {floorView === "ecl" && "ECL department view. Add content here."}
                     {floorView === "slitting" && "Slitting department view. Add content here."}
                   </p>
                 )}

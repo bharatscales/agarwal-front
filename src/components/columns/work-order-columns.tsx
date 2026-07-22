@@ -2,6 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { MoreVertical, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,6 +120,7 @@ export const getWorkOrderColumns = ({
       const plannedQty = row.getValue("plannedQty") as number
       return <div className="text-sm">{plannedQty.toFixed(2)}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "producedQty",
@@ -129,6 +131,7 @@ export const getWorkOrderColumns = ({
       const producedQty = row.getValue("producedQty") as number
       return <div className="text-sm">{producedQty.toFixed(2)}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "status",

@@ -2,6 +2,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { MoreVertical, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -172,6 +173,7 @@ export const getJobCardColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "outputQty",
@@ -186,6 +188,7 @@ export const getJobCardColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "wastageQty",
@@ -200,6 +203,7 @@ export const getJobCardColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "inputRollCount",
@@ -214,6 +218,7 @@ export const getJobCardColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "outputRollCount",
@@ -228,6 +233,7 @@ export const getJobCardColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "startedAt",

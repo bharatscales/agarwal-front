@@ -1,6 +1,9 @@
 import { type ColumnDef } from "@tanstack/react-table"
 import { ColumnHeader } from "@/components/column-header"
 import { Checkbox } from "@/components/ui/checkbox"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
+
+export { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type RollsStockRow = {
   id: number
@@ -43,6 +46,7 @@ const issuedAtColumn: ColumnDef<RollsStockRow> = {
         : "-"}
     </div>
   ),
+  filterFn: includesStringFilterFn,
 }
 
 type RollsColumnsOptions = {
@@ -82,6 +86,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       <ColumnHeader title="ID" column={column} placeholder="Filter ID..." />
     ),
     cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
+    filterFn: includesStringFilterFn,
   }
 
   const itemColumn: ColumnDef<RollsStockRow> = {
@@ -95,6 +100,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         {row.original.itemCode}
       </div>
     ),
+    filterFn: includesStringFilterFn,
   }
 
   // RM reports: original layout (grade, roll no, vendor)
@@ -111,6 +117,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.original.grade || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "rollno",
@@ -120,6 +127,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("rollno") || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "size",
@@ -129,6 +137,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("size") ?? "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "micron",
@@ -138,6 +147,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("micron") ?? "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "netweight",
@@ -147,6 +157,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("netweight") ?? "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "grossweight",
@@ -156,6 +167,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("grossweight") ?? "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "vendorCode",
@@ -165,6 +177,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("vendorCode") || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "invoiceNo",
@@ -174,6 +187,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{row.original.invoiceNo || "-"}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
       {
         accessorKey: "invoiceDate",
@@ -183,6 +197,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         cell: ({ row }) => (
           <div className="text-sm">{formatInvoiceDate(row.original.invoiceDate)}</div>
         ),
+        filterFn: includesStringFilterFn,
       },
     ]
     if (options?.showIssuedAt) {
@@ -204,6 +219,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       cell: ({ row }) => (
         <div className="text-sm">{row.getValue("size") ?? "-"}</div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "micron",
@@ -213,6 +229,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       cell: ({ row }) => (
         <div className="text-sm">{row.getValue("micron") ?? "-"}</div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "netweight",
@@ -222,6 +239,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       cell: ({ row }) => (
         <div className="text-sm">{row.getValue("netweight") ?? "-"}</div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "grossweight",
@@ -231,9 +249,11 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       cell: ({ row }) => (
         <div className="text-sm">{row.getValue("grossweight") ?? "-"}</div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
       id: "customer",
+      accessorFn: (row) => row.customerName || row.vendorCode || "",
       header: ({ column }) => (
         <ColumnHeader title="Customer" column={column} placeholder="Filter customer..." />
       ),
@@ -242,6 +262,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
           {row.original.customerName || row.original.vendorCode || "-"}
         </div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "stage",
@@ -251,9 +272,11 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       cell: ({ row }) => (
         <div className="text-sm">{row.original.stage || "-"}</div>
       ),
+      filterFn: includesStringFilterFn,
     },
     {
-      accessorKey: "consumed",
+      id: "consumed",
+      accessorFn: (row) => (row.consumed ? "Yes" : "No"),
       header: ({ column }) => (
         <ColumnHeader title="Consumed" column={column} placeholder="Filter..." />
       ),
@@ -262,6 +285,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
           {row.original.consumed ? "Yes" : "No"}
         </div>
       ),
+      filterFn: includesStringFilterFn,
     },
   ]
 

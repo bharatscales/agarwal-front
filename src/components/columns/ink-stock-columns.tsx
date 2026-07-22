@@ -3,6 +3,7 @@ import { ColumnHeader } from "@/components/column-header"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { InkStockRow } from "@/lib/ink-stock-api"
 import { availableQty } from "@/lib/ink-stock-api"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type { InkStockRow } from "@/lib/ink-stock-api"
 
@@ -61,6 +62,7 @@ export const getInkStockColumns = (options?: {
       <ColumnHeader title="ID" column={column} placeholder="Filter ID..." />
     ),
     cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
+    filterFn: includesStringFilterFn,
   },
   {
     id: "item",
@@ -102,6 +104,7 @@ export const getInkStockColumns = (options?: {
     cell: ({ row }) => (
       <div className="text-sm">{row.getValue("qty") ?? "-"}</div>
     ),
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "uom",
