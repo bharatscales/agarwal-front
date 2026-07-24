@@ -165,6 +165,8 @@ export type CurrentRoll = {
   // support both possible API keys for item name
   item_name?: string
   itemName?: string
+  stage?: string | null
+  item_id?: number | null
 }
 
 type CurrentRollResponse = {
@@ -174,6 +176,16 @@ type CurrentRollResponse = {
 export const getCurrentRoll = async (jobCardId: number): Promise<CurrentRoll | null> => {
   const response = await api.get<CurrentRollResponse>(`/job-card/${jobCardId}/current-roll`)
   return response.data.roll ?? null
+}
+
+type LoadedRollsResponse = {
+  rolls: CurrentRoll[]
+}
+
+/** All rolls currently loaded (IN movements) on a job card — used by ECL dual-parent flow. */
+export const getLoadedRolls = async (jobCardId: number): Promise<CurrentRoll[]> => {
+  const response = await api.get<LoadedRollsResponse>(`/job-card/${jobCardId}/loaded-rolls`)
+  return response.data.rolls ?? []
 }
 
 /** Record roll job movement with direction 'out' (e.g. after creating WIP printed roll). */
