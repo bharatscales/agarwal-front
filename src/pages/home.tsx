@@ -21,6 +21,7 @@ import {
   getCurrentRoll,
   getLoadedRolls,
   scanRoll,
+  unloadRoll,
   type CurrentRoll,
 } from "@/lib/job-card-api"
 import { getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
@@ -72,6 +73,7 @@ export default function Home() {
   const [printingLoading, setPrintingLoading] = useState(false)
   const [printingError, setPrintingError] = useState<string | null>(null)
   const [printingSelectedWo, setPrintingSelectedWo] = useState<WorkOrderMaster | null>(null)
+  const [printingRollsRefreshKey, setPrintingRollsRefreshKey] = useState(0)
   const [printingRollsLoading, setPrintingRollsLoading] = useState(false)
   const [printingLoadedRolls, setPrintingLoadedRolls] = useState<
     { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
@@ -803,6 +805,27 @@ export default function Home() {
     await applyFloorEclFromBarcode(floorEclBarcode)
   }
 
+  const unloadFloorLoadedRoll = async (
+    jobCardId: number,
+    rollId: number,
+    area: "printing" | "inspection" | "ecl"
+  ) => {
+    await unloadRoll(jobCardId, rollId)
+    if (area === "printing") {
+      setPrintingAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
+      setPrintingFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
+      setPrintingRollsRefreshKey((k) => k + 1)
+    } else if (area === "inspection") {
+      setInspectionAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
+      setInspectionFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
+      setInspectionRollsRefreshKey((k) => k + 1)
+    } else {
+      setEclAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
+      setEclFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
+      setEclRollsRefreshKey((k) => k + 1)
+    }
+  }
+
   const openFloorEclWipPicker = async () => {
     setFloorEclWipPickerOpen(true)
     setFloorEclWipRollsLoading(true)
@@ -1238,7 +1261,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [printingSelectedWo?.id])
+  }, [printingSelectedWo?.id, printingRollsRefreshKey])
 
   // When Floor user selects a work order in Inspection section, fetch current loaded roll(s) and show form for first roll
   useEffect(() => {
@@ -1772,6 +1795,7 @@ export default function Home() {
                     printingLoading={printingLoading}
                     printingError={printingError}
                     printingWorkOrders={printingWorkOrders}
+                    unloadFloorLoadedRoll={unloadFloorLoadedRoll}
                   />
                 ) : floorView === "inspection" ? (
                   <InspectionPanel
@@ -1817,6 +1841,7 @@ export default function Home() {
                     inspectionWorkOrders={inspectionWorkOrders}
                     setInspectionSelectedWo={setInspectionSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
+                    unloadFloorLoadedRoll={unloadFloorLoadedRoll}
                   />
                 ) : floorView === "ecl" ? (
                   <EclPanel
@@ -1874,6 +1899,7 @@ export default function Home() {
                     eclWorkOrders={eclWorkOrders}
                     setEclSelectedWo={setEclSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
+                    unloadFloorLoadedRoll={unloadFloorLoadedRoll}
                   />
                 ) : floorView === "lamination" ? (
                   <LaminationPanel

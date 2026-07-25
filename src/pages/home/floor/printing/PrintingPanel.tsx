@@ -1,4 +1,4 @@
-import { CheckCircle, Plus, Printer } from "lucide-react"
+import { CheckCircle, Plus, Printer, X } from "lucide-react"
 import { useMemo } from "react"
 
 import { DataTable } from "@/components/data-table"
@@ -43,9 +43,28 @@ export function PrintingPanel(props: PrintingPanelProps) {
     printingLoading,
     printingError,
     printingWorkOrders,
+    unloadFloorLoadedRoll,
   } = props
 
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+
+  const handleUnloadPrintingRoll = async (jobCardId: number, rollId: number) => {
+    try {
+      setPrintingCreateChildLoading(true)
+      setPrintingCreateChildMessage(null)
+      await unloadFloorLoadedRoll(jobCardId, rollId, "printing")
+      setPrintingCreateChildMessage("Loaded roll removed.")
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not unload roll."
+      setPrintingCreateChildMessage(detail)
+    } finally {
+      setPrintingCreateChildLoading(false)
+    }
+  }
 
   return printingSelectedWo ? (
     <div className="space-y-4 mt-4">
@@ -73,6 +92,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -155,6 +175,19 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 )
                               }
                             />
+                          </td>
+                          <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Remove loaded roll"
+                              disabled={printingCreateChildLoading}
+                              onClick={() => void handleUnloadPrintingRoll(jobCardId, roll.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       )

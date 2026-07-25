@@ -73,6 +73,7 @@ export function EclPanel(props: EclPanelProps) {
     eclError,
     eclWorkOrders,
     setEclSelectedWo,
+    unloadFloorLoadedRoll,
   } = props
 
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
@@ -83,6 +84,25 @@ export function EclPanel(props: EclPanelProps) {
   const sameJobCard =
     bothParentsLoaded && wipParent.jobCardId === rmParent.jobCardId
   const canProduce = bothParentsLoaded && sameJobCard
+  const hasProducedChildren = eclChildRollsFromDb.length > 0
+
+  const handleUnloadEclRoll = async (jobCardId: number, rollId: number) => {
+    try {
+      setEclCreateChildLoading(true)
+      setEclCreateChildMessage(null)
+      await unloadFloorLoadedRoll(jobCardId, rollId, "ecl")
+      setEclCreateChildMessage("Loaded roll removed.")
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not unload roll."
+      setEclCreateChildMessage(detail)
+    } finally {
+      setEclCreateChildLoading(false)
+    }
+  }
 
   const renderParentSlot = (
     role: "wip" | "rm",
@@ -97,7 +117,26 @@ export function EclPanel(props: EclPanelProps) {
 
     return (
       <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm space-y-3">
-        <div className="font-medium text-gray-700 dark:text-gray-300">{title}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="font-medium text-gray-700 dark:text-gray-300">{title}</div>
+          {entry && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 -mt-1 -mr-1"
+              title={
+                hasProducedChildren
+                  ? "Cannot unload: produced rolls exist for these parents"
+                  : "Remove loaded roll"
+              }
+              disabled={eclCreateChildLoading || hasProducedChildren}
+              onClick={() => void handleUnloadEclRoll(entry.jobCardId, entry.roll.id)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         {entry ? (
           <>
             <div className="text-xs text-gray-500">Job card: {entry.jobCardNumber}</div>

@@ -53,9 +53,28 @@ export function InspectionPanel(props: InspectionPanelProps) {
     inspectionError,
     inspectionWorkOrders,
     setInspectionSelectedWo,
+    unloadFloorLoadedRoll,
   } = props
 
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+
+  const handleUnloadInspectionRoll = async (jobCardId: number, rollId: number) => {
+    try {
+      setInspectionCreateChildLoading(true)
+      setInspectionCreateChildMessage(null)
+      await unloadFloorLoadedRoll(jobCardId, rollId, "inspection")
+      setInspectionCreateChildMessage("Loaded roll removed.")
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not unload roll."
+      setInspectionCreateChildMessage(detail)
+    } finally {
+      setInspectionCreateChildLoading(false)
+    }
+  }
 
   return inspectionSelectedWo ? (
     <div className="space-y-4 mt-4">
@@ -69,9 +88,28 @@ export function InspectionPanel(props: InspectionPanelProps) {
               <p className="text-sm text-gray-500 dark:text-gray-400">No roll currently loaded for this work order.</p>
             ) : (
               <div className="space-y-4">
-                {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }: any) => (
+                {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }: any) => {
+                  const hasChildren = inspectionChildRollsFromDb.length > 0
+                  return (
                   <div key={`${jobCardNumber}-${roll.id}`} className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm">
-                    <div className="font-medium text-gray-700 dark:text-gray-300 mb-3">Job card: {jobCardNumber}</div>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="font-medium text-gray-700 dark:text-gray-300">Job card: {jobCardNumber}</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 -mt-1 -mr-1"
+                        title={
+                          hasChildren
+                            ? "Cannot unload: this roll has produced child rolls"
+                            : "Remove loaded roll"
+                        }
+                        disabled={inspectionCreateChildLoading || hasChildren}
+                        onClick={() => void handleUnloadInspectionRoll(jobCardId, roll.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <dl className="grid grid-cols-5 gap-x-6 gap-y-2 text-gray-600 dark:text-gray-400">
                       <div>
                         <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Barcode</dt>
@@ -145,7 +183,8 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
