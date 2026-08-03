@@ -435,7 +435,7 @@ export default function Home() {
     return null
   }
 
-  // Floor Lamination (mirror of Inspection)
+  // Floor Lamination (mirror of ECL dual-parent)
   const [laminationWorkOrders, setLaminationWorkOrders] = useState<WorkOrderMaster[]>([])
   const [laminationLoading, setLaminationLoading] = useState(false)
   const [laminationError, setLaminationError] = useState<string | null>(null)
@@ -457,6 +457,75 @@ export default function Home() {
     grossweight: string
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
+  const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
+  const [laminationAddRollEditingField, setLaminationAddRollEditingField] = useState<
+    null | "netweight" | "grossweight"
+  >(null)
+  const [laminationChildRollsFromDb, setLaminationChildRollsFromDb] = useState<
+    Awaited<ReturnType<typeof getRollsStockByParentIds>>
+  >([])
+  const [laminationChildRollsLoading, setLaminationChildRollsLoading] = useState(false)
+  const [floorLaminationBarcode, setFloorLaminationBarcode] = useState("")
+  const [floorLaminationBarcodeError, setFloorLaminationBarcodeError] = useState<string | null>(null)
+  const [floorLaminationBarcodeChecking, setFloorLaminationBarcodeChecking] = useState(false)
+  const [floorLaminationWipPickerOpen, setFloorLaminationWipPickerOpen] = useState(false)
+  const [floorLaminationWipRolls, setFloorLaminationWipRolls] = useState<RollsStockRow[]>([])
+  const [floorLaminationWipRollsLoading, setFloorLaminationWipRollsLoading] = useState(false)
+  const [floorLaminationWipRollsError, setFloorLaminationWipRollsError] = useState<string | null>(null)
+  const [floorLaminationRmPickerOpen, setFloorLaminationRmPickerOpen] = useState(false)
+  const [floorLaminationRmRolls, setFloorLaminationRmRolls] = useState<RollsStockRow[]>([])
+  const [floorLaminationRmRollsLoading, setFloorLaminationRmRollsLoading] = useState(false)
+  const [floorLaminationRmRollsError, setFloorLaminationRmRollsError] = useState<string | null>(null)
+  const [floorLaminationDetailWipBarcode, setFloorLaminationDetailWipBarcode] = useState("")
+  const [floorLaminationDetailRmBarcode, setFloorLaminationDetailRmBarcode] = useState("")
+
+  const floorLaminationWipStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "wip" }),
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
+
+  const floorLaminationRmStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "rm" }),
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
+
+  const isLaminationWipParentStage = (stage: string | null | undefined) => {
+    const s = (stage ?? "").toLowerCase()
+    return s === "wip_ecl" || s === "wip-ecl"
+  }
+
+  const isLaminationRmParentStage = (stage: string | null | undefined) => {
+    const s = (stage ?? "").toLowerCase()
+    return s === "virgin_rm" || s === "virgin-rm"
+  }
+
+  const getLaminationParentRole = (stage: string | null | undefined): "wip" | "rm" | null => {
+    if (isLaminationWipParentStage(stage)) return "wip"
+    if (isLaminationRmParentStage(stage)) return "rm"
+    return null
+  }
 
   // Floor Slitting (mirror of Inspection)
   const [slittingWorkOrders, setSlittingWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -808,7 +877,7 @@ export default function Home() {
   const unloadFloorLoadedRoll = async (
     jobCardId: number,
     rollId: number,
-    area: "printing" | "inspection" | "ecl"
+    area: "printing" | "inspection" | "ecl" | "lamination"
   ) => {
     await unloadRoll(jobCardId, rollId)
     if (area === "printing") {
@@ -819,10 +888,14 @@ export default function Home() {
       setInspectionAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
       setInspectionFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
       setInspectionRollsRefreshKey((k) => k + 1)
-    } else {
+    } else if (area === "ecl") {
       setEclAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
       setEclFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
       setEclRollsRefreshKey((k) => k + 1)
+    } else {
+      setLaminationAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
+      setLaminationFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
+      setLaminationRollsRefreshKey((k) => k + 1)
     }
   }
 
@@ -874,6 +947,254 @@ export default function Home() {
       setFloorEclRmRolls([])
     } finally {
       setFloorEclRmRollsLoading(false)
+    }
+  }
+
+  const closeFloorLaminationWipPicker = () => {
+    setFloorLaminationWipPickerOpen(false)
+    setFloorLaminationWipRollsError(null)
+    setFloorLaminationWipRolls([])
+  }
+
+  const closeFloorLaminationRmPicker = () => {
+    setFloorLaminationRmPickerOpen(false)
+    setFloorLaminationRmRollsError(null)
+    setFloorLaminationRmRolls([])
+  }
+
+  const ensureLaminationJobCard = async (woId: number): Promise<{ id: number; jobCardNumber: string }> => {
+    const cards = await getAllJobCards(0, 50, woId, "Lamination")
+    const cardInfos = await Promise.all(
+      cards.map(async (card) => {
+        try {
+          const rolls = await getLoadedRolls(card.id)
+          return { card, rolls }
+        } catch {
+          return { card, rolls: [] as CurrentRoll[] }
+        }
+      })
+    )
+
+    const hasRole = (rolls: CurrentRoll[], role: "wip" | "rm") =>
+      rolls.some((r) => getLaminationParentRole(r.stage) === role)
+
+    const incompletePair = cardInfos.find(
+      ({ rolls }) =>
+        (hasRole(rolls, "wip") && !hasRole(rolls, "rm")) ||
+        (!hasRole(rolls, "wip") && hasRole(rolls, "rm"))
+    )
+    if (incompletePair) return { id: incompletePair.card.id, jobCardNumber: incompletePair.card.jobCardNumber }
+
+    const empty = cardInfos.find(({ rolls }) => rolls.length === 0)
+    if (empty) return { id: empty.card.id, jobCardNumber: empty.card.jobCardNumber }
+
+    if (cards.length > 0) {
+      const full = cardInfos.every(
+        ({ rolls }) => hasRole(rolls, "wip") && hasRole(rolls, "rm")
+      )
+      if (!full) {
+        return { id: cards[0].id, jobCardNumber: cards[0].jobCardNumber }
+      }
+    }
+
+    const [operatorsList, machinesList] = await Promise.all([
+      getAllOperators(0, 500),
+      getAllMachines(0, 500),
+    ])
+    const laminationMachine = machinesList.find(
+      (m) => (m.operation ?? "").toLowerCase() === "lamination"
+    )
+    if (!laminationMachine) {
+      throw new Error("No machine configured for Lamination operation.")
+    }
+    const laminationOperators = operatorsList.filter(
+      (op) => (op.operation ?? "").toLowerCase() === "lamination"
+    )
+    const operatorName =
+      laminationOperators[0]?.operatorName?.trim() || user?.username?.trim() || "Floor"
+    const newJobCard = await createJobCard({
+      jobCardNumber: "",
+      workOrderId: woId,
+      operation: "Lamination",
+      machineId: laminationMachine.id,
+      operatorName,
+      shift: "A",
+    })
+    return { id: newJobCard.id, jobCardNumber: newJobCard.jobCardNumber }
+  }
+
+  const applyFloorLaminationFromBarcode = async (
+    barcodeRaw: string,
+    options?: { closePicker?: boolean; slot?: "wip" | "rm" }
+  ) => {
+    const barcode = barcodeRaw.trim()
+    if (!barcode) return
+    setFloorLaminationBarcodeError(null)
+    setFloorLaminationBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setFloorLaminationBarcodeError("Roll not found for this barcode.")
+        return
+      }
+      if (roll.consumed) {
+        setFloorLaminationBarcodeError("This roll is already consumed.")
+        return
+      }
+
+      const role = getLaminationParentRole(roll.stage)
+      if (!role) {
+        setFloorLaminationBarcodeError(
+          `Roll must be WIP ECL or RM Film (virgin RM). Current stage: ${roll.stage || "—"}`
+        )
+        return
+      }
+      if (options?.slot && options.slot !== role) {
+        setFloorLaminationBarcodeError(
+          options.slot === "wip"
+            ? "This slot needs a WIP ECL roll."
+            : "This slot needs an RM Film (virgin RM) roll."
+        )
+        return
+      }
+
+      let wo: WorkOrderMaster | undefined
+
+      if (role === "wip") {
+        const woInfo = await getWorkOrderByRollBarcode(barcode)
+        if (!woInfo) {
+          setFloorLaminationBarcodeError(
+            "No work order linked to this roll (roll must come from a production job card)."
+          )
+          return
+        }
+        wo = laminationWorkOrders.find((w) => w.id === woInfo.workOrderId)
+        if (!wo) {
+          try {
+            const allWos = await getAllWorkOrders(0, 500)
+            wo = allWos.find((w) => w.id === woInfo.workOrderId)
+          } catch {
+            wo = undefined
+          }
+        }
+        if (!wo) {
+          setFloorLaminationBarcodeError("Work order not found for this roll.")
+          return
+        }
+      } else {
+        wo = laminationSelectedWo ?? undefined
+        if (!wo) {
+          setFloorLaminationBarcodeError(
+            "Load the WIP ECL parent first (or open a work order), then load RM Film."
+          )
+          return
+        }
+      }
+
+      let targetCardId: number
+      try {
+        const card = await ensureLaminationJobCard(wo.id)
+        targetCardId = card.id
+      } catch (err: unknown) {
+        setFloorLaminationBarcodeError(
+          (err as { message?: string })?.message || "Could not create Lamination job card."
+        )
+        return
+      }
+
+      const cards = await getAllJobCards(0, 50, wo.id, "Lamination")
+      for (const card of cards) {
+        try {
+          const loaded = await getLoadedRolls(card.id)
+          const hasWip = loaded.some((r) => getLaminationParentRole(r.stage) === "wip")
+          const hasRm = loaded.some((r) => getLaminationParentRole(r.stage) === "rm")
+          if (role === "wip" && !hasWip && hasRm) {
+            targetCardId = card.id
+            break
+          }
+          if (role === "rm" && hasWip && !hasRm) {
+            targetCardId = card.id
+            break
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      await scanRoll(targetCardId, barcode)
+
+      setFloorLaminationBarcode("")
+      setFloorLaminationDetailWipBarcode("")
+      setFloorLaminationDetailRmBarcode("")
+      setLaminationSelectedWo(wo)
+      setLaminationRollsRefreshKey((key) => key + 1)
+      if (options?.closePicker) {
+        if (role === "rm") closeFloorLaminationRmPicker()
+        else closeFloorLaminationWipPicker()
+      }
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not load roll. Try again."
+      setFloorLaminationBarcodeError(detail)
+    } finally {
+      setFloorLaminationBarcodeChecking(false)
+    }
+  }
+
+  const handleFloorLaminationBarcodeSubmit = async () => {
+    await applyFloorLaminationFromBarcode(floorLaminationBarcode)
+  }
+
+  const openFloorLaminationWipPicker = async () => {
+    setFloorLaminationWipPickerOpen(true)
+    setFloorLaminationWipRollsLoading(true)
+    setFloorLaminationWipRollsError(null)
+    setFloorLaminationWipRolls([])
+    try {
+      const rolls = await getAllRollsStock(0, 500, false, "wip_ecl")
+      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      setFloorLaminationWipRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorLaminationWipRollsError(
+          "No available WIP ECL rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorLaminationWipRollsError("Failed to load stock. Please try again.")
+      setFloorLaminationWipRolls([])
+    } finally {
+      setFloorLaminationWipRollsLoading(false)
+    }
+  }
+
+  const openFloorLaminationRmPicker = async () => {
+    if (!laminationSelectedWo) {
+      setFloorLaminationBarcodeError(
+        "Open a work order or load the WIP ECL parent first, then select RM Film."
+      )
+      return
+    }
+    setFloorLaminationRmPickerOpen(true)
+    setFloorLaminationRmRollsLoading(true)
+    setFloorLaminationRmRollsError(null)
+    setFloorLaminationRmRolls([])
+    try {
+      const rolls = await getAllRollsStock(0, 500, false, "virgin_rm")
+      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      setFloorLaminationRmRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorLaminationRmRollsError(
+          "No available RM Film (virgin RM) rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorLaminationRmRollsError("Failed to load stock. Please try again.")
+      setFloorLaminationRmRolls([])
+    } finally {
+      setFloorLaminationRmRollsLoading(false)
     }
   }
 
@@ -1097,7 +1418,8 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, eclRollsRefreshKey])
 
-  // Floor Lamination: work orders that have a Lamination job card with current loaded roll
+  // Floor Lamination: WOs with available WIP ECL rolls to load,
+  // plus WOs that already have a Lamination job card with a loaded roll.
   useEffect(() => {
     if (!isFloorUser || floorView !== "lamination") return
     let cancelled = false
@@ -1105,29 +1427,59 @@ export default function Home() {
       setLaminationLoading(true)
       setLaminationError(null)
       try {
-        const cards = await getAllJobCards(0, 500, undefined, "Lamination")
-        const workOrderIdsWithRoll = new Set<number>()
+        const workOrderIds = new Set<number>()
         const BATCH = 15
-        for (let i = 0; i < cards.length; i += BATCH) {
+
+        const wipEclRolls = await getAllRollsStock(0, 500, false, "wip_ecl")
+        for (let i = 0; i < wipEclRolls.length; i += BATCH) {
           if (cancelled) return
-          const batch = cards.slice(i, i + BATCH)
+          const batch = wipEclRolls.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (roll) => {
+              try {
+                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
+                const barcode = roll.barcode?.trim()
+                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
+                const woInfo = await getWorkOrderByRollBarcode(barcode)
+                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
+              } catch {
+                return { workOrderId: null, hasWorkOrder: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+
+        const laminationCards = await getAllJobCards(0, 500, undefined, "Lamination")
+        for (let i = 0; i < laminationCards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = laminationCards.slice(i, i + BATCH)
           const results = await Promise.all(
             batch.map(async (c) => {
               try {
-                const roll = await getCurrentRoll(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+                const rolls = await getLoadedRolls(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: rolls.length > 0 }
               } catch {
                 return { workOrderId: c.workOrderId, hasRoll: false }
               }
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+            if (r.hasRoll) workOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
+
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        const filtered = allWos.filter(
+          (wo) =>
+            workOrderIds.has(wo.id) &&
+            wo.status !== "completed" &&
+            wo.status !== "cancelled"
+        )
         if (!cancelled) setLaminationWorkOrders(filtered)
       } catch (err) {
         if (!cancelled) {
@@ -1142,7 +1494,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [isFloorUser, floorView])
+  }, [isFloorUser, floorView, laminationRollsRefreshKey])
 
   // Floor Slitting: work orders that have a Slitting job card with current loaded roll
   useEffect(() => {
@@ -1435,6 +1787,7 @@ export default function Home() {
     if (!laminationSelectedWo) {
       setLaminationLoadedRolls([])
       setLaminationAddRollForm(null)
+      setLaminationAddRollEditingField(null)
       return
     }
     let cancelled = false
@@ -1442,45 +1795,79 @@ export default function Home() {
       setLaminationRollsLoading(true)
       try {
         const cards = await getAllJobCards(0, 20, laminationSelectedWo.id, "Lamination")
-        const results = await Promise.all(
+        const cardRollSets = await Promise.all(
           cards.map(async (c) => {
             try {
-              const roll = await getCurrentRoll(c.id)
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+              const rolls = await getLoadedRolls(c.id)
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, rolls }
             } catch {
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, rolls: [] as CurrentRoll[] }
             }
           })
         )
-        if (!cancelled) {
-          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
-          setLaminationLoadedRolls(loaded)
-          if (loaded.length > 0) {
-            const first = loaded[0]
-            try {
-              const parent = await getRollsStockById(first.roll.id)
-              if (!cancelled) {
-                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-                setLaminationAddRollForm({
-                  jobCardNumber: first.jobCardNumber,
-                  jobCardId: first.jobCardId,
-                  roll: first.roll,
-                  parent: { gradeId: parent.gradeId },
-                  size: first.roll.size != null ? String(first.roll.size) : "",
-                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
-                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
-                })
-              }
-            } catch {
-              if (!cancelled) setLaminationAddRollForm(null)
+        if (cancelled) return
+
+        const scored = cardRollSets
+          .map((set) => {
+            const hasWip = set.rolls.some((r) => getLaminationParentRole(r.stage) === "wip")
+            const hasRm = set.rolls.some((r) => getLaminationParentRole(r.stage) === "rm")
+            const score = (hasWip && hasRm ? 100 : 0) + set.rolls.length
+            return { ...set, score }
+          })
+          .sort((a, b) => b.score - a.score)
+
+        const best = scored[0]
+        const loaded =
+          best && best.rolls.length > 0
+            ? best.rolls.map((roll) => ({
+                jobCardNumber: best.jobCardNumber,
+                jobCardId: best.jobCardId,
+                roll,
+              }))
+            : []
+
+        setLaminationLoadedRolls(loaded)
+
+        const wipEntry = loaded.find((r) => getLaminationParentRole(r.roll.stage) === "wip")
+        const formSource = wipEntry ?? loaded[0]
+        if (formSource) {
+          try {
+            const parent = await getRollsStockById(formSource.roll.id)
+            if (!cancelled) {
+              setLaminationAddRollEditingField(null)
+              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+              setLaminationAddRollForm({
+                jobCardNumber: formSource.jobCardNumber,
+                jobCardId: formSource.jobCardId,
+                roll: formSource.roll,
+                parent: { gradeId: parent.gradeId },
+                size: formSource.roll.size != null ? String(formSource.roll.size) : "",
+                micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
+                netweight: formSource.roll.netweight != null ? String(formSource.roll.netweight) : "",
+                grossweight:
+                  grossFromScale ||
+                  (parent.grossweight != null
+                    ? String(parent.grossweight)
+                    : formSource.roll.netweight != null
+                      ? String(formSource.roll.netweight)
+                      : ""),
+              })
             }
-          } else setLaminationAddRollForm(null)
+          } catch {
+            if (!cancelled) {
+              setLaminationAddRollForm(null)
+              setLaminationAddRollEditingField(null)
+            }
+          }
+        } else {
+          setLaminationAddRollForm(null)
+          setLaminationAddRollEditingField(null)
         }
       } catch {
         if (!cancelled) {
           setLaminationLoadedRolls([])
           setLaminationAddRollForm(null)
+          setLaminationAddRollEditingField(null)
         }
       } finally {
         if (!cancelled) setLaminationRollsLoading(false)
@@ -1488,7 +1875,7 @@ export default function Home() {
     }
     run()
     return () => { cancelled = true }
-  }, [laminationSelectedWo?.id])
+  }, [laminationSelectedWo?.id, laminationRollsRefreshKey])
 
   // When Floor user selects a work order in Slitting section, fetch loaded roll(s) and show form
   useEffect(() => {
@@ -1568,6 +1955,12 @@ export default function Home() {
     setEclChildRollsFromDb([])
   }, [eclSelectedWo])
 
+  // Reset Lamination committed state and child rolls when switching work order
+  useEffect(() => {
+    setLaminationFormCommittedForRollId(null)
+    setLaminationChildRollsFromDb([])
+  }, [laminationSelectedWo])
+
   // Fetch produced rolls (WIP printed) for selected work order from DB.
   useEffect(() => {
     if (!printingSelectedWo) {
@@ -1639,9 +2032,33 @@ export default function Home() {
     }
   }, [eclLoadedRolls])
 
-  // Fetch WIP printing template when on Floor Printing/Inspection/ECL view (for Print button)
+  // Fetch child rolls (WIP lamination) for loaded rolls in Lamination section
   useEffect(() => {
-    if (!isFloorUser || (floorView !== "printing" && floorView !== "inspection" && floorView !== "ecl")) return
+    if (laminationLoadedRolls.length === 0) {
+      setLaminationChildRollsFromDb([])
+      return
+    }
+    const parentIds = laminationLoadedRolls.map((r) => r.roll.id)
+    let cancelled = false
+    setLaminationChildRollsLoading(true)
+    getRollsStockByParentIds(parentIds, "wip_lamination")
+      .then((rows) => {
+        if (!cancelled) setLaminationChildRollsFromDb(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setLaminationChildRollsFromDb([])
+      })
+      .finally(() => {
+        if (!cancelled) setLaminationChildRollsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [laminationLoadedRolls])
+
+  // Fetch WIP printing template when on Floor Printing/Inspection/ECL/Lamination view (for Print button)
+  useEffect(() => {
+    if (!isFloorUser || (floorView !== "printing" && floorView !== "inspection" && floorView !== "ecl" && floorView !== "lamination")) return
     getAllTemplates(0, 200)
       .then((data) => {
         const t = data.find((template) => template.defaultForm === "wip-printing")
@@ -1664,6 +2081,11 @@ export default function Home() {
     }
     if (eclAddRollForm && scaleWeight != null) {
       setEclAddRollForm((prev) =>
+        prev ? { ...prev, grossweight: String(scaleWeight) } : null
+      )
+    }
+    if (laminationAddRollForm && scaleWeight != null) {
+      setLaminationAddRollForm((prev) =>
         prev ? { ...prev, grossweight: String(scaleWeight) } : null
       )
     }
@@ -1907,18 +2329,57 @@ export default function Home() {
                     laminationRollsLoading={laminationRollsLoading}
                     laminationLoadedRolls={laminationLoadedRolls}
                     laminationAddRollForm={laminationAddRollForm}
-                    setLaminationAddRollForm={setLaminationAddRollForm}
                     laminationCreateChildLoading={laminationCreateChildLoading}
-                    laminationFormCommittedForRollId={laminationFormCommittedForRollId}
                     setLaminationCreateChildLoading={setLaminationCreateChildLoading}
                     setLaminationCreateChildMessage={setLaminationCreateChildMessage}
+                    getRollsStockById={getRollsStockById}
+                    setLaminationAddRollEditingField={setLaminationAddRollEditingField}
+                    scaleWeight={scaleWeight}
+                    setLaminationAddRollForm={setLaminationAddRollForm}
+                    laminationChildRollsLoading={laminationChildRollsLoading}
+                    laminationChildRollsFromDb={laminationChildRollsFromDb}
+                    wipPrintingTemplate={wipPrintingTemplate}
+                    createPrintJob={createPrintJob}
+                    getPrintJob={getPrintJob}
+                    setPrintingPrintStatus={setPrintingPrintStatus}
+                    laminationFormCommittedForRollId={laminationFormCommittedForRollId}
+                    laminationAddRollEditingField={laminationAddRollEditingField}
                     addLaminationRoll={addLaminationRoll}
                     setLaminationFormCommittedForRollId={setLaminationFormCommittedForRollId}
+                    setLaminationChildRollsFromDb={setLaminationChildRollsFromDb}
                     laminationCreateChildMessage={laminationCreateChildMessage}
+                    floorLaminationBarcode={floorLaminationBarcode}
+                    setFloorLaminationBarcode={setFloorLaminationBarcode}
+                    setFloorLaminationBarcodeError={setFloorLaminationBarcodeError}
+                    floorLaminationBarcodeChecking={floorLaminationBarcodeChecking}
+                    handleFloorLaminationBarcodeSubmit={handleFloorLaminationBarcodeSubmit}
+                    floorLaminationWipRollsLoading={floorLaminationWipRollsLoading}
+                    openFloorLaminationWipPicker={openFloorLaminationWipPicker}
+                    floorLaminationBarcodeError={floorLaminationBarcodeError}
+                    floorLaminationWipPickerOpen={floorLaminationWipPickerOpen}
+                    closeFloorLaminationWipPicker={closeFloorLaminationWipPicker}
+                    floorLaminationWipRollsError={floorLaminationWipRollsError}
+                    floorLaminationWipStockColumns={floorLaminationWipStockColumns}
+                    floorLaminationWipRolls={floorLaminationWipRolls}
+                    floorLaminationRmPickerOpen={floorLaminationRmPickerOpen}
+                    closeFloorLaminationRmPicker={closeFloorLaminationRmPicker}
+                    floorLaminationRmRollsLoading={floorLaminationRmRollsLoading}
+                    floorLaminationRmRollsError={floorLaminationRmRollsError}
+                    floorLaminationRmStockColumns={floorLaminationRmStockColumns}
+                    floorLaminationRmRolls={floorLaminationRmRolls}
+                    openFloorLaminationRmPicker={openFloorLaminationRmPicker}
+                    floorLaminationDetailWipBarcode={floorLaminationDetailWipBarcode}
+                    setFloorLaminationDetailWipBarcode={setFloorLaminationDetailWipBarcode}
+                    floorLaminationDetailRmBarcode={floorLaminationDetailRmBarcode}
+                    setFloorLaminationDetailRmBarcode={setFloorLaminationDetailRmBarcode}
+                    applyFloorLaminationFromBarcode={applyFloorLaminationFromBarcode}
+                    getLaminationParentRole={getLaminationParentRole}
                     laminationLoading={laminationLoading}
                     laminationError={laminationError}
                     laminationWorkOrders={laminationWorkOrders}
                     setLaminationSelectedWo={setLaminationSelectedWo}
+                    getRollsStockByParentIds={getRollsStockByParentIds}
+                    unloadFloorLoadedRoll={unloadFloorLoadedRoll}
                   />
                 ) : floorView === "slitting" ? (
                   <SlittingPanel
@@ -1941,7 +2402,6 @@ export default function Home() {
                   />
                 ) : (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    {floorView === "lamination" && "Lamination department view. Add content here."}
                     {floorView === "slitting" && "Slitting department view. Add content here."}
                   </p>
                 )}
