@@ -527,7 +527,7 @@ export default function Home() {
     return null
   }
 
-  // Floor Slitting (mirror of Inspection)
+  // Floor Slitting (one parent → many finished-goods children)
   const [slittingWorkOrders, setSlittingWorkOrders] = useState<WorkOrderMaster[]>([])
   const [slittingLoading, setSlittingLoading] = useState(false)
   const [slittingError, setSlittingError] = useState<string | null>(null)
@@ -548,7 +548,63 @@ export default function Home() {
     netweight: string
     grossweight: string
   } | null>(null)
-  const [slittingFormCommittedForRollId, setSlittingFormCommittedForRollId] = useState<number | null>(null)
+  const [slittingRollsRefreshKey, setSlittingRollsRefreshKey] = useState(0)
+  const [slittingAddRollEditingField, setSlittingAddRollEditingField] = useState<
+    null | "netweight" | "grossweight"
+  >(null)
+  const [slittingChildRollsFromDb, setSlittingChildRollsFromDb] = useState<
+    Awaited<ReturnType<typeof getRollsStockByParentIds>>
+  >([])
+  const [slittingChildRollsLoading, setSlittingChildRollsLoading] = useState(false)
+  const [floorSlittingBarcode, setFloorSlittingBarcode] = useState("")
+  const [floorSlittingBarcodeError, setFloorSlittingBarcodeError] = useState<string | null>(null)
+  const [floorSlittingBarcodeChecking, setFloorSlittingBarcodeChecking] = useState(false)
+  const [floorSlittingParentPickerOpen, setFloorSlittingParentPickerOpen] = useState(false)
+  const [floorSlittingParentRolls, setFloorSlittingParentRolls] = useState<RollsStockRow[]>([])
+  const [floorSlittingParentRollsLoading, setFloorSlittingParentRollsLoading] = useState(false)
+  const [floorSlittingParentRollsError, setFloorSlittingParentRollsError] = useState<string | null>(null)
+
+  const floorSlittingParentStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "wip" }),
+      {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Stage" column={column} placeholder="Filter stage..." />
+        ),
+        cell: ({ row }: { row: any }) => {
+          const stage = (row.original.stage ?? "").toLowerCase()
+          if (stage === "wip_printed" || stage === "wip-printing") return "WIP Printing"
+          if (stage === "wip_ecl" || stage === "wip-ecl") return "WIP ECL"
+          if (stage === "wip_lamination" || stage === "wip-lamination") return "WIP Lamination"
+          return row.original.stage || "—"
+        },
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
+
+  const isSlittingParentStage = (stage: string | null | undefined) => {
+    const s = (stage ?? "").toLowerCase()
+    return (
+      s === "wip_printed" ||
+      s === "wip-printing" ||
+      s === "wip_ecl" ||
+      s === "wip-ecl" ||
+      s === "wip_lamination" ||
+      s === "wip-lamination"
+    )
+  }
 
   const closeFloorInspectionWipPicker = () => {
     setFloorInspectionWipPickerOpen(false)
@@ -877,7 +933,7 @@ export default function Home() {
   const unloadFloorLoadedRoll = async (
     jobCardId: number,
     rollId: number,
-    area: "printing" | "inspection" | "ecl" | "lamination"
+    area: "printing" | "inspection" | "ecl" | "lamination" | "slitting"
   ) => {
     await unloadRoll(jobCardId, rollId)
     if (area === "printing") {
@@ -892,10 +948,14 @@ export default function Home() {
       setEclAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
       setEclFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
       setEclRollsRefreshKey((k) => k + 1)
-    } else {
+    } else if (area === "lamination") {
       setLaminationAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
       setLaminationFormCommittedForRollId((prev) => (prev === rollId ? null : prev))
       setLaminationRollsRefreshKey((k) => k + 1)
+    } else {
+      setSlittingAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
+      setSlittingChildRollsFromDb([])
+      setSlittingRollsRefreshKey((k) => k + 1)
     }
   }
 
@@ -1220,6 +1280,149 @@ export default function Home() {
     }
   }
 
+  const closeFloorSlittingParentPicker = () => {
+    setFloorSlittingParentPickerOpen(false)
+    setFloorSlittingParentRollsError(null)
+    setFloorSlittingParentRolls([])
+  }
+
+  const ensureSlittingJobCard = async (woId: number): Promise<{ id: number; jobCardNumber: string }> => {
+    const cards = await getAllJobCards(0, 50, woId, "Slitting")
+    for (const card of cards) {
+      try {
+        const rolls = await getLoadedRolls(card.id)
+        if (rolls.length === 0) {
+          return { id: card.id, jobCardNumber: card.jobCardNumber }
+        }
+      } catch {
+        // try next
+      }
+    }
+
+    const [operatorsList, machinesList] = await Promise.all([
+      getAllOperators(0, 500),
+      getAllMachines(0, 500),
+    ])
+    const slittingMachine = machinesList.find(
+      (m) => (m.operation ?? "").toLowerCase() === "slitting"
+    )
+    if (!slittingMachine) {
+      throw new Error("No machine configured for Slitting operation.")
+    }
+    const slittingOperators = operatorsList.filter(
+      (op) => (op.operation ?? "").toLowerCase() === "slitting"
+    )
+    const operatorName =
+      slittingOperators[0]?.operatorName?.trim() || user?.username?.trim() || "Floor"
+    const newJobCard = await createJobCard({
+      jobCardNumber: "",
+      workOrderId: woId,
+      operation: "Slitting",
+      machineId: slittingMachine.id,
+      operatorName,
+      shift: "A",
+    })
+    return { id: newJobCard.id, jobCardNumber: newJobCard.jobCardNumber }
+  }
+
+  const applyFloorSlittingFromBarcode = async (
+    barcodeRaw: string,
+    options?: { closePicker?: boolean }
+  ) => {
+    const barcode = barcodeRaw.trim()
+    if (!barcode) return
+    setFloorSlittingBarcodeError(null)
+    setFloorSlittingBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setFloorSlittingBarcodeError("Roll not found for this barcode.")
+        return
+      }
+      if (roll.consumed) {
+        setFloorSlittingBarcodeError("This roll is already consumed.")
+        return
+      }
+      if (!isSlittingParentStage(roll.stage)) {
+        setFloorSlittingBarcodeError(
+          `Roll must be WIP Printed, WIP ECL, or WIP Lamination. Current stage: ${roll.stage || "—"}`
+        )
+        return
+      }
+
+      const woInfo = await getWorkOrderByRollBarcode(barcode)
+      if (!woInfo) {
+        setFloorSlittingBarcodeError(
+          "No work order linked to this roll (roll must come from a production job card)."
+        )
+        return
+      }
+
+      let wo = slittingWorkOrders.find((w) => w.id === woInfo.workOrderId)
+      if (!wo) {
+        try {
+          const allWos = await getAllWorkOrders(0, 500)
+          wo = allWos.find((w) => w.id === woInfo.workOrderId)
+        } catch {
+          wo = undefined
+        }
+      }
+      if (!wo) {
+        setFloorSlittingBarcodeError("Work order not found for this roll.")
+        return
+      }
+
+      const card = await ensureSlittingJobCard(wo.id)
+      await scanRoll(card.id, barcode)
+
+      setFloorSlittingBarcode("")
+      setSlittingSelectedWo(wo)
+      setSlittingRollsRefreshKey((key) => key + 1)
+      if (options?.closePicker) closeFloorSlittingParentPicker()
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not load roll. Try again."
+      setFloorSlittingBarcodeError(detail)
+    } finally {
+      setFloorSlittingBarcodeChecking(false)
+    }
+  }
+
+  const handleFloorSlittingBarcodeSubmit = async () => {
+    await applyFloorSlittingFromBarcode(floorSlittingBarcode)
+  }
+
+  const openFloorSlittingParentPicker = async () => {
+    setFloorSlittingParentPickerOpen(true)
+    setFloorSlittingParentRollsLoading(true)
+    setFloorSlittingParentRollsError(null)
+    setFloorSlittingParentRolls([])
+    try {
+      const [printed, ecl, lamination] = await Promise.all([
+        getAllRollsStock(0, 500, false, "wip_printed"),
+        getAllRollsStock(0, 500, false, "wip_ecl"),
+        getAllRollsStock(0, 500, false, "wip_lamination"),
+      ])
+      const filtered = [...printed, ...ecl, ...lamination].filter(
+        (r) => !r.consumed && !r.issued
+      )
+      setFloorSlittingParentRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorSlittingParentRollsError(
+          "No available WIP Printed, WIP ECL, or WIP Lamination rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorSlittingParentRollsError("Failed to load stock. Please try again.")
+      setFloorSlittingParentRolls([])
+    } finally {
+      setFloorSlittingParentRollsLoading(false)
+    }
+  }
+
   // Floor Printing page: show active work orders that have a Printing job card
   useEffect(() => {
     if (!isFloorUser || floorView !== "printing") return
@@ -1496,7 +1699,8 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, laminationRollsRefreshKey])
 
-  // Floor Slitting: work orders that have a Slitting job card with current loaded roll
+  // Floor Slitting: WOs with available WIP Printed / ECL / Lamination stock,
+  // plus WOs that already have a Slitting job card with a loaded parent.
   useEffect(() => {
     if (!isFloorUser || floorView !== "slitting") return
     let cancelled = false
@@ -1504,29 +1708,64 @@ export default function Home() {
       setSlittingLoading(true)
       setSlittingError(null)
       try {
-        const cards = await getAllJobCards(0, 500, undefined, "Slitting")
-        const workOrderIdsWithRoll = new Set<number>()
+        const workOrderIds = new Set<number>()
         const BATCH = 15
-        for (let i = 0; i < cards.length; i += BATCH) {
+
+        const [printed, ecl, lamination] = await Promise.all([
+          getAllRollsStock(0, 500, false, "wip_printed"),
+          getAllRollsStock(0, 500, false, "wip_ecl"),
+          getAllRollsStock(0, 500, false, "wip_lamination"),
+        ])
+        const inputRolls = [...printed, ...ecl, ...lamination]
+        for (let i = 0; i < inputRolls.length; i += BATCH) {
           if (cancelled) return
-          const batch = cards.slice(i, i + BATCH)
+          const batch = inputRolls.slice(i, i + BATCH)
+          const results = await Promise.all(
+            batch.map(async (roll) => {
+              try {
+                if (roll.consumed || roll.issued) return { workOrderId: null, hasWorkOrder: false }
+                const barcode = roll.barcode?.trim()
+                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
+                const woInfo = await getWorkOrderByRollBarcode(barcode)
+                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
+              } catch {
+                return { workOrderId: null, hasWorkOrder: false }
+              }
+            })
+          )
+          results.forEach((r) => {
+            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
+          })
+        }
+        if (cancelled) return
+
+        const slittingCards = await getAllJobCards(0, 500, undefined, "Slitting")
+        for (let i = 0; i < slittingCards.length; i += BATCH) {
+          if (cancelled) return
+          const batch = slittingCards.slice(i, i + BATCH)
           const results = await Promise.all(
             batch.map(async (c) => {
               try {
-                const roll = await getCurrentRoll(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: roll != null }
+                const rolls = await getLoadedRolls(c.id)
+                return { workOrderId: c.workOrderId, hasRoll: rolls.length > 0 }
               } catch {
                 return { workOrderId: c.workOrderId, hasRoll: false }
               }
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIdsWithRoll.add(r.workOrderId)
+            if (r.hasRoll) workOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
+
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter((wo) => workOrderIdsWithRoll.has(wo.id))
+        const filtered = allWos.filter(
+          (wo) =>
+            workOrderIds.has(wo.id) &&
+            wo.status !== "completed" &&
+            wo.status !== "cancelled"
+        )
         if (!cancelled) setSlittingWorkOrders(filtered)
       } catch (err) {
         if (!cancelled) {
@@ -1541,7 +1780,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [isFloorUser, floorView])
+  }, [isFloorUser, floorView, slittingRollsRefreshKey])
 
   // When Floor user selects a work order in Printing section, fetch current loaded roll(s) and show form for first roll
   useEffect(() => {
@@ -1877,11 +2116,12 @@ export default function Home() {
     return () => { cancelled = true }
   }, [laminationSelectedWo?.id, laminationRollsRefreshKey])
 
-  // When Floor user selects a work order in Slitting section, fetch loaded roll(s) and show form
+  // When Floor user selects a work order in Slitting section, fetch loaded parent and show weight form
   useEffect(() => {
     if (!slittingSelectedWo) {
       setSlittingLoadedRolls([])
       setSlittingAddRollForm(null)
+      setSlittingAddRollEditingField(null)
       return
     }
     let cancelled = false
@@ -1892,21 +2132,26 @@ export default function Home() {
         const results = await Promise.all(
           cards.map(async (c) => {
             try {
-              const roll = await getCurrentRoll(c.id)
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+              const rolls = await getLoadedRolls(c.id)
+              return rolls.map((roll) => ({
+                jobCardNumber: c.jobCardNumber,
+                jobCardId: c.id,
+                roll,
+              }))
             } catch {
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+              return [] as { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
             }
           })
         )
         if (!cancelled) {
-          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          const loaded = results.flat()
           setSlittingLoadedRolls(loaded)
           if (loaded.length > 0) {
             const first = loaded[0]
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
+                setSlittingAddRollEditingField(null)
                 const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
                 setSlittingAddRollForm({
                   jobCardNumber: first.jobCardNumber,
@@ -1915,27 +2160,36 @@ export default function Home() {
                   parent: { gradeId: parent.gradeId },
                   size: first.roll.size != null ? String(first.roll.size) : "",
                   micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
-                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                  netweight: "",
+                  grossweight: grossFromScale,
                 })
               }
             } catch {
-              if (!cancelled) setSlittingAddRollForm(null)
+              if (!cancelled) {
+                setSlittingAddRollForm(null)
+                setSlittingAddRollEditingField(null)
+              }
             }
-          } else setSlittingAddRollForm(null)
+          } else {
+            setSlittingAddRollForm(null)
+            setSlittingAddRollEditingField(null)
+          }
         }
       } catch {
         if (!cancelled) {
           setSlittingLoadedRolls([])
           setSlittingAddRollForm(null)
+          setSlittingAddRollEditingField(null)
         }
       } finally {
         if (!cancelled) setSlittingRollsLoading(false)
       }
     }
     run()
-    return () => { cancelled = true }
-  }, [slittingSelectedWo?.id])
+    return () => {
+      cancelled = true
+    }
+  }, [slittingSelectedWo?.id, slittingRollsRefreshKey])
 
   // Reset committed state and child rolls when switching work order
   useEffect(() => {
@@ -1960,6 +2214,11 @@ export default function Home() {
     setLaminationFormCommittedForRollId(null)
     setLaminationChildRollsFromDb([])
   }, [laminationSelectedWo])
+
+  // Reset Slitting child rolls when switching work order
+  useEffect(() => {
+    setSlittingChildRollsFromDb([])
+  }, [slittingSelectedWo])
 
   // Fetch produced rolls (WIP printed) for selected work order from DB.
   useEffect(() => {
@@ -2056,9 +2315,41 @@ export default function Home() {
     }
   }, [laminationLoadedRolls])
 
-  // Fetch WIP printing template when on Floor Printing/Inspection/ECL/Lamination view (for Print button)
+  // Fetch child rolls (finished goods) for loaded parent in Slitting section
   useEffect(() => {
-    if (!isFloorUser || (floorView !== "printing" && floorView !== "inspection" && floorView !== "ecl" && floorView !== "lamination")) return
+    if (slittingLoadedRolls.length === 0) {
+      setSlittingChildRollsFromDb([])
+      return
+    }
+    const parentIds = slittingLoadedRolls.map((r) => r.roll.id)
+    let cancelled = false
+    setSlittingChildRollsLoading(true)
+    getRollsStockByParentIds(parentIds, "finished_goods")
+      .then((rows) => {
+        if (!cancelled) setSlittingChildRollsFromDb(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setSlittingChildRollsFromDb([])
+      })
+      .finally(() => {
+        if (!cancelled) setSlittingChildRollsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [slittingLoadedRolls])
+
+  // Fetch WIP printing template when on Floor Printing/Inspection/ECL/Lamination/Slitting view (for Print button)
+  useEffect(() => {
+    if (
+      !isFloorUser ||
+      (floorView !== "printing" &&
+        floorView !== "inspection" &&
+        floorView !== "ecl" &&
+        floorView !== "lamination" &&
+        floorView !== "slitting")
+    )
+      return
     getAllTemplates(0, 200)
       .then((data) => {
         const t = data.find((template) => template.defaultForm === "wip-printing")
@@ -2086,6 +2377,11 @@ export default function Home() {
     }
     if (laminationAddRollForm && scaleWeight != null) {
       setLaminationAddRollForm((prev) =>
+        prev ? { ...prev, grossweight: String(scaleWeight) } : null
+      )
+    }
+    if (slittingAddRollForm && scaleWeight != null) {
+      setSlittingAddRollForm((prev) =>
         prev ? { ...prev, grossweight: String(scaleWeight) } : null
       )
     }
@@ -2389,20 +2685,44 @@ export default function Home() {
                     slittingAddRollForm={slittingAddRollForm}
                     setSlittingAddRollForm={setSlittingAddRollForm}
                     slittingCreateChildLoading={slittingCreateChildLoading}
-                    slittingFormCommittedForRollId={slittingFormCommittedForRollId}
                     setSlittingCreateChildLoading={setSlittingCreateChildLoading}
                     setSlittingCreateChildMessage={setSlittingCreateChildMessage}
+                    setSlittingAddRollEditingField={setSlittingAddRollEditingField}
+                    slittingAddRollEditingField={slittingAddRollEditingField}
+                    slittingChildRollsLoading={slittingChildRollsLoading}
+                    slittingChildRollsFromDb={slittingChildRollsFromDb}
+                    setSlittingChildRollsFromDb={setSlittingChildRollsFromDb}
+                    wipPrintingTemplate={wipPrintingTemplate}
+                    createPrintJob={createPrintJob}
+                    getPrintJob={getPrintJob}
+                    setPrintingPrintStatus={setPrintingPrintStatus}
                     addSlittingRoll={addSlittingRoll}
-                    setSlittingFormCommittedForRollId={setSlittingFormCommittedForRollId}
                     slittingCreateChildMessage={slittingCreateChildMessage}
+                    floorSlittingBarcode={floorSlittingBarcode}
+                    setFloorSlittingBarcode={setFloorSlittingBarcode}
+                    setFloorSlittingBarcodeError={setFloorSlittingBarcodeError}
+                    floorSlittingBarcodeChecking={floorSlittingBarcodeChecking}
+                    handleFloorSlittingBarcodeSubmit={handleFloorSlittingBarcodeSubmit}
+                    floorSlittingParentRollsLoading={floorSlittingParentRollsLoading}
+                    openFloorSlittingParentPicker={openFloorSlittingParentPicker}
+                    floorSlittingBarcodeError={floorSlittingBarcodeError}
+                    floorSlittingParentPickerOpen={floorSlittingParentPickerOpen}
+                    closeFloorSlittingParentPicker={closeFloorSlittingParentPicker}
+                    floorSlittingParentRollsError={floorSlittingParentRollsError}
+                    floorSlittingParentStockColumns={floorSlittingParentStockColumns}
+                    floorSlittingParentRolls={floorSlittingParentRolls}
+                    applyFloorSlittingFromBarcode={applyFloorSlittingFromBarcode}
                     slittingLoading={slittingLoading}
                     slittingError={slittingError}
                     slittingWorkOrders={slittingWorkOrders}
                     setSlittingSelectedWo={setSlittingSelectedWo}
+                    getRollsStockByParentIds={getRollsStockByParentIds}
+                    unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    setSlittingRollsRefreshKey={setSlittingRollsRefreshKey}
                   />
                 ) : (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    {floorView === "slitting" && "Slitting department view. Add content here."}
+                    Select a department to continue.
                   </p>
                 )}
             </div>
