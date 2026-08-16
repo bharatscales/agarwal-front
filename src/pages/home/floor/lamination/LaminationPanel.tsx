@@ -514,11 +514,17 @@ export function LaminationPanel(props: LaminationPanelProps) {
                         ? "Roll added and label sent to printer."
                         : "Roll added and movement recorded. No WIP printing template configured."
                     )
-                  } catch {
+                  } catch (err: unknown) {
+                    const detail =
+                      (err as { response?: { data?: { detail?: string } }; message?: string })
+                        ?.response?.data?.detail ||
+                      (err as { message?: string })?.message
                     setLaminationCreateChildMessage(
-                      wipPrintingTemplate
-                        ? "Failed to print label. Roll not added or movement not recorded."
-                        : "Failed to add roll or record movement."
+                      typeof detail === "string" && detail.trim()
+                        ? detail
+                        : wipPrintingTemplate
+                          ? "Failed to print label. Roll not added or movement not recorded."
+                          : "Failed to add roll or record movement."
                     )
                   } finally {
                     setLaminationCreateChildLoading(false)
