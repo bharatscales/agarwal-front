@@ -8,6 +8,7 @@ export type RollsStockPayload = {
   netweight?: number
   grossweight?: number
   wastage?: number
+  balanceWeight?: number | null
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
   stockVoucherId?: number
@@ -33,6 +34,8 @@ type RollsStockResponse = {
   netweight?: number | null
   grossweight?: number | null
   wastage?: number | null
+  balance_weight?: number | null
+  parent_netweight?: number | null
   stock_voucher_id?: number | null
   invoice_no?: string | null
   invoice_date?: string | null
@@ -61,6 +64,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   netweight: rollsStock.netweight ?? 0,
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
+  balanceWeight: rollsStock.balance_weight ?? null,
+  parentNetweight: rollsStock.parent_netweight ?? null,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
   invoiceNo: rollsStock.invoice_no ?? "",
   invoiceDate: rollsStock.invoice_date ?? "",
@@ -138,6 +143,7 @@ export const updateRollsStock = async (
     parent_roll_id: payload.parentRollId,
   }
   if (payload.consumed !== undefined) body.consumed = payload.consumed
+  if ("balanceWeight" in payload) body.balance_weight = payload.balanceWeight
   const response = await api.patch<RollsStockResponse>(`/rolls-stock/${rollsStockId}`, body)
   return mapRollsStock(response.data)
 }

@@ -47,7 +47,7 @@ import { floorDepartmentBlocks, type FloorDepartmentId } from "./home/constants"
 import { EclPanel } from "./home/floor/ecl/EclPanel"
 import { InspectionPanel } from "./home/floor/inspection/InspectionPanel"
 import { LaminationPanel } from "./home/floor/lamination/LaminationPanel"
-import { PrintingPanel } from "./home/floor/printing/PrintingPanel"
+import { PrintingPanel, PrintingBalanceWeightCell } from "./home/floor/printing/PrintingPanel"
 import { SlittingPanel } from "./home/floor/slitting/SlittingPanel"
 import { usePrinterStatus } from "./home/hooks/usePrinterStatus"
 import { useRoleFlags } from "./home/hooks/useRoleFlags"
@@ -222,6 +222,17 @@ export default function Home() {
     }
   }
 
+  const handlePrintingBalanceWeightSave = async (rollId: number, value: number | null) => {
+    try {
+      await updateRollsStock(rollId, { balanceWeight: value })
+      setPrintingChildRollsFromDb((prev) =>
+        prev.map((row) => (row.id === rollId ? { ...row, balanceWeight: value } : row))
+      )
+    } catch {
+      setPrintingCreateChildMessage("Failed to save balance weight.")
+    }
+  }
+
   const printingProducedRollColumns = [
       {
         id: "sno",
@@ -271,9 +282,23 @@ export default function Home() {
         filterFn: includesStringFilterFn,
       },
       {
+        accessorKey: "parentNetweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Input weight (kg)" column={column} placeholder="Filter input weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.parentNetweight != null
+              ? `${Number(row.original.parentNetweight).toFixed(2)} kg`
+              : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Net weight (kg)" column={column} placeholder="Filter net weight..." />
+          <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
@@ -291,6 +316,21 @@ export default function Home() {
           <div className="text-sm">
             {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
           </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "balanceWeight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <PrintingBalanceWeightCell
+            rollId={row.original.id}
+            value={row.original.balanceWeight}
+            disabled={printingCreateChildLoading}
+            onSave={handlePrintingBalanceWeightSave}
+          />
         ),
         filterFn: includesStringFilterFn,
       },

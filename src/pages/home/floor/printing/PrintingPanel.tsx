@@ -1,5 +1,5 @@
 import { CheckCircle, Plus, Printer, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,42 @@ import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type PrintingPanelProps = any
+
+export function PrintingBalanceWeightCell({
+  rollId,
+  value,
+  disabled,
+  onSave,
+}: {
+  rollId: number
+  value: number | null | undefined
+  disabled?: boolean
+  onSave: (rollId: number, value: number | null) => void
+}) {
+  const [draft, setDraft] = useState(() => (value != null ? String(value) : ""))
+
+  useEffect(() => {
+    setDraft(value != null ? String(value) : "")
+  }, [value])
+
+  return (
+    <Input
+      type="number"
+      step="any"
+      className="h-8 min-w-[110px]"
+      disabled={disabled}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const trimmed = draft.trim()
+        const parsed = trimmed === "" ? null : parseFloat(trimmed)
+        const next = parsed != null && Number.isNaN(parsed) ? null : parsed
+        const current = value == null ? null : Number(value)
+        if (next !== current) onSave(rollId, next)
+      }}
+    />
+  )
+}
 
 export function PrintingPanel(props: PrintingPanelProps) {
   const {
@@ -210,7 +246,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <tr>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total produced rolls</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">{printingProducedTotals.rollCount}</td>
-                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total net weight (kg)</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total output weight (kg)</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">{printingProducedTotals.netWeight.toFixed(2)} kg</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total net wastage (kg)</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">{printingProducedTotals.netWastage.toFixed(2)} kg</td>
