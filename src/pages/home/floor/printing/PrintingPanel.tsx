@@ -1,9 +1,10 @@
 import { CheckCircle, Plus, Printer, X } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type PrintingPanelProps = any
@@ -46,6 +47,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
     unloadFloorLoadedRoll,
   } = props
 
+  const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
 
   const handleUnloadPrintingRoll = async (jobCardId: number, rollId: number) => {
@@ -439,6 +441,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
     </div>
   ) : (
     <>
+      <div className="flex justify-end mb-3">
+        <Button onClick={() => setIsAddWorkOrderOpen(true)} size="sm">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add Work Order</span>
+        </Button>
+      </div>
       {printingLoading ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
       ) : printingError ? (
@@ -456,6 +464,13 @@ export function PrintingPanel(props: PrintingPanelProps) {
           showSelectionSummary={false}
         />
       )}
+      <WorkOrderCreateDialog
+        open={isAddWorkOrderOpen}
+        onOpenChange={setIsAddWorkOrderOpen}
+        onCreated={(newWorkOrder) => {
+          setPrintingWorkOrders((prev: any[]) => [newWorkOrder, ...prev])
+        }}
+      />
     </>
   )
 }

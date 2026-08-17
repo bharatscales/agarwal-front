@@ -2392,7 +2392,7 @@ export default function Home() {
     return <WorkOrder />
   }
 
-  // Floor department: dedicated home (no Manufacturing menu) with title + printer status bars
+  // Floor department: dedicated home with department tiles; Work Order create is on Printing and in the sidebar
   if (isFloorUser) {
     const floorViewLabel = floorView !== null
       ? floorDepartmentBlocks.find((block) => block.id === floorView)?.label ?? floorView

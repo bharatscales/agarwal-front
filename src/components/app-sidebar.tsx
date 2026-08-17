@@ -168,7 +168,7 @@ export function AppSidebar() {
     currentUser?.role === "user" &&
     (currentUser?.department?.toLowerCase() === "printing" || currentUser?.department === "Printing");
 
-  // Floor department user: hide entire Manufacturing menu
+  // Floor department user: Work Order only (no Stock Entry / Job Card / Reports)
   const isFloorUser =
     currentUser?.role === "user" &&
     (currentUser?.department?.toLowerCase() === "floor" || currentUser?.department === "Floor");
@@ -444,7 +444,6 @@ export function AppSidebar() {
           <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
         </div>
 
-        {!isFloorUser && (
         <SidebarGroup>
           <SidebarGroupLabel>Manufacturing</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -454,6 +453,10 @@ export function AppSidebar() {
                   // Stock user: only Stock Entry; hide Work Order and Job Card
                   if (isStockUser) {
                     return item.title === "Stock Entry";
+                  }
+                  // Floor user: only Work Order
+                  if (isFloorUser) {
+                    return item.title === "Work Order";
                   }
                   // Printing user: hide Stock Entry
                   if (isPrintingUser && item.title === "Stock Entry") {
@@ -476,7 +479,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               ))}
-              {!isPrintingUser && !isInspectUser && (
+              {!isPrintingUser && !isInspectUser && !isFloorUser && (
               <>
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -827,7 +830,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        )}
 
         {/* Separator */}
         <div className="px-4 py-2">
