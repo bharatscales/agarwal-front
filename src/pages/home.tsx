@@ -46,6 +46,7 @@ import { getAllMachines } from "@/lib/machine-api"
 import { getAllOperators } from "@/lib/operator-api"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
+import { formatWeightWithMeter } from "@/lib/film-calc"
 import { FloorDepartmentGrid } from "./home/components/FloorDepartmentGrid"
 import { FloorShell } from "./home/components/FloorShell"
 import { GeneralDashboard } from "./home/components/GeneralDashboard"
@@ -394,9 +395,7 @@ export default function Home() {
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
-            {row.original.parentNetweight != null
-              ? `${Number(row.original.parentNetweight).toFixed(2)} kg`
-              : "-"}
+            {formatWeightWithMeter(row.original.parentNetweight, row.original.parentMeter)}
           </div>
         ),
         filterFn: includesStringFilterFn,

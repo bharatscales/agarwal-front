@@ -40,3 +40,13 @@ export const netWeightFromMeter = (
   }
   return round2((meter * density * sizeMm * micron) / 1_000_000)
 }
+
+export const formatWeightWithMeter = (
+  kg: number | null | undefined,
+  meter: number | null | undefined
+): string => {
+  if (kg == null || !Number.isFinite(Number(kg))) return "—"
+  const weight = `${Number(kg).toFixed(2)} kg`
+  const meters = meter != null && Number(meter) > 0 ? Math.round(Number(meter)) : null
+  return meters != null ? `${weight}  ( ${meters} m)` : weight
+}

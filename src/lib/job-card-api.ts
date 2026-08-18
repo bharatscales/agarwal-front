@@ -169,6 +169,7 @@ export type CurrentRoll = {
   item_id?: number | null
   balance_weight?: number | null
   balanceWeight?: number | null
+  meter?: number | null
 }
 
 type CurrentRollResponse = {

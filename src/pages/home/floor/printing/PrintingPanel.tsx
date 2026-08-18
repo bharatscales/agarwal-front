@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
+import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type PrintingPanelProps = any
@@ -219,11 +220,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
               </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full min-w-[1320px] text-sm">
+                <table className="w-full min-w-[1200px] text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Item (variety)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
@@ -293,11 +293,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           }}
                         >
                           <td className="py-2 px-3 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{printingSelectedWo?.itemName ?? "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—"}</td>
+                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{formatWeightWithMeter(roll.netweight, roll.meter)}</td>
                           <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
