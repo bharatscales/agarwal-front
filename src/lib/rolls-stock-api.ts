@@ -71,7 +71,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   size: rollsStock.size ?? 0,
   micron: rollsStock.micron ?? 0,
   netweight: rollsStock.netweight ?? 0,
-  meter: rollsStock.meter ?? 0,
+  meter: rollsStock.meter != null ? Math.round(rollsStock.meter) : 0,
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
   plainWastage: rollsStock.plain_wastage ?? null,

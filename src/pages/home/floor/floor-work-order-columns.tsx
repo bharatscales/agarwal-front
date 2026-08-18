@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table"
 import { ColumnHeader } from "@/components/column-header"
 import { ColumnHeaderSelect } from "@/components/column-header-select"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
+import { Button } from "@/components/ui/button"
 
 const statusClassName = (status: string) => {
   if (status === "in_progress") return "text-blue-600 dark:text-blue-400"
@@ -10,8 +11,14 @@ const statusClassName = (status: string) => {
   return "text-gray-600 dark:text-gray-400"
 }
 
+type FloorWorkOrderColumnOptions = {
+  onSkip?: (workOrder: WorkOrderMaster) => void
+}
+
 /** Searchable/filterable columns for Floor dashboard work-order lists. */
-export const getFloorWorkOrderColumns = (): ColumnDef<WorkOrderMaster>[] => [
+export const getFloorWorkOrderColumns = (
+  options?: FloorWorkOrderColumnOptions
+): ColumnDef<WorkOrderMaster>[] => [
   {
     accessorKey: "woNumber",
     header: ({ column }) => (
@@ -73,8 +80,24 @@ export const getFloorWorkOrderColumns = (): ColumnDef<WorkOrderMaster>[] => [
     enableSorting: false,
     enableColumnFilter: false,
     header: () => <span className="text-xs font-medium text-gray-700 dark:text-gray-300">ACTION</span>,
-    cell: () => (
-      <span className="text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</span>
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <span className="text-xs text-gray-500 dark:text-gray-400">Click to view loaded roll</span>
+        {options?.onSkip ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={(e) => {
+              e.stopPropagation()
+              options.onSkip?.(row.original)
+            }}
+          >
+            Skip
+          </Button>
+        ) : null}
+      </div>
     ),
   },
 ]

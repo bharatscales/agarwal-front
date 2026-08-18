@@ -54,9 +54,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
     inspectionWorkOrders,
     setInspectionSelectedWo,
     unloadFloorLoadedRoll,
+    onSkipWorkOrder,
   } = props
 
-  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+  const floorWorkOrderColumns = useMemo(
+    () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
+    [onSkipWorkOrder]
+  )
 
   const handleUnloadInspectionRoll = async (jobCardId: number, rollId: number) => {
     try {

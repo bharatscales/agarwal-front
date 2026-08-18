@@ -166,7 +166,7 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
           <ColumnHeader title="Meter" column={column} placeholder="Filter meter..." />
         ),
         cell: ({ row }) => (
-          <div className="text-sm">{row.original.meter ? row.original.meter : "-"}</div>
+          <div className="text-sm">{row.original.meter ? Math.round(row.original.meter) : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },

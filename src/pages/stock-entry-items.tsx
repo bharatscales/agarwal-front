@@ -119,7 +119,7 @@ export default function StockEntryItems() {
         size: rs.size,
         micron: rs.micron,
             netweight: rs.netweight,
-            meter: rs.meter ?? 0,
+            meter: rs.meter ? Math.round(rs.meter) : 0,
             grossweight: rs.grossweight,
         barcode: rs.barcode,
         isEditing: false,
@@ -429,7 +429,7 @@ export default function StockEntryItems() {
         size: row.size !== 0 ? row.size : 0,
         micron: row.micron || undefined,
         netweight: row.netweight || undefined,
-        meter: row.meter || undefined,
+        meter: row.meter ? Math.round(row.meter) : undefined,
         grossweight: row.grossweight || undefined,
         gradeId: row.gradeId,
         stockVoucherId: Number(voucherId),
@@ -1249,9 +1249,9 @@ export default function StockEntryItems() {
                             meterInputRefs.current[index] = el
                           }}
                           type="number"
-                          step="0.01"
+                          step="1"
                           value={row.meter || ""}
-                          onChange={(e) => handleFieldChange(index, "meter", parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleFieldChange(index, "meter", Math.round(parseFloat(e.target.value)) || 0)}
                           placeholder="Meter"
                           className="w-full h-8"
                           onKeyDown={(e) => {
@@ -1344,7 +1344,8 @@ export default function StockEntryItems() {
                       <TableCell className="py-1 px-2">{row.netweight || "-"}</TableCell>
                       <TableCell className="py-1 px-2">
                         {row.meter
-                          || meterFromNetWeight(
+                          ? Math.round(row.meter)
+                          : meterFromNetWeight(
                             row.netweight,
                             row.size,
                             row.micron,
@@ -1411,7 +1412,7 @@ export default function StockEntryItems() {
         <div className="text-sm">
           <span className="text-gray-600 dark:text-gray-400 font-medium">Total Meter:</span>
           <span className="ml-2 text-gray-900 dark:text-gray-100 font-semibold">
-            {totalMeter.toFixed(2)}
+            {Math.round(totalMeter)}
           </span>
         </div>
         <div className="text-sm">

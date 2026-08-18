@@ -75,9 +75,13 @@ export function EclPanel(props: EclPanelProps) {
     eclWorkOrders,
     setEclSelectedWo,
     unloadFloorLoadedRoll,
+    onSkipWorkOrder,
   } = props
 
-  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+  const floorWorkOrderColumns = useMemo(
+    () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
+    [onSkipWorkOrder]
+  )
 
   const wipParent = eclLoadedRolls.find((r: any) => getEclParentRole(r.roll.stage) === "wip") ?? null
   const rmParent = eclLoadedRolls.find((r: any) => getEclParentRole(r.roll.stage) === "rm") ?? null
@@ -112,9 +116,9 @@ export function EclPanel(props: EclPanelProps) {
     setBarcode: (v: string) => void,
     onSelectStock: () => void
   ) => {
-    const title = role === "wip" ? "Parent 1 — WIP Printing / Inspection" : "Parent 2 — RM Film"
+    const title = role === "wip" ? "Parent 1 — WIP parent" : "Parent 2 — RM Film"
     const placeholder =
-      role === "wip" ? "Scan WIP Printing or Inspection barcode" : "Scan RM Film (virgin RM or RM Balance) barcode"
+      role === "wip" ? "Scan WIP parent barcode" : "Scan RM Film (virgin RM or RM Balance) barcode"
 
     return (
       <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm space-y-3">
@@ -217,7 +221,7 @@ export function EclPanel(props: EclPanelProps) {
         <div>
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Parent rolls</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            ECL needs both parents on the same job card: one WIP Printing/Inspection roll and one RM Film roll.
+            ECL needs both parents on the same job card: one WIP parent roll and one RM Film roll.
           </p>
           {eclRollsLoading ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>

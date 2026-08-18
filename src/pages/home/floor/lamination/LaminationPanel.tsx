@@ -73,9 +73,13 @@ export function LaminationPanel(props: LaminationPanelProps) {
     laminationWorkOrders,
     setLaminationSelectedWo,
     unloadFloorLoadedRoll,
+    onSkipWorkOrder,
   } = props
 
-  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+  const floorWorkOrderColumns = useMemo(
+    () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
+    [onSkipWorkOrder]
+  )
 
   const wipParent = laminationLoadedRolls.find((r: any) => getLaminationParentRole(r.roll.stage) === "wip") ?? null
   const rmParent = laminationLoadedRolls.find((r: any) => getLaminationParentRole(r.roll.stage) === "rm") ?? null
@@ -110,9 +114,9 @@ export function LaminationPanel(props: LaminationPanelProps) {
     setBarcode: (v: string) => void,
     onSelectStock: () => void
   ) => {
-    const title = role === "wip" ? "Parent 1 — WIP ECL" : "Parent 2 — RM Film"
+    const title = role === "wip" ? "Parent 1 — WIP parent" : "Parent 2 — RM Film"
     const placeholder =
-      role === "wip" ? "Scan WIP ECL barcode" : "Scan RM Film (virgin RM or RM Balance) barcode"
+      role === "wip" ? "Scan WIP parent barcode" : "Scan RM Film (virgin RM or RM Balance) barcode"
 
     return (
       <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm space-y-3">
@@ -215,7 +219,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
         <div>
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Parent rolls</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Lamination needs both parents on the same job card: one WIP ECL roll and one RM Film roll.
+            Lamination needs both parents on the same job card: one WIP parent roll and one RM Film roll.
           </p>
           {laminationRollsLoading ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
@@ -573,7 +577,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
           <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Select WIP ECL parent roll</CardTitle>
+                <CardTitle>Select WIP parent roll</CardTitle>
                 <CardDescription>
                   Pick a WIP ECL roll as parent 1 for Lamination.
                 </CardDescription>
@@ -696,10 +700,10 @@ export function LaminationPanel(props: LaminationPanelProps) {
     <>
       <div className="mb-4 space-y-1">
         <Label htmlFor="floor-lamination-barcode" className="text-xs text-gray-600 dark:text-gray-400">
-          Barcode (WIP ECL)
+          Barcode (WIP parent)
         </Label>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Load the WIP ECL parent first to open the work order, then load RM Film as the second parent.
+          Load the WIP parent first to open the work order, then load RM Film as the second parent.
         </p>
         <div className="flex flex-wrap items-center gap-2 max-w-2xl">
           <div className="relative min-w-[min(100%,18rem)] flex-1">
@@ -742,7 +746,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
           <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Select WIP ECL parent roll</CardTitle>
+                <CardTitle>Select WIP parent roll</CardTitle>
                 <CardDescription>
                   Pick a WIP ECL roll to load into Lamination.
                 </CardDescription>

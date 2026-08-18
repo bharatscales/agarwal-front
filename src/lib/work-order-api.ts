@@ -29,6 +29,7 @@ type WorkOrderResponse = {
   created_at?: string
   started_at?: string | null
   completed_at?: string | null
+  skipped_operations?: string[] | null
 }
 
 const mapWorkOrder = (wo: WorkOrderResponse) => ({
@@ -48,6 +49,7 @@ const mapWorkOrder = (wo: WorkOrderResponse) => ({
   createdAt: wo.created_at,
   startedAt: wo.started_at,
   completedAt: wo.completed_at,
+  skippedOperations: wo.skipped_operations ?? [],
 })
 
 export const getAllWorkOrders = async (skip = 0, limit = 100, status?: string) => {
@@ -98,5 +100,12 @@ export const updateWorkOrder = async (workOrderId: number, payload: Partial<Work
 
 export const deleteWorkOrder = async (workOrderId: number) => {
   await api.delete(`/work-order/${workOrderId}`)
+}
+
+export const skipWorkOrderOperation = async (workOrderId: number, operation: string) => {
+  const response = await api.post<WorkOrderResponse>(`/work-order/${workOrderId}/skip-operation`, {
+    operation,
+  })
+  return mapWorkOrder(response.data)
 }
 

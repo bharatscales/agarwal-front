@@ -24,8 +24,15 @@ import {
   unloadRoll,
   type CurrentRoll,
 } from "@/lib/job-card-api"
-import { getAllWorkOrders, updateWorkOrder } from "@/lib/work-order-api"
+import { getAllWorkOrders, skipWorkOrderOperation, updateWorkOrder } from "@/lib/work-order-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
+import {
+  allowedWipStagesForDept,
+  isAllowedWipStage,
+  isOperationSkipped,
+  wipStageLabel,
+  type FloorSkipOperation,
+} from "@/lib/wo-flow"
 import {
   getRollsStockById,
   updateRollsStock,
@@ -73,6 +80,67 @@ async function fetchAvailableRmFilmRolls() {
   ])
   const rolls = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
   return rolls.filter((r) => !r.consumed && !r.issued)
+}
+
+async function fetchAvailableWipRolls(stages: string[]) {
+  const unique = [...new Set(stages)]
+  const results = await Promise.allSettled(
+    unique.map((stage) => getAllRollsStock(0, 500, false, stage))
+  )
+  const rolls = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+  return rolls.filter((r) => !r.consumed && !r.issued)
+}
+
+async function workOrderStagesFromAvailableRolls(
+  stages: string[],
+  isCancelled: () => boolean
+): Promise<Map<number, Set<string>>> {
+  const byWo = new Map<number, Set<string>>()
+  const BATCH = 15
+  for (const stage of stages) {
+    const rolls = await getAllRollsStock(0, 500, false, stage)
+    for (let i = 0; i < rolls.length; i += BATCH) {
+      if (isCancelled()) return byWo
+      const batch = rolls.slice(i, i + BATCH)
+      const results = await Promise.all(
+        batch.map(async (roll) => {
+          try {
+            if (roll.consumed) return null
+            const barcode = roll.barcode?.trim()
+            if (!barcode) return null
+            const woInfo = await getWorkOrderByRollBarcode(barcode)
+            if (woInfo?.workOrderId == null) return null
+            return { workOrderId: woInfo.workOrderId as number, stage }
+          } catch {
+            return null
+          }
+        })
+      )
+      results.forEach((row) => {
+        if (!row) return
+        const set = byWo.get(row.workOrderId) ?? new Set<string>()
+        set.add(row.stage)
+        byWo.set(row.workOrderId, set)
+      })
+    }
+  }
+  return byWo
+}
+
+function filterDepartmentWorkOrders(
+  allWos: WorkOrderMaster[],
+  operation: FloorSkipOperation,
+  stagesByWo: Map<number, Set<string>>,
+  loadedWorkOrderIds: Set<number>
+): WorkOrderMaster[] {
+  return allWos.filter((wo) => {
+    if (wo.status === "completed" || wo.status === "cancelled") return false
+    if (isOperationSkipped(wo.skippedOperations, operation)) return false
+    if (loadedWorkOrderIds.has(wo.id)) return true
+    const allowed = allowedWipStagesForDept(operation, wo.skippedOperations)
+    const have = stagesByWo.get(wo.id)
+    return allowed.some((stage) => have?.has(stage))
+  })
 }
 
 export default function Home() {
@@ -593,6 +661,16 @@ export default function Home() {
     () => [
       ...getRollsStockColumns({ variant: "wip" }),
       {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Stage" column={column} placeholder="Filter stage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{wipStageLabel(row.original.stage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
         accessorKey: "barcode",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
@@ -632,8 +710,12 @@ export default function Home() {
   )
 
   const isLaminationWipParentStage = (stage: string | null | undefined) => {
-    const s = (stage ?? "").toLowerCase()
-    return s === "wip_ecl" || s === "wip-ecl"
+    const s = (stage ?? "").toLowerCase().replace(/-/g, "_")
+    return (
+      s === "wip_ecl" ||
+      s === "wip_inspection" ||
+      s === "wip_printed"
+    )
   }
 
   const isLaminationRmParentStage = (stage: string | null | undefined) => isRmFilmStage(stage)
@@ -692,6 +774,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => {
           const stage = (row.original.stage ?? "").toLowerCase()
           if (stage === "wip_printed" || stage === "wip-printing") return "WIP Printing"
+          if (stage === "wip_inspection" || stage === "wip-inspection") return "WIP Inspection"
           if (stage === "wip_ecl" || stage === "wip-ecl") return "WIP ECL"
           if (stage === "wip_lamination" || stage === "wip-lamination") return "WIP Lamination"
           return row.original.stage || "—"
@@ -712,14 +795,12 @@ export default function Home() {
   )
 
   const isSlittingParentStage = (stage: string | null | undefined) => {
-    const s = (stage ?? "").toLowerCase()
+    const s = (stage ?? "").toLowerCase().replace(/-/g, "_")
     return (
       s === "wip_printed" ||
-      s === "wip-printing" ||
+      s === "wip_inspection" ||
       s === "wip_ecl" ||
-      s === "wip-ecl" ||
-      s === "wip_lamination" ||
-      s === "wip-lamination"
+      s === "wip_lamination"
     )
   }
 
@@ -775,6 +856,10 @@ export default function Home() {
       }
       if (!wo) {
         setFloorInspectionBarcodeError("Work order not found for this roll.")
+        return
+      }
+      if (isOperationSkipped(wo.skippedOperations, "Inspection")) {
+        setFloorInspectionBarcodeError("Inspection was skipped for this work order.")
         return
       }
 
@@ -950,7 +1035,7 @@ export default function Home() {
       if (options?.slot && options.slot !== role) {
         setFloorEclBarcodeError(
           options.slot === "wip"
-            ? "This slot needs a WIP Printing or WIP Inspection roll."
+            ? "This slot needs a WIP parent roll."
             : "This slot needs an RM Film (virgin RM or RM Balance) roll."
         )
         return
@@ -977,6 +1062,17 @@ export default function Home() {
         }
         if (!wo) {
           setFloorEclBarcodeError("Work order not found for this roll.")
+          return
+        }
+        if (isOperationSkipped(wo.skippedOperations, "ECL")) {
+          setFloorEclBarcodeError("ECL was skipped for this work order.")
+          return
+        }
+        const allowed = allowedWipStagesForDept("ECL", wo.skippedOperations)
+        if (!isAllowedWipStage(roll.stage, allowed)) {
+          setFloorEclBarcodeError(
+            `This work order needs a ${wipStageLabel(allowed[0])} roll for ECL.`
+          )
           return
         }
       } else {
@@ -1197,21 +1293,57 @@ export default function Home() {
     }
   }
 
+  const handleSkipWorkOrder = async (wo: WorkOrderMaster, operation: FloorSkipOperation) => {
+    const label = wo.woNumber || `WO #${wo.id}`
+    const nextHint =
+      operation === "Slitting"
+        ? "It will leave the Slitting list."
+        : "It will move to the next department."
+    if (!window.confirm(`Skip ${operation} for ${label}? ${nextHint}`)) return
+    try {
+      await skipWorkOrderOperation(wo.id, operation)
+      if (operation === "Inspection") {
+        if (inspectionSelectedWo?.id === wo.id) setInspectionSelectedWo(null)
+        setInspectionRollsRefreshKey((k) => k + 1)
+      } else if (operation === "ECL") {
+        if (eclSelectedWo?.id === wo.id) setEclSelectedWo(null)
+        setEclRollsRefreshKey((k) => k + 1)
+      } else if (operation === "Lamination") {
+        if (laminationSelectedWo?.id === wo.id) setLaminationSelectedWo(null)
+        setLaminationRollsRefreshKey((k) => k + 1)
+      } else {
+        if (slittingSelectedWo?.id === wo.id) setSlittingSelectedWo(null)
+        setSlittingRollsRefreshKey((k) => k + 1)
+      }
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not skip this operation."
+      window.alert(detail)
+    }
+  }
+
+  const skipInspectionWorkOrder = (wo: WorkOrderMaster) => handleSkipWorkOrder(wo, "Inspection")
+  const skipEclWorkOrder = (wo: WorkOrderMaster) => handleSkipWorkOrder(wo, "ECL")
+  const skipLaminationWorkOrder = (wo: WorkOrderMaster) => handleSkipWorkOrder(wo, "Lamination")
+  const skipSlittingWorkOrder = (wo: WorkOrderMaster) => handleSkipWorkOrder(wo, "Slitting")
+
   const openFloorEclWipPicker = async () => {
     setFloorEclWipPickerOpen(true)
     setFloorEclWipRollsLoading(true)
     setFloorEclWipRollsError(null)
     setFloorEclWipRolls([])
     try {
-      const [wipPrinted, wipInspection] = await Promise.all([
-        getAllRollsStock(0, 500, false, "wip_printed"),
-        getAllRollsStock(0, 500, false, "wip_inspection"),
-      ])
-      const filtered = [...wipPrinted, ...wipInspection].filter((r) => !r.consumed && !r.issued)
+      const stages = eclSelectedWo
+        ? allowedWipStagesForDept("ECL", eclSelectedWo.skippedOperations)
+        : ["wip_inspection", "wip_printed"]
+      const filtered = await fetchAvailableWipRolls(stages)
       setFloorEclWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorEclWipRollsError(
-          "No available WIP printing or inspection rolls found. Try scanning a barcode instead."
+          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
         )
       }
     } catch {
@@ -1342,14 +1474,14 @@ export default function Home() {
       const role = getLaminationParentRole(roll.stage)
       if (!role) {
         setFloorLaminationBarcodeError(
-          `Roll must be WIP ECL or RM Film (virgin RM / RM Balance). Current stage: ${roll.stage || "—"}`
+          `Roll must be a WIP parent or RM Film (virgin RM / RM Balance). Current stage: ${roll.stage || "—"}`
         )
         return
       }
       if (options?.slot && options.slot !== role) {
         setFloorLaminationBarcodeError(
           options.slot === "wip"
-            ? "This slot needs a WIP ECL roll."
+            ? "This slot needs a WIP parent roll."
             : "This slot needs an RM Film (virgin RM or RM Balance) roll."
         )
         return
@@ -1378,11 +1510,22 @@ export default function Home() {
           setFloorLaminationBarcodeError("Work order not found for this roll.")
           return
         }
+        if (isOperationSkipped(wo.skippedOperations, "Lamination")) {
+          setFloorLaminationBarcodeError("Lamination was skipped for this work order.")
+          return
+        }
+        const allowed = allowedWipStagesForDept("Lamination", wo.skippedOperations)
+        if (!isAllowedWipStage(roll.stage, allowed)) {
+          setFloorLaminationBarcodeError(
+            `This work order needs a ${wipStageLabel(allowed[0])} roll for Lamination.`
+          )
+          return
+        }
       } else {
         wo = laminationSelectedWo ?? undefined
         if (!wo) {
           setFloorLaminationBarcodeError(
-            "Load the WIP ECL parent first (or open a work order), then load RM Film."
+            "Load the WIP parent first (or open a work order), then load RM Film."
           )
           return
         }
@@ -1451,12 +1594,14 @@ export default function Home() {
     setFloorLaminationWipRollsError(null)
     setFloorLaminationWipRolls([])
     try {
-      const rolls = await getAllRollsStock(0, 500, false, "wip_ecl")
-      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      const stages = laminationSelectedWo
+        ? allowedWipStagesForDept("Lamination", laminationSelectedWo.skippedOperations)
+        : ["wip_ecl", "wip_inspection", "wip_printed"]
+      const filtered = await fetchAvailableWipRolls(stages)
       setFloorLaminationWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorLaminationWipRollsError(
-          "No available WIP ECL rolls found. Try scanning a barcode instead."
+          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
         )
       }
     } catch {
@@ -1581,7 +1726,7 @@ export default function Home() {
       }
       if (!isSlittingParentStage(roll.stage)) {
         setFloorSlittingBarcodeError(
-          `Roll must be WIP Printed, WIP ECL, or WIP Lamination. Current stage: ${roll.stage || "—"}`
+          `Roll must be a previous-stage WIP roll. Current stage: ${roll.stage || "—"}`
         )
         return
       }
@@ -1605,6 +1750,17 @@ export default function Home() {
       }
       if (!wo) {
         setFloorSlittingBarcodeError("Work order not found for this roll.")
+        return
+      }
+      if (isOperationSkipped(wo.skippedOperations, "Slitting")) {
+        setFloorSlittingBarcodeError("Slitting was skipped for this work order.")
+        return
+      }
+      const allowed = allowedWipStagesForDept("Slitting", wo.skippedOperations)
+      if (!isAllowedWipStage(roll.stage, allowed)) {
+        setFloorSlittingBarcodeError(
+          `This work order needs a ${wipStageLabel(allowed[0])} roll for Slitting.`
+        )
         return
       }
 
@@ -1637,18 +1793,14 @@ export default function Home() {
     setFloorSlittingParentRollsError(null)
     setFloorSlittingParentRolls([])
     try {
-      const [printed, ecl, lamination] = await Promise.all([
-        getAllRollsStock(0, 500, false, "wip_printed"),
-        getAllRollsStock(0, 500, false, "wip_ecl"),
-        getAllRollsStock(0, 500, false, "wip_lamination"),
-      ])
-      const filtered = [...printed, ...ecl, ...lamination].filter(
-        (r) => !r.consumed && !r.issued
-      )
+      const stages = slittingSelectedWo
+        ? allowedWipStagesForDept("Slitting", slittingSelectedWo.skippedOperations)
+        : ["wip_lamination", "wip_ecl", "wip_inspection", "wip_printed"]
+      const filtered = await fetchAvailableWipRolls(stages)
       setFloorSlittingParentRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorSlittingParentRollsError(
-          "No available WIP Printed, WIP ECL, or WIP Lamination rolls found. Try scanning a barcode instead."
+          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
         )
       }
     } catch {
@@ -1703,35 +1855,11 @@ export default function Home() {
       setInspectionLoading(true)
       setInspectionError(null)
       try {
-        const workOrderIds = new Set<number>()
-
-        // 1) WOs linked to available (unissued) WIP Printing rolls — ready to load
-        const wipPrintingRolls = await getAllRollsStock(0, 500, false, "wip_printed")
         const BATCH = 15
-        for (let i = 0; i < wipPrintingRolls.length; i += BATCH) {
-          if (cancelled) return
-          const batch = wipPrintingRolls.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (roll) => {
-              try {
-                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
-                const barcode = roll.barcode?.trim()
-                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
-                const woInfo = await getWorkOrderByRollBarcode(barcode)
-                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
-              } catch {
-                return { workOrderId: null, hasWorkOrder: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
-          })
-        }
+        const stagesByWo = await workOrderStagesFromAvailableRolls(["wip_printed"], () => cancelled)
         if (cancelled) return
 
-        // 2) WOs that already have a roll loaded on an Inspection job card —
-        // keeps the WO visible after load (issued WIP roll no longer matches filter 1)
+        const loadedWorkOrderIds = new Set<number>()
         const inspectionCards = await getAllJobCards(0, 500, undefined, "Inspection")
         for (let i = 0; i < inspectionCards.length; i += BATCH) {
           if (cancelled) return
@@ -1747,19 +1875,17 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIds.add(r.workOrderId)
+            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
 
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter(
-          (wo) =>
-            workOrderIds.has(wo.id) &&
-            wo.status !== "completed" &&
-            wo.status !== "cancelled"
-        )
-        if (!cancelled) setInspectionWorkOrders(filtered)
+        if (!cancelled) {
+          setInspectionWorkOrders(
+            filterDepartmentWorkOrders(allWos, "Inspection", stagesByWo, loadedWorkOrderIds)
+          )
+        }
       } catch (err) {
         if (!cancelled) {
           setInspectionError("Failed to load work orders.")
@@ -1775,7 +1901,7 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, inspectionRollsRefreshKey])
 
-  // Floor ECL: WOs with available WIP Printing or WIP Inspection rolls to load,
+  // Floor ECL: WOs with available WIP Inspection rolls (or WIP Printing if Inspection skipped),
   // plus WOs that already have an ECL job card with a loaded roll.
   useEffect(() => {
     if (!isFloorUser || floorView !== "ecl") return
@@ -1784,36 +1910,14 @@ export default function Home() {
       setEclLoading(true)
       setEclError(null)
       try {
-        const workOrderIds = new Set<number>()
         const BATCH = 15
-
-        const [wipPrintedRolls, wipInspectionRolls] = await Promise.all([
-          getAllRollsStock(0, 500, false, "wip_printed"),
-          getAllRollsStock(0, 500, false, "wip_inspection"),
-        ])
-        const inputRolls = [...wipPrintedRolls, ...wipInspectionRolls]
-        for (let i = 0; i < inputRolls.length; i += BATCH) {
-          if (cancelled) return
-          const batch = inputRolls.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (roll) => {
-              try {
-                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
-                const barcode = roll.barcode?.trim()
-                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
-                const woInfo = await getWorkOrderByRollBarcode(barcode)
-                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
-              } catch {
-                return { workOrderId: null, hasWorkOrder: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
-          })
-        }
+        const stagesByWo = await workOrderStagesFromAvailableRolls(
+          ["wip_inspection", "wip_printed"],
+          () => cancelled
+        )
         if (cancelled) return
 
+        const loadedWorkOrderIds = new Set<number>()
         const eclCards = await getAllJobCards(0, 500, undefined, "ECL")
         for (let i = 0; i < eclCards.length; i += BATCH) {
           if (cancelled) return
@@ -1829,19 +1933,15 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIds.add(r.workOrderId)
+            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
 
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter(
-          (wo) =>
-            workOrderIds.has(wo.id) &&
-            wo.status !== "completed" &&
-            wo.status !== "cancelled"
-        )
-        if (!cancelled) setEclWorkOrders(filtered)
+        if (!cancelled) {
+          setEclWorkOrders(filterDepartmentWorkOrders(allWos, "ECL", stagesByWo, loadedWorkOrderIds))
+        }
       } catch (err) {
         if (!cancelled) {
           setEclError("Failed to load work orders.")
@@ -1857,7 +1957,7 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, eclRollsRefreshKey])
 
-  // Floor Lamination: WOs with available WIP ECL rolls to load,
+  // Floor Lamination: WOs with available WIP ECL rolls (or previous WIP if ECL skipped),
   // plus WOs that already have a Lamination job card with a loaded roll.
   useEffect(() => {
     if (!isFloorUser || floorView !== "lamination") return
@@ -1866,32 +1966,14 @@ export default function Home() {
       setLaminationLoading(true)
       setLaminationError(null)
       try {
-        const workOrderIds = new Set<number>()
         const BATCH = 15
-
-        const wipEclRolls = await getAllRollsStock(0, 500, false, "wip_ecl")
-        for (let i = 0; i < wipEclRolls.length; i += BATCH) {
-          if (cancelled) return
-          const batch = wipEclRolls.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (roll) => {
-              try {
-                if (roll.consumed) return { workOrderId: null, hasWorkOrder: false }
-                const barcode = roll.barcode?.trim()
-                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
-                const woInfo = await getWorkOrderByRollBarcode(barcode)
-                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
-              } catch {
-                return { workOrderId: null, hasWorkOrder: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
-          })
-        }
+        const stagesByWo = await workOrderStagesFromAvailableRolls(
+          ["wip_ecl", "wip_inspection", "wip_printed"],
+          () => cancelled
+        )
         if (cancelled) return
 
+        const loadedWorkOrderIds = new Set<number>()
         const laminationCards = await getAllJobCards(0, 500, undefined, "Lamination")
         for (let i = 0; i < laminationCards.length; i += BATCH) {
           if (cancelled) return
@@ -1907,19 +1989,17 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIds.add(r.workOrderId)
+            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
 
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter(
-          (wo) =>
-            workOrderIds.has(wo.id) &&
-            wo.status !== "completed" &&
-            wo.status !== "cancelled"
-        )
-        if (!cancelled) setLaminationWorkOrders(filtered)
+        if (!cancelled) {
+          setLaminationWorkOrders(
+            filterDepartmentWorkOrders(allWos, "Lamination", stagesByWo, loadedWorkOrderIds)
+          )
+        }
       } catch (err) {
         if (!cancelled) {
           setLaminationError("Failed to load work orders.")
@@ -1935,7 +2015,7 @@ export default function Home() {
     }
   }, [isFloorUser, floorView, laminationRollsRefreshKey])
 
-  // Floor Slitting: WOs with available WIP Printed / ECL / Lamination stock,
+  // Floor Slitting: WOs with available WIP Lamination rolls (or previous WIP if Lamination skipped),
   // plus WOs that already have a Slitting job card with a loaded parent.
   useEffect(() => {
     if (!isFloorUser || floorView !== "slitting") return
@@ -1944,37 +2024,14 @@ export default function Home() {
       setSlittingLoading(true)
       setSlittingError(null)
       try {
-        const workOrderIds = new Set<number>()
         const BATCH = 15
-
-        const [printed, ecl, lamination] = await Promise.all([
-          getAllRollsStock(0, 500, false, "wip_printed"),
-          getAllRollsStock(0, 500, false, "wip_ecl"),
-          getAllRollsStock(0, 500, false, "wip_lamination"),
-        ])
-        const inputRolls = [...printed, ...ecl, ...lamination]
-        for (let i = 0; i < inputRolls.length; i += BATCH) {
-          if (cancelled) return
-          const batch = inputRolls.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (roll) => {
-              try {
-                if (roll.consumed || roll.issued) return { workOrderId: null, hasWorkOrder: false }
-                const barcode = roll.barcode?.trim()
-                if (!barcode) return { workOrderId: null, hasWorkOrder: false }
-                const woInfo = await getWorkOrderByRollBarcode(barcode)
-                return { workOrderId: woInfo?.workOrderId ?? null, hasWorkOrder: woInfo != null }
-              } catch {
-                return { workOrderId: null, hasWorkOrder: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasWorkOrder && r.workOrderId != null) workOrderIds.add(r.workOrderId)
-          })
-        }
+        const stagesByWo = await workOrderStagesFromAvailableRolls(
+          ["wip_lamination", "wip_ecl", "wip_inspection", "wip_printed"],
+          () => cancelled
+        )
         if (cancelled) return
 
+        const loadedWorkOrderIds = new Set<number>()
         const slittingCards = await getAllJobCards(0, 500, undefined, "Slitting")
         for (let i = 0; i < slittingCards.length; i += BATCH) {
           if (cancelled) return
@@ -1990,19 +2047,17 @@ export default function Home() {
             })
           )
           results.forEach((r) => {
-            if (r.hasRoll) workOrderIds.add(r.workOrderId)
+            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
           })
         }
         if (cancelled) return
 
         const allWos = await getAllWorkOrders(0, 500)
-        const filtered = allWos.filter(
-          (wo) =>
-            workOrderIds.has(wo.id) &&
-            wo.status !== "completed" &&
-            wo.status !== "cancelled"
-        )
-        if (!cancelled) setSlittingWorkOrders(filtered)
+        if (!cancelled) {
+          setSlittingWorkOrders(
+            filterDepartmentWorkOrders(allWos, "Slitting", stagesByWo, loadedWorkOrderIds)
+          )
+        }
       } catch (err) {
         if (!cancelled) {
           setSlittingError("Failed to load work orders.")
@@ -2826,6 +2881,7 @@ export default function Home() {
                     setInspectionSelectedWo={setInspectionSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    onSkipWorkOrder={skipInspectionWorkOrder}
                   />
                 ) : floorView === "ecl" ? (
                   <EclPanel
@@ -2884,6 +2940,7 @@ export default function Home() {
                     setEclSelectedWo={setEclSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    onSkipWorkOrder={skipEclWorkOrder}
                   />
                 ) : floorView === "lamination" ? (
                   <LaminationPanel
@@ -2942,6 +2999,7 @@ export default function Home() {
                     setLaminationSelectedWo={setLaminationSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    onSkipWorkOrder={skipLaminationWorkOrder}
                   />
                 ) : floorView === "slitting" ? (
                   <SlittingPanel
@@ -2984,6 +3042,7 @@ export default function Home() {
                     setSlittingSelectedWo={setSlittingSelectedWo}
                     getRollsStockByParentIds={getRollsStockByParentIds}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    onSkipWorkOrder={skipSlittingWorkOrder}
                     setSlittingRollsRefreshKey={setSlittingRollsRefreshKey}
                   />
                 ) : (

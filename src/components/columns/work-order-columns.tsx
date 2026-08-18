@@ -28,6 +28,7 @@ export type WorkOrderMaster = {
   createdAt?: string
   startedAt?: string | null
   completedAt?: string | null
+  skippedOperations?: string[]
 }
 
 type WorkOrderColumnHandlers = {

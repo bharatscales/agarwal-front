@@ -26,7 +26,7 @@ export const meterFromNetWeight = (
   if (!isPositive(netweight) || !isPositive(sizeMm) || !isPositive(micron) || !isPositive(density)) {
     return null
   }
-  return round2((netweight * 1_000_000) / (density * sizeMm * micron))
+  return Math.round((netweight * 1_000_000) / (density * sizeMm * micron))
 }
 
 export const netWeightFromMeter = (

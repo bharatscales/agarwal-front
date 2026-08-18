@@ -60,9 +60,13 @@ export function SlittingPanel(props: SlittingPanelProps) {
     setSlittingSelectedWo,
     getRollsStockByParentIds,
     unloadFloorLoadedRoll,
+    onSkipWorkOrder,
   } = props
 
-  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+  const floorWorkOrderColumns = useMemo(
+    () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
+    [onSkipWorkOrder]
+  )
   const parent = slittingLoadedRolls[0] ?? null
 
   const handleUnloadSlittingRoll = async (jobCardId: number, rollId: number) => {
