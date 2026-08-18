@@ -100,7 +100,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Plain wastage (kg)</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Printed wastage (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
                       <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
@@ -143,6 +144,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                       ? String(roll.netweight)
                                       : ""),
                                 wastage: parent.wastage != null ? String(parent.wastage) : "0",
+                                plainWastage: parent.plainWastage != null ? String(parent.plainWastage) : "0",
+                                printedWastage: parent.printedWastage != null ? String(parent.printedWastage) : "0",
                                 balanceweight:
                                   parent.balanceWeight != null ? String(parent.balanceWeight) : "",
                               })
@@ -180,10 +183,24 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               step="any"
                               className="h-8 min-w-[140px]"
                               disabled={!isSelected}
-                              value={isSelected ? printingAddRollForm.wastage : ""}
+                              value={isSelected ? printingAddRollForm.plainWastage : ""}
                               onChange={(e) =>
                                 setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, wastage: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, plainWastage: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-8 min-w-[140px]"
+                              disabled={!isSelected}
+                              value={isSelected ? printingAddRollForm.printedWastage : ""}
+                              onChange={(e) =>
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, printedWastage: e.target.value } : prev
                                 )
                               }
                             />
@@ -269,8 +286,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">{printingProducedTotals.rollCount}</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total output weight (kg)</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">{printingProducedTotals.netWeight.toFixed(2)} kg</td>
-                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total net wastage (kg)</td>
-                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">{printingProducedTotals.netWastage.toFixed(2)} kg</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total plain wastage (kg)</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">{printingProducedTotals.plainWastage.toFixed(2)} kg</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total printed wastage (kg)</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">{printingProducedTotals.printedWastage.toFixed(2)} kg</td>
                       </tr>
                     </tbody>
                   </table>
@@ -312,7 +331,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     setPrintingCreateChildMessage(null)
                     const parentIds = printingLoadedRolls.map((r: any) => r.roll.id)
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
-                    const wastageValue = form.wastage ? parseFloat(form.wastage) : undefined
+                    const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
+                    const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
+                    const wastageValue =
+                      plainWastageValue != null || printedWastageValue != null
+                        ? (plainWastageValue || 0) + (printedWastageValue || 0)
+                        : undefined
                     const balanceValue = parseBalanceWeight(form.balanceweight || "")
                     if (wipPrintingTemplate) {
                       const printData = {
@@ -338,6 +362,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           netweight: netweightValue,
                           grossweight: netweightValue,
                           wastage: wastageValue,
+                          plainWastage: plainWastageValue,
+                          printedWastage: printedWastageValue,
                           itemName: wo.itemName ?? null,
                         },
                       }
@@ -376,6 +402,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       netweight: netweightValue,
                       grossweight: netweightValue,
                       wastage: wastageValue,
+                      plainWastage: plainWastageValue ?? undefined,
+                      printedWastage: printedWastageValue ?? undefined,
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds.length > 0 ? parentIds : undefined,
                       weightAtTime: netweightValue,
@@ -423,6 +451,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
                           grossweight: "",
                           wastage: "0",
+                          plainWastage: "0",
+                          printedWastage: "0",
                           balanceweight: prev.balanceweight ?? "",
                         }
                       : null

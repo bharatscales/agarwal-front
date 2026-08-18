@@ -90,6 +90,8 @@ export default function Home() {
     netweight: string
     grossweight: string
     wastage: string
+    plainWastage: string
+    printedWastage: string
     balanceweight: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
@@ -298,13 +300,25 @@ export default function Home() {
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "wastage",
+        accessorKey: "plainWastage",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Wastage (kg)" column={column} placeholder="Filter wastage..." />
+          <ColumnHeader title="Plain wastage (kg)" column={column} placeholder="Filter plain wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
-            {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
+            {row.original.plainWastage != null ? `${Number(row.original.plainWastage).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "printedWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Printed wastage (kg)" column={column} placeholder="Filter printed wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.printedWastage != null ? `${Number(row.original.printedWastage).toFixed(2)} kg` : "-"}
           </div>
         ),
         filterFn: includesStringFilterFn,
@@ -348,10 +362,11 @@ export default function Home() {
       (acc, row) => {
         acc.rollCount += 1
         acc.netWeight += Number(row.netweight || 0)
-        acc.netWastage += Number(row.wastage || 0)
+        acc.plainWastage += Number(row.plainWastage || 0)
+        acc.printedWastage += Number(row.printedWastage || 0)
         return acc
       },
-      { rollCount: 0, netWeight: 0, netWastage: 0 }
+      { rollCount: 0, netWeight: 0, plainWastage: 0, printedWastage: 0 }
     )
   }, [printingChildRollsFromDb])
 
@@ -1855,6 +1870,8 @@ export default function Home() {
                   netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
                   grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
                   wastage: parent.wastage != null ? String(parent.wastage) : "0",
+                  plainWastage: parent.plainWastage != null ? String(parent.plainWastage) : "0",
+                  printedWastage: parent.printedWastage != null ? String(parent.printedWastage) : "0",
                   balanceweight: parent.balanceWeight != null ? String(parent.balanceWeight) : "",
                 })
               }

@@ -8,6 +8,8 @@ export type RollsStockPayload = {
   netweight?: number
   grossweight?: number
   wastage?: number
+  plainWastage?: number
+  printedWastage?: number
   balanceWeight?: number | null
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
@@ -34,6 +36,8 @@ type RollsStockResponse = {
   netweight?: number | null
   grossweight?: number | null
   wastage?: number | null
+  plain_wastage?: number | null
+  printed_wastage?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
   parent_balance_weight?: number | null
@@ -65,6 +69,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   netweight: rollsStock.netweight ?? 0,
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
+  plainWastage: rollsStock.plain_wastage ?? null,
+  printedWastage: rollsStock.printed_wastage ?? null,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
   parentBalanceWeight: rollsStock.parent_balance_weight ?? null,
@@ -115,6 +121,8 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     netweight: payload.netweight,
     grossweight: payload.grossweight,
     wastage: payload.wastage,
+    plain_wastage: payload.plainWastage,
+    printed_wastage: payload.printedWastage,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
@@ -146,6 +154,8 @@ export const updateRollsStock = async (
   }
   if (payload.consumed !== undefined) body.consumed = payload.consumed
   if ("balanceWeight" in payload) body.balance_weight = payload.balanceWeight
+  if ("plainWastage" in payload) body.plain_wastage = payload.plainWastage
+  if ("printedWastage" in payload) body.printed_wastage = payload.printedWastage
   const response = await api.patch<RollsStockResponse>(`/rolls-stock/${rollsStockId}`, body)
   return mapRollsStock(response.data)
 }
