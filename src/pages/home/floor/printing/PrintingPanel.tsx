@@ -55,10 +55,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
     unloadFloorLoadedRoll,
     floorPrintingBarcode,
     setFloorPrintingBarcode,
+    floorPrintingBarcodeError,
     setFloorPrintingBarcodeError,
     floorPrintingBarcodeChecking,
     handleFloorPrintingBarcodeSubmit,
-    floorPrintingBarcodeError,
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
@@ -91,55 +91,57 @@ export function PrintingPanel(props: PrintingPanelProps) {
             {printingRollsLoading ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
             ) : printingLoadedRolls.length === 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   No roll currently loaded for this work order.
                 </p>
-                <Label htmlFor="floor-printing-barcode" className="text-xs text-gray-600 dark:text-gray-400">
-                  Barcode
-                </Label>
-                <div className="flex flex-wrap items-center gap-2 max-w-2xl">
-                  <div className="relative min-w-[min(100%,18rem)] flex-1">
-                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="floor-printing-barcode"
-                      type="text"
-                      placeholder="Scan or enter roll barcode"
-                      value={floorPrintingBarcode}
-                      onChange={(e) => {
-                        setFloorPrintingBarcode(e.target.value)
-                        setFloorPrintingBarcodeError(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault()
-                          void handleFloorPrintingBarcodeSubmit()
-                        }
-                      }}
-                      disabled={floorPrintingBarcodeChecking || printingCreateChildLoading}
-                      className="pl-9"
-                      autoComplete="off"
-                      autoFocus
-                    />
+                <div className="space-y-1 max-w-2xl">
+                  <Label htmlFor="floor-printing-barcode" className="text-xs text-gray-600 dark:text-gray-400">
+                    Barcode
+                  </Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative min-w-[min(100%,18rem)] flex-1">
+                      <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="floor-printing-barcode"
+                        type="text"
+                        placeholder="Scan or enter RM roll barcode"
+                        value={floorPrintingBarcode}
+                        onChange={(e) => {
+                          setFloorPrintingBarcode(e.target.value)
+                          setFloorPrintingBarcodeError(null)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            void handleFloorPrintingBarcodeSubmit()
+                          }
+                        }}
+                        disabled={floorPrintingBarcodeChecking || printingCreateChildLoading}
+                        className="pl-9"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="whitespace-nowrap"
+                      disabled={
+                        floorPrintingBarcodeChecking ||
+                        printingCreateChildLoading ||
+                        !floorPrintingBarcode.trim()
+                      }
+                      onClick={() => void handleFloorPrintingBarcodeSubmit()}
+                    >
+                      {floorPrintingBarcodeChecking ? "Loading…" : "Select"}
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    className="whitespace-nowrap"
-                    disabled={
-                      floorPrintingBarcodeChecking ||
-                      printingCreateChildLoading ||
-                      !(floorPrintingBarcode || "").trim()
-                    }
-                    onClick={() => void handleFloorPrintingBarcodeSubmit()}
-                  >
-                    {floorPrintingBarcodeChecking ? "Loading…" : "Select"}
-                  </Button>
+                  {floorPrintingBarcodeError && (
+                    <p className="text-sm text-red-500">{floorPrintingBarcodeError}</p>
+                  )}
                 </div>
-                {floorPrintingBarcodeError && (
-                  <p className="text-sm text-red-500">{floorPrintingBarcodeError}</p>
-                )}
               </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
