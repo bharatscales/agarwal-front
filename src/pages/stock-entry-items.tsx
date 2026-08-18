@@ -5,7 +5,7 @@ import { type ColumnDef, type ColumnFiltersState, flexRender, getCoreRowModel, g
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 import { getRollsStockByVoucher, createRollsStock, updateRollsStock, deleteRollsStock, type RollsStockPayload } from "@/lib/rolls-stock-api"
 import { getItems, createItem, type Item } from "@/lib/item-api"
-import { meterFromNetWeight, netWeightFromMeter } from "@/lib/film-calc"
+import { applyFilmAutofill, meterFromNetWeight, type FilmAutofillChangedField } from "@/lib/film-calc"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
 import api from "@/lib/axios"
@@ -380,12 +380,28 @@ export default function StockEntryItems() {
     }
   }, [isLoading, rollsStock.length])
 
+  const autofillRmFilmRow = (
+    row: RollsStockRow,
+    previousRows: RollsStockRow[],
+    changedField?: FilmAutofillChangedField
+  ): RollsStockRow => {
+    const selectedItem = items.find(it => it.id === row.itemId)
+    if (!selectedItem || selectedItem.itemGroup !== "rm film") return row
+    const sameItemPrevious = [...previousRows].reverse().find(r => r.itemId === row.itemId)
+    return {
+      ...row,
+      ...applyFilmAutofill(row, selectedItem.density, {
+        changedField,
+        inheritSize: sameItemPrevious?.size,
+        inheritMicron: sameItemPrevious?.micron,
+      }),
+    }
+  }
+
   const handleEditRow = (index: number) => {
     setRollsStock(prev => prev.map((row, i) => {
       if (i !== index) return row
-      const density = items.find(item => item.id === row.itemId)?.density
-      const meter = row.meter || meterFromNetWeight(row.netweight, row.size, row.micron, density) || 0
-      return { ...row, meter, isEditing: true }
+      return { ...autofillRmFilmRow(row, prev.slice(0, i)), isEditing: true }
     }))
   }
 
@@ -413,7 +429,8 @@ export default function StockEntryItems() {
   const handleSaveRow = async (index: number, overrideRow?: RollsStockRow) => {
     if (!voucherId) return
     
-    const row = overrideRow || rollsStock[index]
+    const sourceRow = overrideRow || rollsStock[index]
+    const row = autofillRmFilmRow(sourceRow, rollsStock.slice(0, index))
     if (!row.itemId) {
       setError("Please select an item")
       return
@@ -823,34 +840,12 @@ export default function StockEntryItems() {
         next = { ...r, [field]: value }
       }
 
-      const density = items.find(it => it.id === next.itemId)?.density
-      if (field === "meter") {
-        const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
-        return {
-          ...next,
-          lastFilmInput: "meter",
-          ...(netweight != null ? { netweight } : {}),
-        }
-      }
-      if (field === "netweight") {
-        const meter = meterFromNetWeight(next.netweight, next.size, next.micron, density)
-        return {
-          ...next,
-          lastFilmInput: "netweight",
-          ...(meter != null ? { meter } : {}),
-        }
-      }
-      if (field === "size" || field === "micron" || field === "itemId") {
-        if (next.lastFilmInput === "meter") {
-          const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
-          return netweight != null ? { ...next, netweight } : next
-        }
-        const meter = meterFromNetWeight(next.netweight, next.size, next.micron, density)
-        if (meter != null) return { ...next, meter }
-        const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
-        return netweight != null ? { ...next, netweight } : next
-      }
-      return next
+      const filmField: FilmAutofillChangedField | undefined =
+        field === "meter" || field === "netweight" || field === "size" || field === "micron" || field === "itemId"
+          ? field
+          : undefined
+      if (!filmField) return next
+      return autofillRmFilmRow(next, prev.slice(0, index), filmField)
     }))
   }
 

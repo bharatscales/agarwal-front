@@ -48,6 +48,7 @@ type RollsStockResponse = {
   parent_netweight?: number | null
   parent_meter?: number | null
   parent_balance_weight?: number | null
+  item_density?: number | null
   stock_voucher_id?: number | null
   invoice_no?: string | null
   invoice_date?: string | null
@@ -85,6 +86,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   parentNetweight: rollsStock.parent_netweight ?? null,
   parentMeter: rollsStock.parent_meter != null ? Math.round(rollsStock.parent_meter) : null,
   parentBalanceWeight: rollsStock.parent_balance_weight ?? null,
+  itemDensity: rollsStock.item_density ?? null,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
   invoiceNo: rollsStock.invoice_no ?? "",
   invoiceDate: rollsStock.invoice_date ?? "",

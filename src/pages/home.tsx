@@ -174,7 +174,7 @@ export default function Home() {
     jobCardNumber: string
     jobCardId: number
     roll: CurrentRoll
-    parent: { gradeId?: number }
+    parent: { gradeId?: number; density?: number | null }
     size: string
     micron: string
     netweight: string
@@ -184,7 +184,6 @@ export default function Home() {
     plainWastage: string
     printedWastage: string
     inkGsm: string
-    inkGsmByInkWt: string
     balanceweight: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
@@ -2147,7 +2146,6 @@ export default function Home() {
                 plainWastage: "0",
                 printedWastage: "0",
                 inkGsm: "",
-                inkGsmByInkWt: "",
                 balanceweight:
                   first.roll.balanceWeight != null
                     ? String(first.roll.balanceWeight)
@@ -2164,7 +2162,10 @@ export default function Home() {
                   if (!prev || prev.roll.id !== first.roll.id) return prev
                   return {
                     ...prev,
-                    parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    parent: {
+                      gradeId: parent.gradeId ?? prev.parent.gradeId,
+                      density: parent.itemDensity ?? prev.parent.density,
+                    },
                     balanceweight:
                       parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
                   }

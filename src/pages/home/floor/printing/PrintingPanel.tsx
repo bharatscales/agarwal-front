@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
-import { formatWeightWithMeter } from "@/lib/film-calc"
+import { formatWeightWithMeter, inkGsmByInkWt } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -132,6 +132,20 @@ export function PrintingPanel(props: PrintingPanelProps) {
       return true
     })
   }, [floorPrintingRmRolls, rmFilmItemFilter, rmFilmWarehouseFilter])
+
+  const calculatedInkGsmByInkWt = useMemo(() => {
+    if (!printingAddRollForm) return null
+    const roll = printingAddRollForm.roll
+    return inkGsmByInkWt({
+      inputKg: roll.netweight,
+      outputKg: parseBalanceWeight(printingAddRollForm.netweight || ""),
+      plainWastageKg: parseBalanceWeight(printingAddRollForm.plainWastage || "") ?? 0,
+      printedWastageKg: parseBalanceWeight(printingAddRollForm.printedWastage || "") ?? 0,
+      balanceKg: parseBalanceWeight(printingAddRollForm.balanceweight || "") ?? 0,
+      density: printingAddRollForm.parent?.density,
+      micron: roll.micron ?? parseBalanceWeight(printingAddRollForm.micron || ""),
+    })
+  }, [printingAddRollForm])
 
   const handleUnloadPrintingRoll = async (jobCardId: number, rollId: number) => {
     try {
@@ -368,7 +382,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 plainWastage: "0",
                                 printedWastage: "0",
                                 inkGsm: "",
-                                inkGsmByInkWt: "",
                                 balanceweight: loadedRollBalance(roll) != null ? String(loadedRollBalance(roll)) : "",
                               })
                               setPrintingAddRollEditingField(null)
@@ -377,7 +390,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 if (!prev || prev.roll.id !== roll.id) return prev
                                 return {
                                   ...prev,
-                                  parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                                  parent: {
+                                    gradeId: parent.gradeId ?? prev.parent.gradeId,
+                                    density: parent.itemDensity ?? prev.parent.density,
+                                  },
                                   balanceweight:
                                     parent.balanceWeight != null
                                       ? String(parent.balanceWeight)
@@ -474,12 +490,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               type="number"
                               step="any"
                               className="h-7 w-20 px-1.5 text-xs"
-                              disabled={!isSelected}
-                              value={isSelected ? printingAddRollForm.inkGsmByInkWt : ""}
-                              onChange={(e) =>
-                                setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, inkGsmByInkWt: e.target.value } : prev
-                                )
+                              disabled
+                              readOnly
+                              value={
+                                isSelected && calculatedInkGsmByInkWt != null
+                                  ? String(calculatedInkGsmByInkWt)
+                                  : ""
                               }
                             />
                           </td>
@@ -624,7 +640,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
                     const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
                     const inkGsmValue = parseBalanceWeight(form.inkGsm || "")
-                    const inkGsmByInkWtValue = parseBalanceWeight(form.inkGsmByInkWt || "")
+                    const inkGsmByInkWtValue = calculatedInkGsmByInkWt
                     const wastageValue =
                       plainWastageValue != null || printedWastageValue != null
                         ? (plainWastageValue || 0) + (printedWastageValue || 0)

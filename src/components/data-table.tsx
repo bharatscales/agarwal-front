@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type MouseEvent } from "react";
 
 import {
   type ColumnDef,
+  type Row,
   type SortingState,
   type ColumnFiltersState,
   type VisibilityState,
@@ -109,6 +110,26 @@ export function DataTable<TData, TValue>({
 
   const rows = table.getRowModel().rows;
   const showPagination = !scrollable;
+  const hasSelectColumn = columns.some((col) => col.id === "select");
+  const rowIsClickable = Boolean(onRowClick) || hasSelectColumn;
+
+  const handleBodyRowClick = (e: MouseEvent, row: Row<TData>) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("[role='checkbox']") ||
+      target.closest("[role='menuitem']") ||
+      target.closest("[data-radix-popper-content-wrapper]")
+    ) {
+      return;
+    }
+    if (hasSelectColumn && row.getCanSelect()) {
+      row.toggleSelected();
+    }
+    onRowClick?.(row.original);
+  };
 
   return (
     <div>
@@ -146,18 +167,8 @@ export function DataTable<TData, TValue>({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      className={`border-b border-zinc-600 ${onRowClick ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
-                      onClick={(e) => {
-                        const target = e.target as HTMLElement;
-                        if (
-                          target.closest("button") ||
-                          target.closest("[role='menuitem']") ||
-                          target.closest("[data-radix-popper-content-wrapper]")
-                        ) {
-                          return;
-                        }
-                        onRowClick?.(row.original);
-                      }}
+                      className={`border-b border-zinc-600 ${rowIsClickable ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
+                      onClick={(e) => handleBodyRowClick(e, row)}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
@@ -221,18 +232,8 @@ export function DataTable<TData, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className={`border-b border-zinc-600 ${onRowClick ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement;
-                      if (
-                        target.closest("button") ||
-                        target.closest("[role='menuitem']") ||
-                        target.closest("[data-radix-popper-content-wrapper]")
-                      ) {
-                        return;
-                      }
-                      onRowClick?.(row.original);
-                    }}
+                    className={`border-b border-zinc-600 ${rowIsClickable ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
+                    onClick={(e) => handleBodyRowClick(e, row)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
