@@ -2758,7 +2758,6 @@ export default function Home() {
                     setPrintingChildRollsFromDb={setPrintingChildRollsFromDb}
                     updateRollsStock={updateRollsStock}
                     setPrintingSelectedWo={setPrintingSelectedWo}
-                    setFloorView={setFloorView}
                     updateWorkOrder={updateWorkOrder}
                     setPrintingWorkOrders={setPrintingWorkOrders}
                     printingCreateChildMessage={printingCreateChildMessage}

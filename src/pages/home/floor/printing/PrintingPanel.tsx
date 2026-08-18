@@ -45,7 +45,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
     setPrintingChildRollsFromDb,
     updateRollsStock,
     setPrintingSelectedWo,
-    setFloorView,
     updateWorkOrder,
     setPrintingWorkOrders,
     printingCreateChildMessage,
