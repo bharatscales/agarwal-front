@@ -178,6 +178,7 @@ export default function Home() {
     size: string
     micron: string
     netweight: string
+    meter: string
     grossweight: string
     wastage: string
     plainWastage: string
@@ -311,6 +312,7 @@ export default function Home() {
           size: r.size,
           micron: r.micron,
           netweight: r.netweight,
+          meter: r.meter,
           grossweight: r.grossweight,
           inkGsm: r.inkGsm,
           itemName: wo.itemName ?? r.itemName ?? null,
@@ -408,6 +410,20 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "meter",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Meter" column={column} placeholder="Filter meter..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.meter != null && Number(row.original.meter) > 0
+              ? Math.round(Number(row.original.meter))
+              : "-"}
           </div>
         ),
         filterFn: includesStringFilterFn,
@@ -2111,6 +2127,7 @@ export default function Home() {
                 size: first.roll.size != null ? String(first.roll.size) : "",
                 micron: first.roll.micron != null ? String(first.roll.micron) : "",
                 netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                meter: "",
                 grossweight: grossFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : ""),
                 wastage: "0",
                 plainWastage: "0",

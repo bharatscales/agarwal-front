@@ -215,6 +215,7 @@ export type AddPrintedRollPayload = {
   size?: number
   micron?: number
   netweight?: number
+  meter?: number
   grossweight?: number
   wastage?: number
   plainWastage?: number
@@ -234,6 +235,7 @@ export type AddPrintedRollResponse = {
   size?: number | null
   micron?: number | null
   netweight?: number | null
+  meter?: number | null
   grossweight?: number | null
   wastage?: number | null
 }
@@ -250,6 +252,7 @@ export const addPrintedRoll = async (
       size: payload.size,
       micron: payload.micron,
       netweight: payload.netweight,
+      meter: payload.meter,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
       plain_wastage: payload.plainWastage,

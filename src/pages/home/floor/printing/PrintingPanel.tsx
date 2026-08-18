@@ -1,14 +1,18 @@
 import { CheckCircle, Plus, Printer, ScanBarcode, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { formatWeightWithMeter } from "@/lib/film-calc"
+import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+
+const RM_FILM_GROUP = "rm film"
 
 type PrintingPanelProps = any
 
@@ -78,7 +82,48 @@ export function PrintingPanel(props: PrintingPanelProps) {
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
+  const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
+  const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+
+  useEffect(() => {
+    if (!floorPrintingRmPickerOpen) {
+      setRmFilmItemFilter("all")
+      return
+    }
+    let cancelled = false
+    getItemsByGroupForMenu(RM_FILM_GROUP)
+      .then((items) => {
+        if (!cancelled) setRmFilmItems(items)
+      })
+      .catch(() => {
+        if (!cancelled) setRmFilmItems([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [floorPrintingRmPickerOpen])
+
+  const rmFilmItemBadges = useMemo(() => {
+    const fromMaster = rmFilmItems
+      .map((item) => (item.item_code || item.name || "").trim())
+      .filter(Boolean)
+    if (fromMaster.length > 0) return fromMaster
+    const unique = new Map<string, string>()
+    for (const roll of floorPrintingRmRolls) {
+      const code = (roll.itemCode || "").trim()
+      if (code && !unique.has(code.toLowerCase())) unique.set(code.toLowerCase(), code)
+    }
+    return [...unique.values()]
+  }, [rmFilmItems, floorPrintingRmRolls])
+
+  const filteredFloorPrintingRmRolls = useMemo(() => {
+    if (rmFilmItemFilter === "all") return floorPrintingRmRolls
+    const selected = rmFilmItemFilter.toLowerCase()
+    return floorPrintingRmRolls.filter(
+      (roll: { itemCode?: string | null }) => (roll.itemCode || "").trim().toLowerCase() === selected
+    )
+  }, [floorPrintingRmRolls, rmFilmItemFilter])
 
   const handleUnloadPrintingRoll = async (jobCardId: number, rollId: number) => {
     try {
@@ -181,10 +226,33 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             {floorPrintingRmRollsError && (
                               <p className="text-sm text-red-500 mb-3">{floorPrintingRmRollsError}</p>
                             )}
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              <Badge
+                                asChild
+                                variant={rmFilmItemFilter === "all" ? "default" : "outline"}
+                                className="cursor-pointer"
+                              >
+                                <button type="button" onClick={() => setRmFilmItemFilter("all")}>
+                                  All
+                                </button>
+                              </Badge>
+                              {rmFilmItemBadges.map((itemCode) => (
+                                <Badge
+                                  key={itemCode}
+                                  asChild
+                                  variant={rmFilmItemFilter.toLowerCase() === itemCode.toLowerCase() ? "default" : "outline"}
+                                  className="cursor-pointer"
+                                >
+                                  <button type="button" onClick={() => setRmFilmItemFilter(itemCode)}>
+                                    {itemCode}
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
                             <DataTable
-                              key="floor-printing-rm-picker"
+                              key={`floor-printing-rm-picker-${rmFilmItemFilter}`}
                               columns={floorPrintingRmStockColumns}
-                              data={floorPrintingRmRolls}
+                              data={filteredFloorPrintingRmRolls}
                               getRowId={(row: any) => String(row.id)}
                               singleRowSelection
                               scrollable
@@ -229,6 +297,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Meter</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Plain wastage (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Printed wastage (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
@@ -262,6 +331,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 size: roll.size != null ? String(roll.size) : "",
                                 micron: roll.micron != null ? String(roll.micron) : "",
                                 netweight: roll.netweight != null ? String(roll.netweight) : "",
+                                meter: "",
                                 grossweight: roll.netweight != null ? String(roll.netweight) : "",
                                 wastage: "0",
                                 plainWastage: "0",
@@ -307,6 +377,20 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               onChange={(e) =>
                                 setPrintingAddRollForm((prev: any) =>
                                   prev && prev.roll.id === roll.id ? { ...prev, netweight: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="1"
+                              className="h-8 min-w-[120px]"
+                              disabled={!isSelected}
+                              value={isSelected ? printingAddRollForm.meter : ""}
+                              onChange={(e) =>
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, meter: e.target.value } : prev
                                 )
                               }
                             />
@@ -488,6 +572,9 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       return
                     }
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
+                    const meterValue = parseBalanceWeight(form.meter || "")
+                    const roundedMeterValue =
+                      meterValue != null ? Math.round(meterValue) : undefined
                     const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
                     const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
                     const inkGsmValue = parseBalanceWeight(form.inkGsm || "")
@@ -518,6 +605,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           size: form.size ? parseFloat(form.size) : undefined,
                           micron: form.micron ? parseFloat(form.micron) : undefined,
                           netweight: netweightValue,
+                          meter: roundedMeterValue,
                           grossweight: netweightValue,
                           wastage: wastageValue,
                           plainWastage: plainWastageValue,
@@ -559,6 +647,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       size: form.size ? parseFloat(form.size) : undefined,
                       micron: form.micron ? parseFloat(form.micron) : undefined,
                       netweight: netweightValue,
+                      meter: roundedMeterValue,
                       grossweight: netweightValue,
                       wastage: wastageValue,
                       plainWastage: plainWastageValue ?? undefined,
