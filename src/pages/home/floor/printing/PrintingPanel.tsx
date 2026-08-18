@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
@@ -59,6 +60,14 @@ export function PrintingPanel(props: PrintingPanelProps) {
     setFloorPrintingBarcodeError,
     floorPrintingBarcodeChecking,
     handleFloorPrintingBarcodeSubmit,
+    floorPrintingRmPickerOpen,
+    floorPrintingRmRolls,
+    floorPrintingRmRollsLoading,
+    floorPrintingRmRollsError,
+    floorPrintingRmStockColumns,
+    openFloorPrintingRmPicker,
+    closeFloorPrintingRmPicker,
+    applyFloorPrintingFromBarcode,
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
@@ -105,7 +114,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <Input
                         id="floor-printing-barcode"
                         type="text"
-                        placeholder="Scan or enter RM roll barcode"
+                        placeholder="Scan or enter roll barcode"
                         value={floorPrintingBarcode}
                         onChange={(e) => {
                           setFloorPrintingBarcode(e.target.value)
@@ -117,7 +126,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             void handleFloorPrintingBarcodeSubmit()
                           }
                         }}
-                        disabled={floorPrintingBarcodeChecking || printingCreateChildLoading}
+                        disabled={floorPrintingBarcodeChecking}
                         className="pl-9"
                         autoComplete="off"
                         autoFocus
@@ -125,23 +134,82 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     </div>
                     <Button
                       type="button"
-                      variant="default"
+                      variant="outline"
                       size="sm"
                       className="whitespace-nowrap"
-                      disabled={
-                        floorPrintingBarcodeChecking ||
-                        printingCreateChildLoading ||
-                        !floorPrintingBarcode.trim()
-                      }
-                      onClick={() => void handleFloorPrintingBarcodeSubmit()}
+                      disabled={floorPrintingBarcodeChecking || floorPrintingRmRollsLoading}
+                      onClick={() => void openFloorPrintingRmPicker()}
                     >
-                      {floorPrintingBarcodeChecking ? "Loading…" : "Select"}
+                      Select Stock
                     </Button>
                   </div>
                   {floorPrintingBarcodeError && (
                     <p className="text-sm text-red-500">{floorPrintingBarcodeError}</p>
                   )}
                 </div>
+                {floorPrintingRmPickerOpen && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                        <div>
+                          <CardTitle>Select RM Film roll</CardTitle>
+                          <CardDescription>
+                            Pick a roll to load into printing (same as scanning its barcode). Non-issued rolls in RM virgin stage are listed.
+                          </CardDescription>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={closeFloorPrintingRmPicker} className="h-8 w-8 p-0">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent>
+                        {floorPrintingRmRollsLoading ? (
+                          <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4" />
+                              <p className="text-gray-600 dark:text-gray-400">Loading stock…</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {floorPrintingRmRollsError && (
+                              <p className="text-sm text-red-500 mb-3">{floorPrintingRmRollsError}</p>
+                            )}
+                            <DataTable
+                              key="floor-printing-rm-picker"
+                              columns={floorPrintingRmStockColumns}
+                              data={floorPrintingRmRolls}
+                              getRowId={(row: any) => String(row.id)}
+                              singleRowSelection
+                              scrollable
+                              scrollHeight="60vh"
+                              bulkActions={(selectedRows: any[]) => (
+                                <Button
+                                  size="sm"
+                                  disabled={floorPrintingBarcodeChecking}
+                                  onClick={async () => {
+                                    const selected = selectedRows[0]
+                                    const barcode = selected?.barcode?.trim()
+                                    if (!barcode) return
+                                    await applyFloorPrintingFromBarcode(barcode, { closePicker: true })
+                                  }}
+                                >
+                                  {floorPrintingBarcodeChecking ? "Loading…" : "Load Selected Roll"}
+                                </Button>
+                              )}
+                            />
+                          </>
+                        )}
+                      </CardContent>
+                      <CardFooter>
+                        <div className="w-full flex justify-end gap-2">
+                          <Button type="button" variant="outline" onClick={closeFloorPrintingRmPicker}>
+                            Close
+                          </Button>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">

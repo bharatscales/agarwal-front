@@ -107,6 +107,26 @@ export default function Home() {
   const [floorPrintingBarcode, setFloorPrintingBarcode] = useState("")
   const [floorPrintingBarcodeError, setFloorPrintingBarcodeError] = useState<string | null>(null)
   const [floorPrintingBarcodeChecking, setFloorPrintingBarcodeChecking] = useState(false)
+  const [floorPrintingRmPickerOpen, setFloorPrintingRmPickerOpen] = useState(false)
+  const [floorPrintingRmRolls, setFloorPrintingRmRolls] = useState<RollsStockRow[]>([])
+  const [floorPrintingRmRollsLoading, setFloorPrintingRmRollsLoading] = useState(false)
+  const [floorPrintingRmRollsError, setFloorPrintingRmRollsError] = useState<string | null>(null)
+
+  const floorPrintingRmStockColumns = useMemo(
+    () => [
+      ...getRollsStockColumns({ variant: "rm" }),
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+      },
+    ],
+    []
+  )
 
   // Floor Inspection (mirror of Floor Printing)
   const [inspectionWorkOrders, setInspectionWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -1015,10 +1035,17 @@ export default function Home() {
     return newJobCard.id
   }
 
-  const applyFloorPrintingFromBarcode = async (barcodeRaw: string) => {
+  const applyFloorPrintingFromBarcode = async (
+    barcodeRaw: string,
+    options?: { closePicker?: boolean }
+  ) => {
     const barcode = barcodeRaw.trim()
     const wo = printingSelectedWo
-    if (!barcode || !wo) return
+    if (!wo) return
+    if (!barcode) {
+      setFloorPrintingBarcodeError("Scan or enter a roll barcode first.")
+      return
+    }
     setFloorPrintingBarcodeError(null)
     setFloorPrintingBarcodeChecking(true)
     try {
@@ -1048,6 +1075,7 @@ export default function Home() {
       setFloorPrintingBarcode("")
       setPrintingCreateChildMessage("Roll loaded.")
       setPrintingRollsRefreshKey((key) => key + 1)
+      if (options?.closePicker) closeFloorPrintingRmPicker()
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
@@ -1062,6 +1090,34 @@ export default function Home() {
 
   const handleFloorPrintingBarcodeSubmit = async () => {
     await applyFloorPrintingFromBarcode(floorPrintingBarcode)
+  }
+
+  const closeFloorPrintingRmPicker = () => {
+    setFloorPrintingRmPickerOpen(false)
+    setFloorPrintingRmRollsError(null)
+    setFloorPrintingRmRolls([])
+  }
+
+  const openFloorPrintingRmPicker = async () => {
+    setFloorPrintingRmPickerOpen(true)
+    setFloorPrintingRmRollsLoading(true)
+    setFloorPrintingRmRollsError(null)
+    setFloorPrintingRmRolls([])
+    try {
+      const rolls = await getAllRollsStock(0, 500, false, "virgin_rm")
+      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      setFloorPrintingRmRolls(filtered as RollsStockRow[])
+      if (filtered.length === 0) {
+        setFloorPrintingRmRollsError(
+          "No available RM Film (virgin RM) rolls found. Try scanning a barcode instead."
+        )
+      }
+    } catch {
+      setFloorPrintingRmRollsError("Failed to load stock. Please try again.")
+      setFloorPrintingRmRolls([])
+    } finally {
+      setFloorPrintingRmRollsLoading(false)
+    }
   }
 
   const unloadFloorLoadedRoll = async (
@@ -2334,6 +2390,9 @@ export default function Home() {
     setPrintingChildRollsFromDb([])
     setFloorPrintingBarcode("")
     setFloorPrintingBarcodeError(null)
+    setFloorPrintingRmPickerOpen(false)
+    setFloorPrintingRmRolls([])
+    setFloorPrintingRmRollsError(null)
   }, [printingSelectedWo])
 
   // Reset inspection committed state and child rolls when switching work order
@@ -2659,6 +2718,14 @@ export default function Home() {
                     setFloorPrintingBarcodeError={setFloorPrintingBarcodeError}
                     floorPrintingBarcodeChecking={floorPrintingBarcodeChecking}
                     handleFloorPrintingBarcodeSubmit={handleFloorPrintingBarcodeSubmit}
+                    floorPrintingRmPickerOpen={floorPrintingRmPickerOpen}
+                    floorPrintingRmRolls={floorPrintingRmRolls}
+                    floorPrintingRmRollsLoading={floorPrintingRmRollsLoading}
+                    floorPrintingRmRollsError={floorPrintingRmRollsError}
+                    floorPrintingRmStockColumns={floorPrintingRmStockColumns}
+                    openFloorPrintingRmPicker={openFloorPrintingRmPicker}
+                    closeFloorPrintingRmPicker={closeFloorPrintingRmPicker}
+                    applyFloorPrintingFromBarcode={applyFloorPrintingFromBarcode}
                   />
                 ) : floorView === "inspection" ? (
                   <InspectionPanel
