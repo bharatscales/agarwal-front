@@ -47,7 +47,7 @@ import { floorDepartmentBlocks, type FloorDepartmentId } from "./home/constants"
 import { EclPanel } from "./home/floor/ecl/EclPanel"
 import { InspectionPanel } from "./home/floor/inspection/InspectionPanel"
 import { LaminationPanel } from "./home/floor/lamination/LaminationPanel"
-import { PrintingPanel, PrintingBalanceWeightCell } from "./home/floor/printing/PrintingPanel"
+import { PrintingPanel } from "./home/floor/printing/PrintingPanel"
 import { SlittingPanel } from "./home/floor/slitting/SlittingPanel"
 import { usePrinterStatus } from "./home/hooks/usePrinterStatus"
 import { useRoleFlags } from "./home/hooks/useRoleFlags"
@@ -90,6 +90,7 @@ export default function Home() {
     netweight: string
     grossweight: string
     wastage: string
+    balanceweight: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -222,17 +223,6 @@ export default function Home() {
     }
   }
 
-  const handlePrintingBalanceWeightSave = async (rollId: number, value: number | null) => {
-    try {
-      await updateRollsStock(rollId, { balanceWeight: value })
-      setPrintingChildRollsFromDb((prev) =>
-        prev.map((row) => (row.id === rollId ? { ...row, balanceWeight: value } : row))
-      )
-    } catch {
-      setPrintingCreateChildMessage("Failed to save balance weight.")
-    }
-  }
-
   const printingProducedRollColumns = [
       {
         id: "sno",
@@ -324,14 +314,14 @@ export default function Home() {
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
         ),
-        cell: ({ row }: { row: any }) => (
-          <PrintingBalanceWeightCell
-            rollId={row.original.id}
-            value={row.original.balanceWeight}
-            disabled={printingCreateChildLoading}
-            onSave={handlePrintingBalanceWeightSave}
-          />
-        ),
+        cell: ({ row }: { row: any }) => {
+          const value = row.original.balanceWeight ?? row.original.parentBalanceWeight
+          return (
+            <div className="text-sm">
+              {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
+            </div>
+          )
+        },
         filterFn: includesStringFilterFn,
       },
       {
@@ -1865,6 +1855,7 @@ export default function Home() {
                   netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
                   grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
                   wastage: parent.wastage != null ? String(parent.wastage) : "0",
+                  balanceweight: parent.balanceWeight != null ? String(parent.balanceWeight) : "",
                 })
               }
             } catch {

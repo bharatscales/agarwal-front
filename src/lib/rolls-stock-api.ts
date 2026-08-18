@@ -36,6 +36,7 @@ type RollsStockResponse = {
   wastage?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
+  parent_balance_weight?: number | null
   stock_voucher_id?: number | null
   invoice_no?: string | null
   invoice_date?: string | null
@@ -66,6 +67,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   wastage: rollsStock.wastage ?? 0,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
+  parentBalanceWeight: rollsStock.parent_balance_weight ?? null,
   stockVoucherId: rollsStock.stock_voucher_id ?? 0,
   invoiceNo: rollsStock.invoice_no ?? "",
   invoiceDate: rollsStock.invoice_date ?? "",

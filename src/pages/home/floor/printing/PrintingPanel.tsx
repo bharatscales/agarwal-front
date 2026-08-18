@@ -1,5 +1,5 @@
 import { CheckCircle, Plus, Printer, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
@@ -9,40 +9,11 @@ import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type PrintingPanelProps = any
 
-export function PrintingBalanceWeightCell({
-  rollId,
-  value,
-  disabled,
-  onSave,
-}: {
-  rollId: number
-  value: number | null | undefined
-  disabled?: boolean
-  onSave: (rollId: number, value: number | null) => void
-}) {
-  const [draft, setDraft] = useState(() => (value != null ? String(value) : ""))
-
-  useEffect(() => {
-    setDraft(value != null ? String(value) : "")
-  }, [value])
-
-  return (
-    <Input
-      type="number"
-      step="any"
-      className="h-8 min-w-[110px]"
-      disabled={disabled}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        const trimmed = draft.trim()
-        const parsed = trimmed === "" ? null : parseFloat(trimmed)
-        const next = parsed != null && Number.isNaN(parsed) ? null : parsed
-        const current = value == null ? null : Number(value)
-        if (next !== current) onSave(rollId, next)
-      }}
-    />
-  )
+function parseBalanceWeight(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed === "") return null
+  const parsed = parseFloat(trimmed)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 export function PrintingPanel(props: PrintingPanelProps) {
@@ -130,6 +101,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
                       <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
@@ -171,6 +143,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                       ? String(roll.netweight)
                                       : ""),
                                 wastage: parent.wastage != null ? String(parent.wastage) : "0",
+                                balanceweight:
+                                  parent.balanceWeight != null ? String(parent.balanceWeight) : "",
                               })
                             } catch {
                               setPrintingCreateChildMessage("Failed to load parent roll.")
@@ -212,6 +186,53 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                   prev && prev.roll.id === roll.id ? { ...prev, wastage: e.target.value } : prev
                                 )
                               }
+                            />
+                          </td>
+                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-8 min-w-[140px]"
+                              disabled={!isSelected}
+                              value={
+                                isSelected
+                                  ? printingAddRollForm.balanceweight
+                                  : roll.balanceWeight != null
+                                    ? String(roll.balanceWeight)
+                                    : ""
+                              }
+                              onChange={(e) => {
+                                const nextValue = e.target.value
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, balanceweight: nextValue } : prev
+                                )
+                                const parsed = parseBalanceWeight(nextValue)
+                                setPrintingChildRollsFromDb((prev: any[]) =>
+                                  prev.map((row) => {
+                                    const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
+                                    if (parentIds.length > 0 && !parentIds.includes(roll.id)) return row
+                                    return { ...row, balanceWeight: parsed, parentBalanceWeight: parsed }
+                                  })
+                                )
+                              }}
+                              onBlur={async (e) => {
+                                if (!isSelected) return
+                                const parsed = parseBalanceWeight(e.currentTarget.value)
+                                try {
+                                  await updateRollsStock(roll.id, { balanceWeight: parsed })
+                                  const children = printingChildRollsFromDb.filter((row: any) => {
+                                    const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
+                                    return parentIds.length === 0 || parentIds.includes(roll.id)
+                                  })
+                                  await Promise.all(
+                                    children.map((child: any) =>
+                                      updateRollsStock(child.id, { balanceWeight: parsed })
+                                    )
+                                  )
+                                } catch {
+                                  setPrintingCreateChildMessage("Failed to save balance weight.")
+                                }
+                              }}
                             />
                           </td>
                           <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -292,6 +313,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const parentIds = printingLoadedRolls.map((r: any) => r.roll.id)
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
                     const wastageValue = form.wastage ? parseFloat(form.wastage) : undefined
+                    const balanceValue = parseBalanceWeight(form.balanceweight || "")
                     if (wipPrintingTemplate) {
                       const printData = {
                         workOrder: {
@@ -357,7 +379,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds.length > 0 ? parentIds : undefined,
                       weightAtTime: netweightValue,
+                      balanceWeight: balanceValue ?? undefined,
                     })
+                    if (balanceValue != null) {
+                      await updateRollsStock(form.roll.id, { balanceWeight: balanceValue })
+                    }
                     setPrintingFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_printed").then(setPrintingChildRollsFromDb)
                     setPrintingCreateChildMessage(
@@ -397,6 +423,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
                           grossweight: "",
                           wastage: "0",
+                          balanceweight: prev.balanceweight ?? "",
                         }
                       : null
                   )
