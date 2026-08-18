@@ -217,7 +217,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Item (variety)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
@@ -279,7 +278,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           }}
                         >
                           <td className="py-2 px-3 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
-                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">{roll.barcode ?? "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{printingSelectedWo?.itemName ?? "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
@@ -570,37 +568,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            {printingAddRollForm && printingChildRollsFromDb.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                disabled={printingCreateChildLoading}
-                onClick={async () => {
-                  const form = printingAddRollForm
-                  if (!form) return
-                  if (!window.confirm("Are you sure you want to finish? This will mark the loaded roll as consumed.")) return
-                  try {
-                    setPrintingCreateChildLoading(true)
-                    setPrintingCreateChildMessage(null)
-                    await updateRollsStock(form.roll.id, { consumed: true })
-                    setPrintingCreateChildMessage("Loaded roll marked as consumed.")
-                    setPrintingCreateChildLoading(false)
-                    setTimeout(() => {
-                      setPrintingSelectedWo(null)
-                      setFloorView(null)
-                    }, 0)
-                  } catch {
-                    setPrintingCreateChildMessage("Failed to mark roll as consumed.")
-                    setPrintingCreateChildLoading(false)
-                  }
-                }}
-              >
-                <CheckCircle className="h-4 w-4" />
-                Roll Finish
-              </Button>
-            )}
           </div>
         )}
         {!printingRollsLoading &&

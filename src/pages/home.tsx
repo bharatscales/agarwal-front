@@ -300,16 +300,6 @@ export default function Home() {
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "barcode",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
         accessorKey: "size",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
