@@ -455,7 +455,7 @@ export default function Home() {
           <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
         ),
         cell: ({ row }: { row: any }) => {
-          const value = row.original.balanceWeight ?? row.original.parentBalanceWeight
+          const value = row.original.parentBalanceWeight ?? row.original.balanceWeight
           return (
             <div className="text-sm">
               {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
@@ -2117,7 +2117,12 @@ export default function Home() {
                 plainWastage: "0",
                 printedWastage: "0",
                 inkGsm: "",
-                balanceweight: "",
+                balanceweight:
+                  first.roll.balanceWeight != null
+                    ? String(first.roll.balanceWeight)
+                    : first.roll.balance_weight != null
+                      ? String(first.roll.balance_weight)
+                      : "",
               }
             })
             try {
@@ -2129,6 +2134,8 @@ export default function Home() {
                   return {
                     ...prev,
                     parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    balanceweight:
+                      parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
                   }
                 })
               }
@@ -2790,6 +2797,7 @@ export default function Home() {
                     printingSelectedWo={printingSelectedWo}
                     printingRollsLoading={printingRollsLoading}
                     printingLoadedRolls={printingLoadedRolls}
+                    setPrintingLoadedRolls={setPrintingLoadedRolls}
                     printingCreateChildLoading={printingCreateChildLoading}
                     setPrintingCreateChildLoading={setPrintingCreateChildLoading}
                     setPrintingCreateChildMessage={setPrintingCreateChildMessage}

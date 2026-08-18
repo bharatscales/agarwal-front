@@ -167,6 +167,8 @@ export type CurrentRoll = {
   itemName?: string
   stage?: string | null
   item_id?: number | null
+  balance_weight?: number | null
+  balanceWeight?: number | null
 }
 
 type CurrentRollResponse = {

@@ -18,11 +18,18 @@ function parseBalanceWeight(raw: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight?: number | null } | null | undefined): number | null {
+  const value = roll?.balanceWeight ?? roll?.balance_weight
+  if (value == null || Number.isNaN(Number(value))) return null
+  return Number(value)
+}
+
 export function PrintingPanel(props: PrintingPanelProps) {
   const {
     printingSelectedWo,
     printingRollsLoading,
     printingLoadedRolls,
+    setPrintingLoadedRolls,
     printingCreateChildLoading,
     setPrintingCreateChildLoading,
     setPrintingCreateChildMessage,
@@ -260,7 +267,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 plainWastage: "0",
                                 printedWastage: "0",
                                 inkGsm: "",
-                                balanceweight: "",
+                                balanceweight: loadedRollBalance(roll) != null ? String(loadedRollBalance(roll)) : "",
                               })
                               setPrintingAddRollEditingField(null)
                               const parent = await getRollsStockById(roll.id)
@@ -269,6 +276,15 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 return {
                                   ...prev,
                                   parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                                  balanceweight:
+                                    parent.balanceWeight != null
+                                      ? String(parent.balanceWeight)
+                                      : prev.balanceweight,
+                                  roll: {
+                                    ...prev.roll,
+                                    balanceWeight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
+                                    balance_weight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
+                                  },
                                 }
                               })
                             } catch {
@@ -347,8 +363,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               value={
                                 isSelected
                                   ? printingAddRollForm.balanceweight
-                                  : roll.balanceWeight != null
-                                    ? String(roll.balanceWeight)
+                                  : loadedRollBalance(roll) != null
+                                    ? String(loadedRollBalance(roll))
                                     : ""
                               }
                               onChange={(e) => {
@@ -361,7 +377,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                   prev.map((row) => {
                                     const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
                                     if (parentIds.length > 0 && !parentIds.includes(roll.id)) return row
-                                    return { ...row, balanceWeight: parsed, parentBalanceWeight: parsed }
+                                    return { ...row, parentBalanceWeight: parsed }
                                   })
                                 )
                               }}
@@ -370,13 +386,18 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 const parsed = parseBalanceWeight(e.currentTarget.value)
                                 try {
                                   await updateRollsStock(roll.id, { balanceWeight: parsed })
-                                  const children = printingChildRollsFromDb.filter((row: any) => {
-                                    const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
-                                    return parentIds.length === 0 || parentIds.includes(roll.id)
-                                  })
-                                  await Promise.all(
-                                    children.map((child: any) =>
-                                      updateRollsStock(child.id, { balanceWeight: parsed })
+                                  setPrintingLoadedRolls((prev: any[]) =>
+                                    prev.map((loaded) =>
+                                      loaded.roll.id === roll.id
+                                        ? {
+                                            ...loaded,
+                                            roll: {
+                                              ...loaded.roll,
+                                              balanceWeight: parsed,
+                                              balance_weight: parsed,
+                                            },
+                                          }
+                                        : loaded
                                     )
                                   )
                                 } catch {
