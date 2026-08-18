@@ -20,6 +20,7 @@ export type RollsStockRow = {
   size: number
   micron: number
   netweight: number
+  meter?: number
   grossweight: number
   barcode?: string
   issued: boolean
@@ -156,6 +157,16 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
         ),
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue("netweight") ?? "-"}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "meter",
+        header: ({ column }) => (
+          <ColumnHeader title="Meter" column={column} placeholder="Filter meter..." />
+        ),
+        cell: ({ row }) => (
+          <div className="text-sm">{row.original.meter ? row.original.meter : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },

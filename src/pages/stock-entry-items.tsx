@@ -5,6 +5,7 @@ import { type ColumnDef, type ColumnFiltersState, flexRender, getCoreRowModel, g
 import { getStockVoucher } from "@/lib/stock-voucher-api"
 import { getRollsStockByVoucher, createRollsStock, updateRollsStock, deleteRollsStock, type RollsStockPayload } from "@/lib/rolls-stock-api"
 import { getItems, createItem, type Item } from "@/lib/item-api"
+import { meterFromNetWeight, netWeightFromMeter } from "@/lib/film-calc"
 import { getAllTemplates, type TemplateMaster } from "@/lib/template-api"
 import { createPrintJob, getPrintJob } from "@/lib/print-job-api"
 import api from "@/lib/axios"
@@ -33,29 +34,34 @@ type RollsStockRow = {
   size: number
   micron: number
   netweight: number
+  meter: number
   grossweight: number
   barcode?: string
   isEditing?: boolean
+  lastFilmInput?: "netweight" | "meter"
 }
+
+const emptyEditingRow = (): RollsStockRow => ({
+  itemId: 0,
+  itemCode: "",
+  itemName: "",
+  gradeId: undefined,
+  grade: "",
+  rollno: "",
+  size: 0,
+  micron: 0,
+  netweight: 0,
+  meter: 0,
+  grossweight: 0,
+  isEditing: true,
+})
 
 export default function StockEntryItems() {
   const { voucherId } = useParams<{ voucherId: string }>()
   const navigate = useNavigate()
   const { state: sidebarState, isMobile } = useSidebar()
   const [isLoading, setIsLoading] = useState(true)
-  const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([{
-    itemId: 0,
-    itemCode: "",
-    itemName: "",
-    gradeId: undefined,
-    grade: "",
-    rollno: "",
-    size: 0,
-    micron: 0,
-    netweight: 0,
-    grossweight: 0,
-    isEditing: true,
-  }])
+  const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([emptyEditingRow()])
   const [items, setItems] = useState<Item[]>([])
   const [itemOptions, setItemOptions] = useState<CreatableOption[]>([])
   const [gradeOptions, setGradeOptions] = useState<Array<{ id: number; grade: string }>>([])
@@ -78,6 +84,7 @@ export default function StockEntryItems() {
   const sizeInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const micronInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const netWeightInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const meterInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const grossWeightInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const formatVoucherDate = (dateValue?: string) => {
@@ -111,44 +118,21 @@ export default function StockEntryItems() {
         rollno: rs.rollno,
         size: rs.size,
         micron: rs.micron,
-        netweight: rs.netweight,
-        grossweight: rs.grossweight,
+            netweight: rs.netweight,
+            meter: rs.meter ?? 0,
+            grossweight: rs.grossweight,
         barcode: rs.barcode,
         isEditing: false,
       }))
       // Always add an empty editing row at the end
-      setRollsStock([...existingRows, {
-        itemId: 0,
-        itemCode: "",
-        itemName: "",
-        gradeId: undefined,
-        grade: "",
-        rollno: "",
-        size: 0,
-        micron: 0,
-        netweight: 0,
-        grossweight: 0,
-        isEditing: true,
-      }])
+      setRollsStock([...existingRows, emptyEditingRow()])
       // Clear selected rows when fetching new data
       setSelectedRows(new Set())
     } catch (err: any) {
       console.error("Error fetching rolls stock:", err)
       setError("Failed to load rolls stock")
       // On error, still show empty row
-      setRollsStock([{
-        itemId: 0,
-        itemCode: "",
-        itemName: "",
-        gradeId: undefined,
-        grade: "",
-        rollno: "",
-        size: 0,
-        micron: 0,
-        netweight: 0,
-        grossweight: 0,
-        isEditing: true,
-      }])
+      setRollsStock([emptyEditingRow()])
       // Clear selected rows on error too
       setSelectedRows(new Set())
     }
@@ -200,7 +184,7 @@ export default function StockEntryItems() {
 
   const fetchItems = async () => {
     try {
-      const data = await getItems()
+      const data = await getItems(0, 1000)
       // Filter items to only show those with item group "rm film"
       const filteredItems = data.filter(item => item.itemGroup === "rm film")
       setItems(filteredItems)
@@ -277,6 +261,7 @@ export default function StockEntryItems() {
         size: row.size,
         micron: row.micron,
         netweight: row.netweight,
+        meter: row.meter,
         grossweight: row.grossweight,
         barcode: row.barcode || "",
         // Stock voucher details
@@ -396,9 +381,12 @@ export default function StockEntryItems() {
   }, [isLoading, rollsStock.length])
 
   const handleEditRow = (index: number) => {
-    setRollsStock(prev => prev.map((row, i) => 
-      i === index ? { ...row, isEditing: true } : row
-    ))
+    setRollsStock(prev => prev.map((row, i) => {
+      if (i !== index) return row
+      const density = items.find(item => item.id === row.itemId)?.density
+      const meter = row.meter || meterFromNetWeight(row.netweight, row.size, row.micron, density) || 0
+      return { ...row, meter, isEditing: true }
+    }))
   }
 
   const handleCancelEdit = (index: number) => {
@@ -415,19 +403,7 @@ export default function StockEntryItems() {
         // If no empty row exists, add one
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
-          return [...filtered, {
-            itemId: 0,
-            itemCode: "",
-            itemName: "",
-            gradeId: undefined,
-            grade: "",
-            rollno: "",
-            size: 0,
-            micron: 0,
-            netweight: 0,
-            grossweight: 0,
-            isEditing: true,
-          }]
+          return [...filtered, emptyEditingRow()]
         }
         return filtered
       })
@@ -453,6 +429,7 @@ export default function StockEntryItems() {
         size: row.size !== 0 ? row.size : 0,
         micron: row.micron || undefined,
         netweight: row.netweight || undefined,
+        meter: row.meter || undefined,
         grossweight: row.grossweight || undefined,
         gradeId: row.gradeId,
         stockVoucherId: Number(voucherId),
@@ -477,25 +454,14 @@ export default function StockEntryItems() {
               size: updated.size,
               micron: updated.micron,
               netweight: updated.netweight,
+              meter: updated.meter ?? 0,
               grossweight: updated.grossweight,
               isEditing: false,
             } : r
           )
           const hasEmptyRow = updatedRows.some(r => !r.id && r.isEditing)
           if (!hasEmptyRow) {
-            return [...updatedRows, {
-              itemId: 0,
-              itemCode: "",
-              itemName: "",
-              gradeId: undefined,
-              grade: "",
-              rollno: "",
-              size: 0,
-              micron: 0,
-              netweight: 0,
-              grossweight: 0,
-              isEditing: true,
-            }]
+            return [...updatedRows, emptyEditingRow()]
           }
           return updatedRows
         })
@@ -515,23 +481,12 @@ export default function StockEntryItems() {
               size: created.size,
               micron: created.micron,
               netweight: created.netweight,
+              meter: created.meter ?? 0,
               grossweight: created.grossweight,
               isEditing: false,
             } : r
           )
-          return [...updatedRows, {
-            itemId: 0,
-            itemCode: "",
-            itemName: "",
-            gradeId: undefined,
-            grade: "",
-            rollno: "",
-            size: 0,
-            micron: 0,
-            netweight: 0,
-            grossweight: 0,
-            isEditing: true,
-          }]
+          return [...updatedRows, emptyEditingRow()]
         })
       }
     } catch (err: any) {
@@ -550,19 +505,7 @@ export default function StockEntryItems() {
         const filtered = prev.filter((_, i) => i !== index)
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
-          return [...filtered, {
-            itemId: 0,
-            itemCode: "",
-            itemName: "",
-            gradeId: undefined,
-            grade: "",
-            rollno: "",
-            size: 0,
-            micron: 0,
-            netweight: 0,
-            grossweight: 0,
-            isEditing: true,
-          }]
+          return [...filtered, emptyEditingRow()]
         }
         return filtered
       })
@@ -578,19 +521,7 @@ export default function StockEntryItems() {
         const filtered = prev.filter((_, i) => i !== index)
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
-          return [...filtered, {
-            itemId: 0,
-            itemCode: "",
-            itemName: "",
-            gradeId: undefined,
-            grade: "",
-            rollno: "",
-            size: 0,
-            micron: 0,
-            netweight: 0,
-            grossweight: 0,
-            isEditing: true,
-          }]
+          return [...filtered, emptyEditingRow()]
         }
         return filtered
       })
@@ -626,19 +557,7 @@ export default function StockEntryItems() {
         const filtered = prev.filter(row => !row.id || !selectedRows.has(row.id))
         const hasEmptyRow = filtered.some(r => !r.id && r.isEditing)
         if (!hasEmptyRow) {
-          return [...filtered, {
-            itemId: 0,
-            itemCode: "",
-            itemName: "",
-            gradeId: undefined,
-            grade: "",
-            rollno: "",
-            size: 0,
-            micron: 0,
-            netweight: 0,
-            grossweight: 0,
-            isEditing: true,
-          }]
+          return [...filtered, emptyEditingRow()]
         }
         return filtered
       })
@@ -678,6 +597,7 @@ export default function StockEntryItems() {
           size: row.size,
           micron: row.micron,
           netweight: row.netweight,
+          meter: row.meter,
           grossweight: row.grossweight,
           barcode: row.barcode || "",
           stockVoucher: stockVoucher ? {
@@ -823,7 +743,7 @@ export default function StockEntryItems() {
     const aboveValue = aboveRow[field]
     // For numeric fields, allow 0 as a valid value to copy
     // For string fields, only copy if not empty
-    if (field === "size" || field === "micron" || field === "netweight" || field === "grossweight") {
+    if (field === "size" || field === "micron" || field === "netweight" || field === "meter" || field === "grossweight") {
       // For numeric fields, copy if value is defined and not null (0 is valid)
       if (aboveValue !== undefined && aboveValue !== null) {
         handleFieldChange(index, field, aboveValue)
@@ -886,23 +806,52 @@ export default function StockEntryItems() {
   }
 
   const handleFieldChange = (index: number, field: keyof RollsStockRow, value: any) => {
-    if (field === "itemId") {
-      // CreatableCombobox returns string value, convert to number
-      const itemId = typeof value === "string" ? Number(value) : value
-      const item = items.find(i => i.id === itemId)
-      setRollsStock(prev => prev.map((r, i) => 
-        i === index ? { 
-          ...r, 
-          itemId: itemId, 
+    setRollsStock(prev => prev.map((r, i) => {
+      if (i !== index) return r
+
+      let next: RollsStockRow
+      if (field === "itemId") {
+        const itemId = typeof value === "string" ? Number(value) : value
+        const item = items.find(it => it.id === itemId)
+        next = {
+          ...r,
+          itemId,
           itemCode: item?.itemCode || "",
           itemName: item?.itemName || "",
-        } : r
-      ))
-    } else {
-      setRollsStock(prev => prev.map((r, i) => 
-        i === index ? { ...r, [field]: value } : r
-      ))
-    }
+        }
+      } else {
+        next = { ...r, [field]: value }
+      }
+
+      const density = items.find(it => it.id === next.itemId)?.density
+      if (field === "meter") {
+        const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
+        return {
+          ...next,
+          lastFilmInput: "meter",
+          ...(netweight != null ? { netweight } : {}),
+        }
+      }
+      if (field === "netweight") {
+        const meter = meterFromNetWeight(next.netweight, next.size, next.micron, density)
+        return {
+          ...next,
+          lastFilmInput: "netweight",
+          ...(meter != null ? { meter } : {}),
+        }
+      }
+      if (field === "size" || field === "micron" || field === "itemId") {
+        if (next.lastFilmInput === "meter") {
+          const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
+          return netweight != null ? { ...next, netweight } : next
+        }
+        const meter = meterFromNetWeight(next.netweight, next.size, next.micron, density)
+        if (meter != null) return { ...next, meter }
+        const netweight = netWeightFromMeter(next.meter, next.size, next.micron, density)
+        return netweight != null ? { ...next, netweight } : next
+      }
+      return next
+    }))
   }
 
   // Calculate totals (only for saved rows, not the empty editing row)
@@ -910,6 +859,11 @@ export default function StockEntryItems() {
   const totalRolls = savedRows.length
   const totalGrossWeight = savedRows.reduce((sum, row) => sum + (row.grossweight || 0), 0)
   const totalNetWeight = savedRows.reduce((sum, row) => sum + (row.netweight || 0), 0)
+  const totalMeter = savedRows.reduce((sum, row) => {
+    const density = items.find(item => item.id === row.itemId)?.density
+    const meter = row.meter || meterFromNetWeight(row.netweight, row.size, row.micron, density) || 0
+    return sum + meter
+  }, 0)
 
   const filterFn = (row: any, columnId: string, filterValue: string) => {
     if (row.original.isEditing) return true
@@ -978,6 +932,14 @@ export default function StockEntryItems() {
       accessorKey: "netweight",
       header: ({ column }) => (
         <ColumnHeader title="Net Weight (kg)" column={column} placeholder="Filter net weight..." />
+      ),
+      cell: () => null,
+      filterFn,
+    },
+    {
+      accessorKey: "meter",
+      header: ({ column }) => (
+        <ColumnHeader title="Meter" column={column} placeholder="Filter meter..." />
       ),
       cell: () => null,
       filterFn,
@@ -1249,9 +1211,9 @@ export default function StockEntryItems() {
                               if ((!row.micron || row.micron === 0) && index > 0) {
                                 copyValueFromAbove(index, "micron")
                               }
-                              // Move to next field (Net Weight)
-                              const netWeightInput = e.currentTarget.closest("tr")?.querySelector("input[placeholder='Net Weight']") as HTMLInputElement
-                              netWeightInput?.focus()
+                              setTimeout(() => {
+                                netWeightInputRefs.current[index]?.focus()
+                              }, 100)
                             }
                           }}
                         />
@@ -1274,7 +1236,30 @@ export default function StockEntryItems() {
                               if ((!row.netweight || row.netweight === 0) && index > 0) {
                                 copyValueFromAbove(index, "netweight")
                               }
-                              // Move to next field (Gross Weight)
+                              setTimeout(() => {
+                                meterInputRefs.current[index]?.focus()
+                              }, 100)
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className="py-1 px-2">
+                        <Input
+                          ref={(el) => {
+                            meterInputRefs.current[index] = el
+                          }}
+                          type="number"
+                          step="0.01"
+                          value={row.meter || ""}
+                          onChange={(e) => handleFieldChange(index, "meter", parseFloat(e.target.value) || 0)}
+                          placeholder="Meter"
+                          className="w-full h-8"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              if ((!row.meter || row.meter === 0) && index > 0) {
+                                copyValueFromAbove(index, "meter")
+                              }
                               setTimeout(() => {
                                 grossWeightInputRefs.current[index]?.focus()
                               }, 100)
@@ -1357,6 +1342,16 @@ export default function StockEntryItems() {
                       <TableCell className="py-1 px-2">{row.size || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.micron || "-"}</TableCell>
                       <TableCell className="py-1 px-2">{row.netweight || "-"}</TableCell>
+                      <TableCell className="py-1 px-2">
+                        {row.meter
+                          || meterFromNetWeight(
+                            row.netweight,
+                            row.size,
+                            row.micron,
+                            items.find(item => item.id === row.itemId)?.density
+                          )
+                          || "-"}
+                      </TableCell>
                       <TableCell className="py-1 px-2">{row.grossweight || "-"}</TableCell>
                       <TableCell className="py-1 px-2">
                         <div className="flex gap-1">
@@ -1411,6 +1406,12 @@ export default function StockEntryItems() {
           <span className="text-gray-600 dark:text-gray-400 font-medium">Total Net Weight:</span>
           <span className="ml-2 text-gray-900 dark:text-gray-100 font-semibold">
             {totalNetWeight.toFixed(2)} kg
+          </span>
+        </div>
+        <div className="text-sm">
+          <span className="text-gray-600 dark:text-gray-400 font-medium">Total Meter:</span>
+          <span className="ml-2 text-gray-900 dark:text-gray-100 font-semibold">
+            {totalMeter.toFixed(2)}
           </span>
         </div>
         <div className="text-sm">

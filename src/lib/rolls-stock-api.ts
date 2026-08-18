@@ -6,6 +6,7 @@ export type RollsStockPayload = {
   size?: number
   micron?: number
   netweight?: number
+  meter?: number
   grossweight?: number
   wastage?: number
   plainWastage?: number
@@ -35,6 +36,7 @@ type RollsStockResponse = {
   size?: number | null
   micron?: number | null
   netweight?: number | null
+  meter?: number | null
   grossweight?: number | null
   wastage?: number | null
   plain_wastage?: number | null
@@ -69,6 +71,7 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   size: rollsStock.size ?? 0,
   micron: rollsStock.micron ?? 0,
   netweight: rollsStock.netweight ?? 0,
+  meter: rollsStock.meter ?? 0,
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
   plainWastage: rollsStock.plain_wastage ?? null,
@@ -122,6 +125,7 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     size: payload.size,
     micron: payload.micron,
     netweight: payload.netweight,
+    meter: payload.meter,
     grossweight: payload.grossweight,
     wastage: payload.wastage,
     plain_wastage: payload.plainWastage,
@@ -150,6 +154,7 @@ export const updateRollsStock = async (
     size: payload.size,
     micron: payload.micron,
     netweight: payload.netweight,
+    meter: payload.meter,
     grossweight: payload.grossweight,
     wastage: payload.wastage,
     grade_id: payload.gradeId,

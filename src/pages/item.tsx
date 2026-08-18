@@ -595,7 +595,7 @@ export default function Item() {
 
                   {formData.itemGroup === "rm film" && (
                     <div className="space-y-2">
-                      <Label htmlFor="density">Density</Label>
+                      <Label htmlFor="density">Density (g/cm³)</Label>
                       <Input
                         id="density"
                         type="number"
@@ -603,7 +603,7 @@ export default function Item() {
                         min="0"
                         value={formData.density}
                         onChange={(e) => handleInputChange("density", e.target.value)}
-                        placeholder="Enter density"
+                        placeholder="e.g. 1.4"
                         className={formErrors.density ? "border-red-500" : ""}
                       />
                       {formErrors.density && (
@@ -743,7 +743,7 @@ export default function Item() {
 
                   {editFormData.itemGroup === "rm film" && (
                     <div className="space-y-2">
-                      <Label htmlFor="edit-density">Density</Label>
+                      <Label htmlFor="edit-density">Density (g/cm³)</Label>
                       <Input
                         id="edit-density"
                         type="number"
@@ -751,7 +751,7 @@ export default function Item() {
                         min="0"
                         value={editFormData.density}
                         onChange={(e) => handleEditInputChange("density", e.target.value)}
-                        placeholder="Enter density"
+                        placeholder="e.g. 1.4"
                         className={editErrors.density ? "border-red-500" : ""}
                       />
                       {editErrors.density && (
