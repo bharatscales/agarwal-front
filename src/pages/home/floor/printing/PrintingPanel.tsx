@@ -241,42 +241,38 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           }`}
                           onClick={async () => {
                             if (printingCreateChildLoading) return
+                            if (printingAddRollForm?.roll.id === roll.id) return
                             const woItemId = printingSelectedWo?.itemId
                             if (woItemId == null) {
                               setPrintingCreateChildMessage("Work order has no item.")
                               return
                             }
                             try {
-                              setPrintingCreateChildLoading(true)
-                              setPrintingCreateChildMessage(null)
-                              const parent = await getRollsStockById(roll.id)
-                              setPrintingAddRollEditingField(null)
-                              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
                               setPrintingAddRollForm({
                                 jobCardNumber,
                                 jobCardId,
                                 roll,
-                                parent: { gradeId: parent.gradeId },
+                                parent: { gradeId: undefined },
                                 size: roll.size != null ? String(roll.size) : "",
                                 micron: roll.micron != null ? String(roll.micron) : "",
                                 netweight: roll.netweight != null ? String(roll.netweight) : "",
-                                grossweight:
-                                  grossFromScale ||
-                                  (parent.grossweight != null
-                                    ? String(parent.grossweight)
-                                    : roll.netweight != null
-                                      ? String(roll.netweight)
-                                      : ""),
-                                wastage: parent.wastage != null ? String(parent.wastage) : "0",
-                                plainWastage: parent.plainWastage != null ? String(parent.plainWastage) : "0",
-                                printedWastage: parent.printedWastage != null ? String(parent.printedWastage) : "0",
-                                balanceweight:
-                                  parent.balanceWeight != null ? String(parent.balanceWeight) : "",
+                                grossweight: roll.netweight != null ? String(roll.netweight) : "",
+                                wastage: "0",
+                                plainWastage: "0",
+                                printedWastage: "0",
+                                balanceweight: "",
+                              })
+                              setPrintingAddRollEditingField(null)
+                              const parent = await getRollsStockById(roll.id)
+                              setPrintingAddRollForm((prev: any) => {
+                                if (!prev || prev.roll.id !== roll.id) return prev
+                                return {
+                                  ...prev,
+                                  parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                                }
                               })
                             } catch {
                               setPrintingCreateChildMessage("Failed to load parent roll.")
-                            } finally {
-                              setPrintingCreateChildLoading(false)
                             }
                           }}
                         >

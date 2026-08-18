@@ -2000,31 +2000,38 @@ export default function Home() {
           setPrintingLoadedRolls(loaded)
           if (loaded.length > 0) {
             const first = loaded[0]
+            const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+            setPrintingAddRollForm((prev) => {
+              if (prev?.roll.id === first.roll.id) return prev
+              return {
+                jobCardNumber: first.jobCardNumber,
+                jobCardId: first.jobCardId,
+                roll: first.roll,
+                parent: { gradeId: undefined },
+                size: first.roll.size != null ? String(first.roll.size) : "",
+                micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                grossweight: grossFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : ""),
+                wastage: "0",
+                plainWastage: "0",
+                printedWastage: "0",
+                balanceweight: "",
+              }
+            })
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
                 setPrintingAddRollEditingField(null)
-                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-                setPrintingAddRollForm({
-                  jobCardNumber: first.jobCardNumber,
-                  jobCardId: first.jobCardId,
-                  roll: first.roll,
-                  parent: { gradeId: parent.gradeId },
-                  size: first.roll.size != null ? String(first.roll.size) : "",
-                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
-                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
-                  wastage: parent.wastage != null ? String(parent.wastage) : "0",
-                  plainWastage: parent.plainWastage != null ? String(parent.plainWastage) : "0",
-                  printedWastage: parent.printedWastage != null ? String(parent.printedWastage) : "0",
-                  balanceweight: parent.balanceWeight != null ? String(parent.balanceWeight) : "",
+                setPrintingAddRollForm((prev) => {
+                  if (!prev || prev.roll.id !== first.roll.id) return prev
+                  return {
+                    ...prev,
+                    parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                  }
                 })
               }
             } catch {
-              if (!cancelled) {
-                setPrintingAddRollForm(null)
-                setPrintingAddRollEditingField(null)
-              }
+              // Keep the in-progress form; grade can stay unset.
             }
           } else {
             setPrintingAddRollForm(null)
