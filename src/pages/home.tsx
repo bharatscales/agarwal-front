@@ -104,6 +104,9 @@ export default function Home() {
   const [printingChildRollsLoading, setPrintingChildRollsLoading] = useState(false)
   const [wipPrintingTemplate, setWipPrintingTemplate] = useState<TemplateMaster | null>(null)
   const [printingPrintStatus, setPrintingPrintStatus] = useState<"idle" | "printing" | "done">("idle")
+  const [floorPrintingBarcode, setFloorPrintingBarcode] = useState("")
+  const [floorPrintingBarcodeError, setFloorPrintingBarcodeError] = useState<string | null>(null)
+  const [floorPrintingBarcodeChecking, setFloorPrintingBarcodeChecking] = useState(false)
 
   // Floor Inspection (mirror of Floor Printing)
   const [inspectionWorkOrders, setInspectionWorkOrders] = useState<WorkOrderMaster[]>([])
@@ -775,6 +778,105 @@ export default function Home() {
 
   const handleFloorInspectionBarcodeSubmit = async () => {
     await applyFloorInspectionFromBarcode(floorInspectionBarcode)
+  }
+
+  const applyFloorPrintingFromBarcode = async (barcodeRaw: string) => {
+    const barcode = barcodeRaw.trim()
+    if (!barcode) return
+    const wo = printingSelectedWo
+    if (!wo) {
+      setFloorPrintingBarcodeError("Open a work order first, then scan a roll.")
+      return
+    }
+    setFloorPrintingBarcodeError(null)
+    setFloorPrintingBarcodeChecking(true)
+    try {
+      const roll = await getRollByBarcode(barcode)
+      if (!roll) {
+        setFloorPrintingBarcodeError("Roll not found for this barcode.")
+        return
+      }
+      if (roll.consumed) {
+        setFloorPrintingBarcodeError("This roll is already consumed.")
+        return
+      }
+      const stage = (roll.stage ?? "").toLowerCase()
+      if (stage !== "virgin_rm" && stage !== "virgin-rm") {
+        setFloorPrintingBarcodeError(
+          `Only RM Film (virgin RM) rolls can be loaded to Printing. Current stage: ${roll.stage || "—"}`
+        )
+        return
+      }
+      if (roll.issued) {
+        setFloorPrintingBarcodeError("Roll already issued and cannot be loaded.")
+        return
+      }
+
+      const cards = await getAllJobCards(0, 50, wo.id, "Printing")
+      let targetCardId: number | null = null
+      for (const card of cards) {
+        try {
+          const current = await getCurrentRoll(card.id)
+          if (!current) {
+            targetCardId = card.id
+            break
+          }
+        } catch {
+          // ignore and try next card
+        }
+      }
+      if (targetCardId == null && cards.length > 0) {
+        targetCardId = cards[0].id
+      }
+
+      if (targetCardId == null) {
+        const [operatorsList, machinesList] = await Promise.all([
+          getAllOperators(0, 500),
+          getAllMachines(0, 500),
+        ])
+        const printingMachine = machinesList.find(
+          (m) => (m.operation ?? "").toLowerCase() === "printing"
+        )
+        if (!printingMachine) {
+          setFloorPrintingBarcodeError("No machine configured for Printing operation.")
+          return
+        }
+        const printingOperators = operatorsList.filter(
+          (op) => (op.operation ?? "").toLowerCase() === "printing"
+        )
+        const operatorName =
+          printingOperators[0]?.operatorName?.trim() ||
+          user?.username?.trim() ||
+          "Floor"
+        const newJobCard = await createJobCard({
+          jobCardNumber: "",
+          workOrderId: wo.id,
+          operation: "Printing",
+          machineId: printingMachine.id,
+          operatorName,
+          shift: "A",
+        })
+        targetCardId = newJobCard.id
+      }
+
+      await scanRoll(targetCardId, barcode)
+      setFloorPrintingBarcode("")
+      setPrintingCreateChildMessage("Roll loaded.")
+      setPrintingRollsRefreshKey((key) => key + 1)
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        "Could not load roll. Try again."
+      setFloorPrintingBarcodeError(detail)
+    } finally {
+      setFloorPrintingBarcodeChecking(false)
+    }
+  }
+
+  const handleFloorPrintingBarcodeSubmit = async () => {
+    await applyFloorPrintingFromBarcode(floorPrintingBarcode)
   }
 
   const closeFloorEclWipPicker = () => {
@@ -2243,6 +2345,8 @@ export default function Home() {
   useEffect(() => {
     setPrintingFormCommittedForRollId(null)
     setPrintingChildRollsFromDb([])
+    setFloorPrintingBarcode("")
+    setFloorPrintingBarcodeError(null)
   }, [printingSelectedWo])
 
   // Reset inspection committed state and child rolls when switching work order
@@ -2562,6 +2666,12 @@ export default function Home() {
                     printingError={printingError}
                     printingWorkOrders={printingWorkOrders}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
+                    floorPrintingBarcode={floorPrintingBarcode}
+                    setFloorPrintingBarcode={setFloorPrintingBarcode}
+                    setFloorPrintingBarcodeError={setFloorPrintingBarcodeError}
+                    floorPrintingBarcodeChecking={floorPrintingBarcodeChecking}
+                    handleFloorPrintingBarcodeSubmit={handleFloorPrintingBarcodeSubmit}
+                    floorPrintingBarcodeError={floorPrintingBarcodeError}
                   />
                 ) : floorView === "inspection" ? (
                   <InspectionPanel

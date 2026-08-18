@@ -1,9 +1,10 @@
-import { CheckCircle, Plus, Printer, X } from "lucide-react"
+import { CheckCircle, Plus, Printer, ScanBarcode, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -52,6 +53,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
     printingError,
     printingWorkOrders,
     unloadFloorLoadedRoll,
+    floorPrintingBarcode,
+    setFloorPrintingBarcode,
+    setFloorPrintingBarcodeError,
+    floorPrintingBarcodeChecking,
+    handleFloorPrintingBarcodeSubmit,
+    floorPrintingBarcodeError,
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
@@ -84,9 +91,56 @@ export function PrintingPanel(props: PrintingPanelProps) {
             {printingRollsLoading ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
             ) : printingLoadedRolls.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No roll currently loaded for this work order.
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No roll currently loaded for this work order.
+                </p>
+                <Label htmlFor="floor-printing-barcode" className="text-xs text-gray-600 dark:text-gray-400">
+                  Barcode
+                </Label>
+                <div className="flex flex-wrap items-center gap-2 max-w-2xl">
+                  <div className="relative min-w-[min(100%,18rem)] flex-1">
+                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="floor-printing-barcode"
+                      type="text"
+                      placeholder="Scan or enter roll barcode"
+                      value={floorPrintingBarcode}
+                      onChange={(e) => {
+                        setFloorPrintingBarcode(e.target.value)
+                        setFloorPrintingBarcodeError(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void handleFloorPrintingBarcodeSubmit()
+                        }
+                      }}
+                      disabled={floorPrintingBarcodeChecking || printingCreateChildLoading}
+                      className="pl-9"
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    disabled={
+                      floorPrintingBarcodeChecking ||
+                      printingCreateChildLoading ||
+                      !(floorPrintingBarcode || "").trim()
+                    }
+                    onClick={() => void handleFloorPrintingBarcodeSubmit()}
+                  >
+                    {floorPrintingBarcodeChecking ? "Loading…" : "Select"}
+                  </Button>
+                </div>
+                {floorPrintingBarcodeError && (
+                  <p className="text-sm text-red-500">{floorPrintingBarcodeError}</p>
+                )}
+              </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
                 <table className="w-full min-w-[1200px] text-sm">
@@ -496,7 +550,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
             )}
           </div>
         )}
-        {!printingRollsLoading && printingLoadedRolls.length === 0 && printingSelectedWo && (
+        {!printingRollsLoading &&
+          !printingChildRollsLoading &&
+          printingLoadedRolls.length === 0 &&
+          printingChildRollsFromDb.length > 0 &&
+          printingSelectedWo && (
           <div className="ml-auto">
             <Button
               type="button"
