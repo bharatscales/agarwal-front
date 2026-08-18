@@ -184,6 +184,7 @@ export default function Home() {
     plainWastage: string
     printedWastage: string
     inkGsm: string
+    inkGsmByInkWt: string
     balanceweight: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
@@ -315,6 +316,7 @@ export default function Home() {
           meter: r.meter,
           grossweight: r.grossweight,
           inkGsm: r.inkGsm,
+          inkGsmByInkWt: r.inkGsmByInkWt,
           itemName: wo.itemName ?? r.itemName ?? null,
         },
       }
@@ -460,6 +462,18 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
             {row.original.inkGsm != null ? String(row.original.inkGsm) : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "inkGsmByInkWt",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Ink gsm (by ink wt)" column={column} placeholder="Filter ink gsm by ink wt..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.inkGsmByInkWt != null ? String(row.original.inkGsmByInkWt) : "-"}
           </div>
         ),
         filterFn: includesStringFilterFn,
@@ -2133,6 +2147,7 @@ export default function Home() {
                 plainWastage: "0",
                 printedWastage: "0",
                 inkGsm: "",
+                inkGsmByInkWt: "",
                 balanceweight:
                   first.roll.balanceWeight != null
                     ? String(first.roll.balanceWeight)

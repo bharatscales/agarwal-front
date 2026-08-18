@@ -83,12 +83,14 @@ export function PrintingPanel(props: PrintingPanelProps) {
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
+  const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
   const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
 
   useEffect(() => {
     if (!floorPrintingRmPickerOpen) {
       setRmFilmItemFilter("all")
+      setRmFilmWarehouseFilter("all")
       return
     }
     let cancelled = false
@@ -118,12 +120,18 @@ export function PrintingPanel(props: PrintingPanelProps) {
   }, [rmFilmItems, floorPrintingRmRolls])
 
   const filteredFloorPrintingRmRolls = useMemo(() => {
-    if (rmFilmItemFilter === "all") return floorPrintingRmRolls
-    const selected = rmFilmItemFilter.toLowerCase()
-    return floorPrintingRmRolls.filter(
-      (roll: { itemCode?: string | null }) => (roll.itemCode || "").trim().toLowerCase() === selected
-    )
-  }, [floorPrintingRmRolls, rmFilmItemFilter])
+    return floorPrintingRmRolls.filter((roll: { itemCode?: string | null; stage?: string | null }) => {
+      if (rmFilmItemFilter !== "all") {
+        const selected = rmFilmItemFilter.toLowerCase()
+        if ((roll.itemCode || "").trim().toLowerCase() !== selected) return false
+      }
+      if (rmFilmWarehouseFilter !== "all") {
+        const stage = (roll.stage ?? "").toLowerCase().replace(/-/g, "_")
+        if (stage !== rmFilmWarehouseFilter) return false
+      }
+      return true
+    })
+  }, [floorPrintingRmRolls, rmFilmItemFilter, rmFilmWarehouseFilter])
 
   const handleUnloadPrintingRoll = async (jobCardId: number, rollId: number) => {
     try {
@@ -226,31 +234,53 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             {floorPrintingRmRollsError && (
                               <p className="text-sm text-red-500 mb-3">{floorPrintingRmRollsError}</p>
                             )}
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              <Badge
-                                asChild
-                                variant={rmFilmItemFilter === "all" ? "default" : "outline"}
-                                className="cursor-pointer"
-                              >
-                                <button type="button" onClick={() => setRmFilmItemFilter("all")}>
-                                  All
-                                </button>
-                              </Badge>
-                              {rmFilmItemBadges.map((itemCode) => (
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                              <div className="flex flex-wrap gap-2">
                                 <Badge
-                                  key={itemCode}
                                   asChild
-                                  variant={rmFilmItemFilter.toLowerCase() === itemCode.toLowerCase() ? "default" : "outline"}
+                                  variant={rmFilmItemFilter === "all" ? "default" : "outline"}
                                   className="cursor-pointer"
                                 >
-                                  <button type="button" onClick={() => setRmFilmItemFilter(itemCode)}>
-                                    {itemCode}
+                                  <button type="button" onClick={() => setRmFilmItemFilter("all")}>
+                                    All
                                   </button>
                                 </Badge>
-                              ))}
+                                {rmFilmItemBadges.map((itemCode) => (
+                                  <Badge
+                                    key={itemCode}
+                                    asChild
+                                    variant={rmFilmItemFilter.toLowerCase() === itemCode.toLowerCase() ? "default" : "outline"}
+                                    className="cursor-pointer"
+                                  >
+                                    <button type="button" onClick={() => setRmFilmItemFilter(itemCode)}>
+                                      {itemCode}
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2 ml-auto">
+                                {(
+                                  [
+                                    { value: "all", label: "ALL" },
+                                    { value: "virgin_rm", label: "RM Virgin" },
+                                    { value: "rm_balance", label: "RM Balance" },
+                                  ] as const
+                                ).map((warehouse) => (
+                                  <Badge
+                                    key={warehouse.value}
+                                    asChild
+                                    variant={rmFilmWarehouseFilter === warehouse.value ? "default" : "outline"}
+                                    className="cursor-pointer"
+                                  >
+                                    <button type="button" onClick={() => setRmFilmWarehouseFilter(warehouse.value)}>
+                                      {warehouse.label}
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                             <DataTable
-                              key={`floor-printing-rm-picker-${rmFilmItemFilter}`}
+                              key={`floor-printing-rm-picker-${rmFilmItemFilter}-${rmFilmWarehouseFilter}`}
                               columns={floorPrintingRmStockColumns}
                               data={filteredFloorPrintingRmRolls}
                               getRowId={(row: any) => String(row.id)}
@@ -288,21 +318,22 @@ export function PrintingPanel(props: PrintingPanelProps) {
               </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full min-w-[1200px] text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Structure</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Meter</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Plain wastage (kg)</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Printed wastage (kg)</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
-                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
-                      <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300"> </th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Job card</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Structure</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Size</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Micron</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Meter</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Plain wastage (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Printed wastage (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm (by ink wt)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
+                      <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -337,6 +368,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 plainWastage: "0",
                                 printedWastage: "0",
                                 inkGsm: "",
+                                inkGsmByInkWt: "",
                                 balanceweight: loadedRollBalance(roll) != null ? String(loadedRollBalance(roll)) : "",
                               })
                               setPrintingAddRollEditingField(null)
@@ -362,16 +394,16 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             }
                           }}
                         >
-                          <td className="py-2 px-3 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{formatWeightWithMeter(roll.netweight, roll.meter)}</td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{roll.item_name ?? roll.itemName ?? "—"}</td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{roll.size != null ? String(roll.size) : "—"}</td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{formatWeightWithMeter(roll.netweight, roll.meter)}</td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="any"
-                              className="h-8 min-w-[140px]"
+                              className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
                               onChange={(e) =>
@@ -381,11 +413,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="1"
-                              className="h-8 min-w-[120px]"
+                              className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.meter : ""}
                               onChange={(e) =>
@@ -395,11 +427,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="any"
-                              className="h-8 min-w-[140px]"
+                              className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.plainWastage : ""}
                               onChange={(e) =>
@@ -409,11 +441,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="any"
-                              className="h-8 min-w-[140px]"
+                              className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.printedWastage : ""}
                               onChange={(e) =>
@@ -423,11 +455,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="any"
-                              className="h-8 min-w-[100px]"
+                              className="h-7 w-16 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.inkGsm : ""}
                               onChange={(e) =>
@@ -437,11 +469,25 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
                               type="number"
                               step="any"
-                              className="h-8 min-w-[140px]"
+                              className="h-7 w-20 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={isSelected ? printingAddRollForm.inkGsmByInkWt : ""}
+                              onChange={(e) =>
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, inkGsmByInkWt: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={
                                 isSelected
@@ -489,12 +535,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }}
                             />
                           </td>
-                          <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-6 w-6"
                               title="Remove loaded roll"
                               disabled={printingCreateChildLoading}
                               onClick={() => void handleUnloadPrintingRoll(jobCardId, roll.id)}
@@ -578,6 +624,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
                     const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
                     const inkGsmValue = parseBalanceWeight(form.inkGsm || "")
+                    const inkGsmByInkWtValue = parseBalanceWeight(form.inkGsmByInkWt || "")
                     const wastageValue =
                       plainWastageValue != null || printedWastageValue != null
                         ? (plainWastageValue || 0) + (printedWastageValue || 0)
@@ -611,6 +658,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           plainWastage: plainWastageValue,
                           printedWastage: printedWastageValue,
                           inkGsm: inkGsmValue,
+                          inkGsmByInkWt: inkGsmByInkWtValue,
                           itemName: wo.itemName ?? null,
                         },
                       }
@@ -653,6 +701,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       plainWastage: plainWastageValue ?? undefined,
                       printedWastage: printedWastageValue ?? undefined,
                       inkGsm: inkGsmValue ?? undefined,
+                      inkGsmByInkWt: inkGsmByInkWtValue ?? undefined,
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds,
                       weightAtTime: netweightValue,

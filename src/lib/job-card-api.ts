@@ -221,6 +221,7 @@ export type AddPrintedRollPayload = {
   plainWastage?: number
   printedWastage?: number
   inkGsm?: number
+  inkGsmByInkWt?: number
   balanceWeight?: number
   gradeId?: number
   parentRollIds?: number[]
@@ -258,6 +259,7 @@ export const addPrintedRoll = async (
       plain_wastage: payload.plainWastage,
       printed_wastage: payload.printedWastage,
       ink_gsm: payload.inkGsm,
+      ink_gsm_by_ink_wt: payload.inkGsmByInkWt,
       balance_weight: payload.balanceWeight,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
