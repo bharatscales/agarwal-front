@@ -79,6 +79,14 @@ export type FilmAutofillFields = {
   lastFilmInput?: "netweight" | "meter"
 }
 
+export type FilmAutofillUpdates = {
+  size?: number
+  micron?: number
+  netweight?: number
+  meter?: number
+  lastFilmInput?: "netweight" | "meter"
+}
+
 /** Fill meter from net weight (or the reverse) for an RM film row. */
 export const applyFilmAutofill = (
   row: FilmAutofillFields,
@@ -88,12 +96,12 @@ export const applyFilmAutofill = (
     inheritSize?: number | null
     inheritMicron?: number | null
   }
-): FilmAutofillFields => {
+): FilmAutofillUpdates => {
   const inheritSize = options?.changedField === "size" ? undefined : options?.inheritSize
   const inheritMicron = options?.changedField === "micron" ? undefined : options?.inheritMicron
   const size = toPositiveNumber(row.size) ?? toPositiveNumber(inheritSize)
   const micron = toPositiveNumber(row.micron) ?? toPositiveNumber(inheritMicron)
-  const updates: FilmAutofillFields = {}
+  const updates: FilmAutofillUpdates = {}
 
   if (toPositiveNumber(row.size) == null && size != null) updates.size = size
   if (toPositiveNumber(row.micron) == null && micron != null) updates.micron = micron
