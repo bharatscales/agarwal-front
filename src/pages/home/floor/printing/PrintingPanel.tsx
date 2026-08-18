@@ -28,7 +28,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
     setPrintingCreateChildMessage,
     getRollsStockById,
     setPrintingAddRollEditingField,
-    scaleWeight,
     setPrintingAddRollForm,
     printingAddRollForm,
     printingChildRollsLoading,
