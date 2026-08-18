@@ -18,6 +18,24 @@ type ItemForm = {
   itemGroup: string
   partyId: string
   uom: string
+  density: string
+}
+
+const emptyItemForm = (): ItemForm => ({
+  itemCode: "",
+  itemName: "",
+  itemGroup: "",
+  partyId: "",
+  uom: "",
+  density: "",
+})
+
+const parseDensity = (itemGroup: string, density: string): number | null => {
+  if (itemGroup !== "rm film") return null
+  const trimmed = density.trim()
+  if (!trimmed) return null
+  const value = Number(trimmed)
+  return Number.isFinite(value) ? value : null
 }
 
 export default function Item() {
@@ -36,22 +54,10 @@ export default function Item() {
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   const [isEditItemOpen, setIsEditItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
-  const [formData, setFormData] = useState<ItemForm>({
-    itemCode: "",
-    itemName: "",
-    itemGroup: "",
-    partyId: "",
-    uom: "",
-  })
+  const [formData, setFormData] = useState<ItemForm>(emptyItemForm())
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
   const [items, setItems] = useState<Item[]>([])
-  const [editFormData, setEditFormData] = useState<ItemForm>({
-    itemCode: "",
-    itemName: "",
-    itemGroup: "",
-    partyId: "",
-    uom: "",
-  })
+  const [editFormData, setEditFormData] = useState<ItemForm>(emptyItemForm())
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof ItemForm, string>>>({})
   const [itemGroupOptions, setItemGroupOptions] = useState<CreatableOption[]>(fallbackItemGroups)
   const [partyOptions, setPartyOptions] = useState<CreatableOption[]>([])
@@ -111,6 +117,7 @@ export default function Item() {
       itemGroup: item.itemGroup,
       partyId: item.partyId != null ? String(item.partyId) : "",
       uom: item.uom,
+      density: item.itemGroup === "rm film" && item.density != null ? String(item.density) : "",
     })
     setEditErrors({})
     setIsEditItemOpen(true)
@@ -127,8 +134,13 @@ export default function Item() {
           itemName: shouldSyncName ? value : prev.itemName,
         }
       }
-      if (field === "itemGroup" && value !== "fg variety") {
-        return { ...prev, [field]: value, partyId: "" }
+      if (field === "itemGroup") {
+        return {
+          ...prev,
+          itemGroup: value,
+          partyId: value === "fg variety" ? prev.partyId : "",
+          density: value === "rm film" ? prev.density : "",
+        }
       }
       return { ...prev, [field]: value }
     })
@@ -160,8 +172,13 @@ export default function Item() {
           itemName: shouldSyncName ? value : prev.itemName,
         }
       }
-      if (field === "itemGroup" && value !== "fg variety") {
-        return { ...prev, [field]: value, partyId: "" }
+      if (field === "itemGroup") {
+        return {
+          ...prev,
+          itemGroup: value,
+          partyId: value === "fg variety" ? prev.partyId : "",
+          density: value === "rm film" ? prev.density : "",
+        }
       }
       return { ...prev, [field]: value }
     })
@@ -205,6 +222,12 @@ export default function Item() {
     if (!formData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
     }
+    if (formData.itemGroup === "rm film" && formData.density.trim()) {
+      const densityValue = Number(formData.density)
+      if (!Number.isFinite(densityValue) || densityValue <= 0) {
+        errors.density = "Enter a valid density"
+      }
+    }
     // Item code uniqueness will be checked by API
 
     setFormErrors(errors)
@@ -222,6 +245,12 @@ export default function Item() {
     }
     if (!editFormData.uom.trim()) {
       errors.uom = "Default unit of measure is required"
+    }
+    if (editFormData.itemGroup === "rm film" && editFormData.density.trim()) {
+      const densityValue = Number(editFormData.density)
+      if (!Number.isFinite(densityValue) || densityValue <= 0) {
+        errors.density = "Enter a valid density"
+      }
     }
     // Item code uniqueness will be checked by API
 
@@ -243,18 +272,13 @@ export default function Item() {
         itemName: formData.itemName.trim() || formData.itemCode.trim(),
         itemGroup: formData.itemGroup.trim(),
         partyId: formData.partyId.trim() ? parseInt(formData.partyId, 10) : undefined,
+        density: parseDensity(formData.itemGroup, formData.density),
         uomId: uomId,
       }
 
       const newItem = await createItem(payload)
       setItems(prev => [newItem, ...prev])
-      setFormData({
-        itemCode: "",
-        itemName: "",
-        itemGroup: "",
-        partyId: "",
-        uom: "",
-      })
+      setFormData(emptyItemForm())
       setFormErrors({})
       setIsAddItemOpen(false)
     } catch (err: any) {
@@ -283,6 +307,7 @@ export default function Item() {
         itemName: editFormData.itemName.trim() || editFormData.itemCode.trim(),
         itemGroup: editFormData.itemGroup.trim(),
         partyId: editFormData.partyId.trim() ? parseInt(editFormData.partyId, 10) : null,
+        density: parseDensity(editFormData.itemGroup, editFormData.density),
         uomId: uomId,
       }
 
@@ -326,13 +351,7 @@ export default function Item() {
 
   const handleCloseModal = () => {
     setIsAddItemOpen(false)
-    setFormData({
-      itemCode: "",
-      itemName: "",
-      itemGroup: "",
-      partyId: "",
-      uom: "",
-    })
+    setFormData(emptyItemForm())
     setFormErrors({})
   }
 
@@ -415,13 +434,7 @@ export default function Item() {
   const handleCloseEditModal = () => {
     setIsEditItemOpen(false)
     setEditItemId(null)
-    setEditFormData({
-      itemCode: "",
-      itemName: "",
-      itemGroup: "",
-      partyId: "",
-      uom: "",
-    })
+    setEditFormData(emptyItemForm())
     setEditErrors({})
   }
 
@@ -580,6 +593,25 @@ export default function Item() {
                     </div>
                   )}
 
+                  {formData.itemGroup === "rm film" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="density">Density</Label>
+                      <Input
+                        id="density"
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={formData.density}
+                        onChange={(e) => handleInputChange("density", e.target.value)}
+                        placeholder="Enter density"
+                        className={formErrors.density ? "border-red-500" : ""}
+                      />
+                      {formErrors.density && (
+                        <p className="text-sm text-red-500">{formErrors.density}</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="uom">Default Unit of Measure *</Label>
                     <CreatableCombobox
@@ -706,6 +738,25 @@ export default function Item() {
                         placeholder="Select party"
                         searchPlaceholder="Search party..."
                       />
+                    </div>
+                  )}
+
+                  {editFormData.itemGroup === "rm film" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-density">Density</Label>
+                      <Input
+                        id="edit-density"
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={editFormData.density}
+                        onChange={(e) => handleEditInputChange("density", e.target.value)}
+                        placeholder="Enter density"
+                        className={editErrors.density ? "border-red-500" : ""}
+                      />
+                      {editErrors.density && (
+                        <p className="text-sm text-red-500">{editErrors.density}</p>
+                      )}
                     </div>
                   )}
 

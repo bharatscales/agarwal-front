@@ -18,6 +18,7 @@ export type Item = {
   partyId?: number | null
   partyCode?: string | null
   partyName?: string | null
+  density?: number | null
   uom: string
 }
 
@@ -74,6 +75,20 @@ export const getItemColumns = ({
     header: ({ column }) => (
       <ColumnHeader title="UOM" column={column} placeholder="Filter UOM..." />
     ),
+  },
+  {
+    accessorKey: "density",
+    header: ({ column }) => (
+      <ColumnHeader title="DENSITY" column={column} placeholder="Filter density..." />
+    ),
+    cell: ({ row }) => {
+      const density = row.original.density
+      return (
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          {density != null ? density : "-"}
+        </div>
+      )
+    },
   },
   ...(canEdit
     ? [

@@ -8,6 +8,7 @@ type ItemResponse = {
   party_id?: number | null
   party_code?: string | null
   party_name?: string | null
+  density?: number | null
   uom_id?: number | null
   uom?: string | null
   created_by?: number | null
@@ -22,6 +23,7 @@ export type Item = {
   partyId?: number | null
   partyCode?: string | null
   partyName?: string | null
+  density?: number | null
   uom: string
 }
 
@@ -30,6 +32,7 @@ export type ItemPayload = {
   itemName: string
   itemGroup: string
   partyId?: number | null
+  density?: number | null
   uomId?: number
 }
 
@@ -41,6 +44,7 @@ const mapItem = (item: ItemResponse): Item => ({
   partyId: item.party_id,
   partyCode: item.party_code,
   partyName: item.party_name,
+  density: item.density ?? null,
   uom: item.uom || "",
 })
 
@@ -72,6 +76,7 @@ export const createItem = async (payload: ItemPayload) => {
     name: payload.itemName,
     item_group: payload.itemGroup,
     party_id: payload.partyId ?? null,
+    density: payload.density ?? null,
     uom_id: payload.uomId || null,
   })
   return mapItem(response.data)
@@ -83,6 +88,7 @@ export const updateItem = async (itemId: number, payload: Partial<ItemPayload>) 
   if (payload.itemName !== undefined) body.name = payload.itemName
   if (payload.itemGroup !== undefined) body.item_group = payload.itemGroup
   if (payload.partyId !== undefined) body.party_id = payload.partyId ?? null
+  if (payload.density !== undefined) body.density = payload.density ?? null
   if (payload.uomId !== undefined) body.uom_id = payload.uomId
   const response = await api.patch<ItemResponse>(`/item/${itemId}`, body)
   return mapItem(response.data)

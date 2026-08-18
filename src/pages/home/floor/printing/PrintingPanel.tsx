@@ -536,16 +536,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     setPrintingFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_printed").then(setPrintingChildRollsFromDb)
                     setPrintingRollsRefreshKey((key: number) => key + 1)
-                    const balanceCreated = balanceValue != null && balanceValue > 0
-                    setPrintingCreateChildMessage(
-                      balanceCreated
-                        ? wipPrintingTemplate
-                          ? "Printed roll created, loaded roll consumed, and RM Balance roll added. Label sent to printer."
-                          : "Printed roll created, loaded roll consumed, and RM Balance roll added."
-                        : wipPrintingTemplate
-                          ? "Printed roll created and loaded roll consumed. Label sent to printer."
-                          : "Printed roll created and loaded roll consumed."
-                    )
                   } catch {
                     setPrintingCreateChildMessage(
                       wipPrintingTemplate

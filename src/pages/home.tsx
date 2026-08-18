@@ -113,6 +113,7 @@ export default function Home() {
     wastage: string
     plainWastage: string
     printedWastage: string
+    inkGsm: string
     balanceweight: string
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
