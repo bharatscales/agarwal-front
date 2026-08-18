@@ -269,9 +269,24 @@ export const getRollsStockColumns = (options?: RollsColumnsOptions): ColumnDef<R
       header: ({ column }) => (
         <ColumnHeader title="Stage" column={column} placeholder="Filter stage..." />
       ),
-      cell: ({ row }) => (
-        <div className="text-sm">{row.original.stage || "-"}</div>
-      ),
+        cell: ({ row }) => {
+          const stage = (row.original.stage ?? "").toLowerCase().replace(/-/g, "_")
+          const label =
+            stage === "virgin_rm"
+              ? "RM Virgin"
+              : stage === "rm_balance"
+                ? "RM Balance"
+                : stage === "wip_printed"
+                  ? "WIP Printing"
+                  : stage === "wip_inspection"
+                    ? "WIP Inspection"
+                    : stage === "wip_ecl"
+                      ? "WIP ECL"
+                      : stage === "wip_lamination"
+                        ? "WIP Lamination"
+                        : row.original.stage || "-"
+          return <div className="text-sm">{label}</div>
+        },
       filterFn: includesStringFilterFn,
     },
     {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useLocation, useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
@@ -15,9 +15,30 @@ import {
 
 const PAGE_SIZE = 100
 
+function getStockReportConfig(pathname: string) {
+  if (pathname.endsWith("/rm-balance")) {
+    return {
+      title: "RM Balance",
+      stage: "rm_balance",
+      description: "Leftover RM film from printing, with the same item, size, micron, and grade as the loaded parent roll.",
+      itemDescription: (code: string) => `Viewing RM Balance stock for item: ${code}`,
+      exportPrefix: "RM-Balance",
+    }
+  }
+  return {
+    title: "Rm Film Stock",
+    stage: "virgin_rm",
+    description: "View and analyze RM film stock (virgin RM stage only).",
+    itemDescription: (code: string) => `Viewing virgin RM film stock for item: ${code}`,
+    exportPrefix: "Rm-Film-Stock",
+  }
+}
+
 export default function StockReport() {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const itemCodeFilter = searchParams.get("itemCode") ?? undefined
+  const config = getStockReportConfig(location.pathname)
   const [rollsStock, setRollsStock] = useState<RollsStockRow[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [hasMore, setHasMore] = useState(true)
@@ -57,7 +78,7 @@ export default function StockReport() {
       setError(null)
       const start = reset ? 0 : nextSkipRef.current
       const limit = PAGE_SIZE
-      const data = await getAllRollsStock(start, limit, false, "virgin_rm")
+      const data = await getAllRollsStock(start, limit, false, config.stage)
       if (reset) {
         setRollsStock(data)
         nextSkipRef.current = data.length
@@ -74,7 +95,7 @@ export default function StockReport() {
       setIsLoading(false)
       setIsLoadingMore(false)
     }
-  }, [])
+  }, [config.stage])
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoadingMore || isLoading) return
@@ -84,7 +105,7 @@ export default function StockReport() {
 
   useEffect(() => {
     fetchRollsStock()
-  }, [])
+  }, [fetchRollsStock])
 
   useEffect(() => {
     getItems(0, 1000)
@@ -112,17 +133,17 @@ export default function StockReport() {
         setIsIssuing(false)
       }
     },
-    []
+    [fetchRollsStock]
   )
 
   const handleItemWiseExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockItemWiseXlsx(false, "virgin_rm")
+      const blob = await exportRollsStockItemWiseXlsx(false, config.stage)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Rm-Film-Stock-ItemWise-${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `${config.exportPrefix}-ItemWise-${new Date().toISOString().slice(0, 10)}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -138,7 +159,7 @@ export default function StockReport() {
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
-      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false, "virgin_rm")
+      const blob = await exportRollsStockSummaryXlsx(itemCodeFilter, false, config.stage)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -146,7 +167,7 @@ export default function StockReport() {
       a.download =
         itemCodeFilter != null && itemCodeFilter.trim() !== ""
           ? `${itemCodeFilter.trim()}_summary_${dateStr}.xlsx`
-          : `Rm-Film-Stock-Summary-${dateStr}.xlsx`
+          : `${config.exportPrefix}-Summary-${dateStr}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -164,12 +185,12 @@ export default function StockReport() {
       <div className="px-6 pt-2 pb-6">
         <div className="mb-6">
           <h1 className="text-lg sm:text-xl font-bold">
-            Rm Film Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+            {config.title}{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing virgin RM film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock (virgin RM stage only)."}
+              ? config.itemDescription(itemCodeFilter)
+              : config.description}
           </p>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -187,12 +208,12 @@ export default function StockReport() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-lg sm:text-xl font-bold">
-            Rm Film Stock{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
+            {config.title}{itemCodeFilter ? ` — ${itemCodeFilter}` : ""}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {itemCodeFilter
-              ? `Viewing virgin RM film stock for item: ${itemCodeFilter}`
-              : "View and analyze RM film stock (virgin RM stage only)."}
+              ? config.itemDescription(itemCodeFilter)
+              : config.description}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -241,7 +262,7 @@ export default function StockReport() {
 
       {!error && (
         <DataTable
-          key={tableKey}
+          key={`${config.stage}-${tableKey}`}
           columns={getRollsStockColumns()}
           data={filteredRollsStock}
           getRowId={(row) => String(row.id)}

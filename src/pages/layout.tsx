@@ -224,6 +224,9 @@ export default function Layout() {
         if (location.pathname === "/manufacturing/reports/stock") {
           return <StockReport />;
         }
+        if (location.pathname === "/manufacturing/reports/rm-balance") {
+          return <StockReport />;
+        }
         if (location.pathname === "/manufacturing/reports/roll-issues") {
           return <RollIssuesReport />;
         }

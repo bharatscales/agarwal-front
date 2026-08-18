@@ -54,6 +54,27 @@ import { useRoleFlags } from "./home/hooks/useRoleFlags"
 import { useScaleConnection } from "./home/hooks/useScaleConnection"
 import WorkOrder from "./work-order"
 
+function isRmFilmStage(stage: string | null | undefined) {
+  const s = (stage ?? "").toLowerCase().replace(/-/g, "_")
+  return s === "virgin_rm" || s === "rm_balance"
+}
+
+function rmFilmStageLabel(stage: string | null | undefined) {
+  const s = (stage ?? "").toLowerCase().replace(/-/g, "_")
+  if (s === "rm_balance") return "RM Balance"
+  if (s === "virgin_rm") return "RM Virgin"
+  return stage || "—"
+}
+
+async function fetchAvailableRmFilmRolls() {
+  const results = await Promise.allSettled([
+    getAllRollsStock(0, 500, false, "virgin_rm"),
+    getAllRollsStock(0, 500, false, "rm_balance"),
+  ])
+  const rolls = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+  return rolls.filter((r) => !r.consumed && !r.issued)
+}
+
 export default function Home() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -115,6 +136,16 @@ export default function Home() {
   const floorPrintingRmStockColumns = useMemo(
     () => [
       ...getRollsStockColumns({ variant: "rm" }),
+      {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Warehouse" column={column} placeholder="Filter warehouse..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{rmFilmStageLabel(row.original.stage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
       {
         accessorKey: "barcode",
         header: ({ column }: { column: any }) => (
@@ -470,6 +501,16 @@ export default function Home() {
     () => [
       ...getRollsStockColumns({ variant: "rm" }),
       {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Warehouse" column={column} placeholder="Filter warehouse..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{rmFilmStageLabel(row.original.stage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
         accessorKey: "barcode",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
@@ -492,10 +533,7 @@ export default function Home() {
     )
   }
 
-  const isEclRmParentStage = (stage: string | null | undefined) => {
-    const s = (stage ?? "").toLowerCase()
-    return s === "virgin_rm" || s === "virgin-rm"
-  }
+  const isEclRmParentStage = (stage: string | null | undefined) => isRmFilmStage(stage)
 
   const getEclParentRole = (stage: string | null | undefined): "wip" | "rm" | null => {
     if (isEclWipParentStage(stage)) return "wip"
@@ -567,6 +605,16 @@ export default function Home() {
     () => [
       ...getRollsStockColumns({ variant: "rm" }),
       {
+        accessorKey: "stage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Warehouse" column={column} placeholder="Filter warehouse..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{rmFilmStageLabel(row.original.stage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
         accessorKey: "barcode",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
@@ -584,10 +632,7 @@ export default function Home() {
     return s === "wip_ecl" || s === "wip-ecl"
   }
 
-  const isLaminationRmParentStage = (stage: string | null | undefined) => {
-    const s = (stage ?? "").toLowerCase()
-    return s === "virgin_rm" || s === "virgin-rm"
-  }
+  const isLaminationRmParentStage = (stage: string | null | undefined) => isRmFilmStage(stage)
 
   const getLaminationParentRole = (stage: string | null | undefined): "wip" | "rm" | null => {
     if (isLaminationWipParentStage(stage)) return "wip"
@@ -894,7 +939,7 @@ export default function Home() {
       const role = getEclParentRole(roll.stage)
       if (!role) {
         setFloorEclBarcodeError(
-          `Roll must be WIP Printing/Inspection or RM Film (virgin RM). Current stage: ${roll.stage || "—"}`
+          `Roll must be WIP Printing/Inspection or RM Film (virgin RM / RM Balance). Current stage: ${roll.stage || "—"}`
         )
         return
       }
@@ -902,7 +947,7 @@ export default function Home() {
         setFloorEclBarcodeError(
           options.slot === "wip"
             ? "This slot needs a WIP Printing or WIP Inspection roll."
-            : "This slot needs an RM Film (virgin RM) roll."
+            : "This slot needs an RM Film (virgin RM or RM Balance) roll."
         )
         return
       }
@@ -1059,9 +1104,9 @@ export default function Home() {
         return
       }
       const stage = (roll.stage ?? "").toLowerCase().replace(/-/g, "_")
-      if (stage !== "virgin_rm") {
+      if (!isRmFilmStage(stage)) {
         setFloorPrintingBarcodeError(
-          `Only RM virgin rolls can be loaded to Printing. Current stage: ${roll.stage || "—"}`
+          `Only RM virgin or RM Balance rolls can be loaded to Printing. Current stage: ${roll.stage || "—"}`
         )
         return
       }
@@ -1104,12 +1149,11 @@ export default function Home() {
     setFloorPrintingRmRollsError(null)
     setFloorPrintingRmRolls([])
     try {
-      const rolls = await getAllRollsStock(0, 500, false, "virgin_rm")
-      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      const filtered = await fetchAvailableRmFilmRolls()
       setFloorPrintingRmRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorPrintingRmRollsError(
-          "No available RM Film (virgin RM) rolls found. Try scanning a barcode instead."
+          "No available RM virgin or RM Balance rolls found. Try scanning a barcode instead."
         )
       }
     } catch {
@@ -1184,12 +1228,11 @@ export default function Home() {
     setFloorEclRmRollsError(null)
     setFloorEclRmRolls([])
     try {
-      const rolls = await getAllRollsStock(0, 500, false, "virgin_rm")
-      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      const filtered = await fetchAvailableRmFilmRolls()
       setFloorEclRmRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorEclRmRollsError(
-          "No available RM Film (virgin RM) rolls found. Try scanning a barcode instead."
+          "No available RM Film (virgin RM or RM Balance) rolls found. Try scanning a barcode instead."
         )
       }
     } catch {
@@ -1295,7 +1338,7 @@ export default function Home() {
       const role = getLaminationParentRole(roll.stage)
       if (!role) {
         setFloorLaminationBarcodeError(
-          `Roll must be WIP ECL or RM Film (virgin RM). Current stage: ${roll.stage || "—"}`
+          `Roll must be WIP ECL or RM Film (virgin RM / RM Balance). Current stage: ${roll.stage || "—"}`
         )
         return
       }
@@ -1303,7 +1346,7 @@ export default function Home() {
         setFloorLaminationBarcodeError(
           options.slot === "wip"
             ? "This slot needs a WIP ECL roll."
-            : "This slot needs an RM Film (virgin RM) roll."
+            : "This slot needs an RM Film (virgin RM or RM Balance) roll."
         )
         return
       }
@@ -1432,12 +1475,11 @@ export default function Home() {
     setFloorLaminationRmRollsError(null)
     setFloorLaminationRmRolls([])
     try {
-      const rolls = await getAllRollsStock(0, 500, false, "virgin_rm")
-      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      const filtered = await fetchAvailableRmFilmRolls()
       setFloorLaminationRmRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorLaminationRmRollsError(
-          "No available RM Film (virgin RM) rolls found. Try scanning a barcode instead."
+          "No available RM Film (virgin RM or RM Balance) rolls found. Try scanning a barcode instead."
         )
       }
     } catch {
@@ -2733,6 +2775,7 @@ export default function Home() {
                     openFloorPrintingRmPicker={openFloorPrintingRmPicker}
                     closeFloorPrintingRmPicker={closeFloorPrintingRmPicker}
                     applyFloorPrintingFromBarcode={applyFloorPrintingFromBarcode}
+                    setPrintingRollsRefreshKey={setPrintingRollsRefreshKey}
                   />
                 ) : floorView === "inspection" ? (
                   <InspectionPanel

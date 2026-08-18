@@ -67,6 +67,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
     openFloorPrintingRmPicker,
     closeFloorPrintingRmPicker,
     applyFloorPrintingFromBarcode,
+    setPrintingRollsRefreshKey,
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
@@ -153,7 +154,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                         <div>
                           <CardTitle>Select RM Film roll</CardTitle>
                           <CardDescription>
-                            Pick a roll to load into printing (same as scanning its barcode). Non-issued rolls in RM virgin stage are listed.
+                            Pick a roll to load into printing (same as scanning its barcode). Non-issued RM virgin and RM Balance rolls are listed.
                           </CardDescription>
                         </div>
                         <Button variant="ghost" size="sm" onClick={closeFloorPrintingRmPicker} className="h-8 w-8 p-0">
@@ -449,6 +450,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     setPrintingCreateChildLoading(true)
                     setPrintingCreateChildMessage(null)
                     const parentIds = printingLoadedRolls.map((r: any) => r.roll.id)
+                    if (parentIds.length === 0) {
+                      setPrintingCreateChildMessage("Load an RM roll before printing.")
+                      return
+                    }
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
                     const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
                     const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
@@ -524,19 +529,22 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       plainWastage: plainWastageValue ?? undefined,
                       printedWastage: printedWastageValue ?? undefined,
                       gradeId: form.parent.gradeId,
-                      parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                      parentRollIds: parentIds,
                       weightAtTime: netweightValue,
                       balanceWeight: balanceValue ?? undefined,
                     })
-                    if (balanceValue != null) {
-                      await updateRollsStock(form.roll.id, { balanceWeight: balanceValue })
-                    }
                     setPrintingFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_printed").then(setPrintingChildRollsFromDb)
+                    setPrintingRollsRefreshKey((key: number) => key + 1)
+                    const balanceCreated = balanceValue != null && balanceValue > 0
                     setPrintingCreateChildMessage(
-                      wipPrintingTemplate
-                        ? "Roll added and label sent to printer."
-                        : "Roll added and movement recorded. No WIP printing template configured."
+                      balanceCreated
+                        ? wipPrintingTemplate
+                          ? "Printed roll created, loaded roll consumed, and RM Balance roll added. Label sent to printer."
+                          : "Printed roll created, loaded roll consumed, and RM Balance roll added."
+                        : wipPrintingTemplate
+                          ? "Printed roll created and loaded roll consumed. Label sent to printer."
+                          : "Printed roll created and loaded roll consumed."
                     )
                   } catch {
                     setPrintingCreateChildMessage(
@@ -553,35 +561,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            {printingAddRollForm && printingFormCommittedForRollId === printingAddRollForm.roll.id && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => {
-                  setPrintingFormCommittedForRollId(null)
-                  setPrintingAddRollForm((prev: any) =>
-                    prev
-                      ? {
-                          ...prev,
-                          size: prev.roll.size != null ? String(prev.roll.size) : "",
-                          micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
-                          netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
-                          grossweight: "",
-                          wastage: "0",
-                          plainWastage: "0",
-                          printedWastage: "0",
-                          balanceweight: prev.balanceweight ?? "",
-                        }
-                      : null
-                  )
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Add new roll
-              </Button>
-            )}
             {printingAddRollForm && printingChildRollsFromDb.length > 0 && (
               <Button
                 type="button"

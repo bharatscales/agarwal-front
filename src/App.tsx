@@ -104,6 +104,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/reports/rm-balance" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/manufacturing/reports/roll-issues" element={
               <ProtectedRoute>
                 <Layout />

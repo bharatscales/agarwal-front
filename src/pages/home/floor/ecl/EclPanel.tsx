@@ -15,6 +15,7 @@ function stageLabel(stage: string | null | undefined) {
   if (s === "wip_printed" || s === "wip-printing") return "WIP Printing"
   if (s === "wip_inspection" || s === "wip-inspection") return "WIP Inspection"
   if (s === "virgin_rm" || s === "virgin-rm") return "RM Film"
+  if (s === "rm_balance") return "RM Balance"
   return stage || "—"
 }
 
@@ -113,7 +114,7 @@ export function EclPanel(props: EclPanelProps) {
   ) => {
     const title = role === "wip" ? "Parent 1 — WIP Printing / Inspection" : "Parent 2 — RM Film"
     const placeholder =
-      role === "wip" ? "Scan WIP Printing or Inspection barcode" : "Scan RM Film (virgin RM) barcode"
+      role === "wip" ? "Scan WIP Printing or Inspection barcode" : "Scan RM Film (virgin RM or RM Balance) barcode"
 
     return (
       <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm space-y-3">
@@ -676,7 +677,7 @@ export function EclPanel(props: EclPanelProps) {
               <div>
                 <CardTitle>Select RM Film parent roll</CardTitle>
                 <CardDescription>
-                  Pick a virgin RM (RM Film) roll as parent 2 for ECL.
+                  Pick a virgin RM or RM Balance roll as parent 2 for ECL.
                 </CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={closeFloorEclRmPicker} className="h-8 w-8 p-0">

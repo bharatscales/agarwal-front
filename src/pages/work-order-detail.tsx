@@ -225,8 +225,6 @@ export default function WorkOrderDetail() {
     if (!workOrder) return
     if (card.operation !== "Printing") return
 
-    // For Printing operation, we load RM film stock from "virgin_rm" stage.
-    const stage = "virgin_rm"
     setStockSelectOpen(true)
     setStockSelectCard(card)
     setStockSelectLoading(true)
@@ -234,12 +232,16 @@ export default function WorkOrderDetail() {
     setStockRows([])
 
     try {
-      const data = await getAllRollsStock(0, 500, false, stage)
-      // Show all available RM virgin rolls for Printing selection.
-      const filtered = data.filter((r) => !r.consumed)
+      const results = await Promise.allSettled([
+        getAllRollsStock(0, 500, false, "virgin_rm"),
+        getAllRollsStock(0, 500, false, "rm_balance"),
+      ])
+      const filtered = results
+        .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+        .filter((r) => !r.consumed)
       setStockRows(filtered)
       if (filtered.length === 0) {
-        setStockSelectError("No available virgin RM stock found. Try scanning a barcode instead.")
+        setStockSelectError("No available RM virgin or RM Balance stock found. Try scanning a barcode instead.")
       }
     } catch {
       setStockSelectError("Failed to load stock. Please try again.")
