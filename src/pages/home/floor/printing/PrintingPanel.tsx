@@ -213,7 +213,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
               </div>
             ) : (
               <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full min-w-[1200px] text-sm">
+                <table className="w-full min-w-[1320px] text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Job card</th>
@@ -226,6 +226,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Plain wastage (kg)</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Printed wastage (kg)</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
                       <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
                       <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
@@ -260,6 +261,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 wastage: "0",
                                 plainWastage: "0",
                                 printedWastage: "0",
+                                inkGsm: "",
                                 balanceweight: "",
                               })
                               setPrintingAddRollEditingField(null)
@@ -321,6 +323,20 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               onChange={(e) =>
                                 setPrintingAddRollForm((prev: any) =>
                                   prev && prev.roll.id === roll.id ? { ...prev, printedWastage: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-8 min-w-[100px]"
+                              disabled={!isSelected}
+                              value={isSelected ? printingAddRollForm.inkGsm : ""}
+                              onChange={(e) =>
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, inkGsm: e.target.value } : prev
                                 )
                               }
                             />
@@ -457,6 +473,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
                     const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
                     const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
+                    const inkGsmValue = parseBalanceWeight(form.inkGsm || "")
                     const wastageValue =
                       plainWastageValue != null || printedWastageValue != null
                         ? (plainWastageValue || 0) + (printedWastageValue || 0)
@@ -488,6 +505,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           wastage: wastageValue,
                           plainWastage: plainWastageValue,
                           printedWastage: printedWastageValue,
+                          inkGsm: inkGsmValue,
                           itemName: wo.itemName ?? null,
                         },
                       }
@@ -528,6 +546,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       wastage: wastageValue,
                       plainWastage: plainWastageValue ?? undefined,
                       printedWastage: printedWastageValue ?? undefined,
+                      inkGsm: inkGsmValue ?? undefined,
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds,
                       weightAtTime: netweightValue,

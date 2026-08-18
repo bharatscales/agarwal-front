@@ -243,6 +243,7 @@ export default function Home() {
           micron: r.micron,
           netweight: r.netweight,
           grossweight: r.grossweight,
+          inkGsm: r.inkGsm,
           itemName: wo.itemName ?? r.itemName ?? null,
         },
       }
@@ -374,6 +375,18 @@ export default function Home() {
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
             {row.original.printedWastage != null ? `${Number(row.original.printedWastage).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "inkGsm",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Ink gsm" column={column} placeholder="Filter ink gsm..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.inkGsm != null ? String(row.original.inkGsm) : "-"}
           </div>
         ),
         filterFn: includesStringFilterFn,
@@ -2058,6 +2071,7 @@ export default function Home() {
                 wastage: "0",
                 plainWastage: "0",
                 printedWastage: "0",
+                inkGsm: "",
                 balanceweight: "",
               }
             })
