@@ -19,6 +19,7 @@ export type Item = {
   partyCode?: string | null
   partyName?: string | null
   density?: number | null
+  routing?: { sno: number; operation: string }[]
   uom: string
 }
 

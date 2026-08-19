@@ -29,6 +29,7 @@ export type WorkOrderMaster = {
   startedAt?: string | null
   completedAt?: string | null
   skippedOperations?: string[]
+  itemRouting?: { sno: number; operation: string }[]
 }
 
 type WorkOrderColumnHandlers = {

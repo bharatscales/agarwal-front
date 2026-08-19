@@ -843,7 +843,12 @@ export default function Home() {
     options?: { closePicker?: boolean }
   ) => {
     const barcode = barcodeRaw.trim()
-    if (!barcode) return
+    const wo = inspectionSelectedWo
+    if (!wo) return
+    if (!barcode) {
+      setFloorInspectionBarcodeError("Scan or enter a roll barcode first.")
+      return
+    }
     setFloorInspectionBarcodeError(null)
     setFloorInspectionBarcodeChecking(true)
     try {
@@ -871,19 +876,8 @@ export default function Home() {
         )
         return
       }
-      // The table only lists WOs that already have a roll loaded on Inspection; picking a WIP printing roll
-      // usually targets a WO that is not in that subset yet — resolve the WO from the full list.
-      let wo = inspectionWorkOrders.find((w) => w.id === woInfo.workOrderId)
-      if (!wo) {
-        try {
-          const allWos = await getAllWorkOrders(0, 500)
-          wo = allWos.find((w) => w.id === woInfo.workOrderId)
-        } catch {
-          wo = undefined
-        }
-      }
-      if (!wo) {
-        setFloorInspectionBarcodeError("Work order not found for this roll.")
+      if (woInfo.workOrderId !== wo.id) {
+        setFloorInspectionBarcodeError("This roll belongs to a different work order.")
         return
       }
       if (isOperationSkipped(wo.skippedOperations, "Inspection")) {
@@ -943,7 +937,7 @@ export default function Home() {
       await scanRoll(targetCardId, barcode)
 
       setFloorInspectionBarcode("")
-      setInspectionSelectedWo(wo)
+      setInspectionCreateChildMessage("Roll loaded.")
       setInspectionRollsRefreshKey((key) => key + 1)
       if (options?.closePicker) closeFloorInspectionWipPicker()
     } catch (err: unknown) {
@@ -1668,17 +1662,19 @@ export default function Home() {
   }
 
   const openFloorInspectionWipPicker = async () => {
+    const wo = inspectionSelectedWo
+    if (!wo) return
     setFloorInspectionWipPickerOpen(true)
     setFloorInspectionWipRollsLoading(true)
     setFloorInspectionWipRollsError(null)
     setFloorInspectionWipRolls([])
     try {
-      const rolls = await getAllRollsStock(0, 500, false, "wip_printed")
-      const filtered = rolls.filter((r) => !r.consumed)
+      const rolls = await getRollsStockByWorkOrder(wo.id, "wip_printed")
+      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
       setFloorInspectionWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorInspectionWipRollsError(
-          "No available WIP printing rolls found. Try scanning a barcode instead."
+          "No available WIP printing rolls found for this work order. Try scanning a barcode instead."
         )
       }
     } catch {
@@ -2223,27 +2219,38 @@ export default function Home() {
           setInspectionLoadedRolls(loaded)
           if (loaded.length > 0) {
             const first = loaded[0]
+            const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+            setInspectionAddRollForm((prev) => {
+              if (prev?.roll.id === first.roll.id) return prev
+              return {
+                jobCardNumber: first.jobCardNumber,
+                jobCardId: first.jobCardId,
+                roll: first.roll,
+                parent: { gradeId: undefined },
+                size: first.roll.size != null ? String(first.roll.size) : "",
+                micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                grossweight:
+                  grossFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : ""),
+              }
+            })
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
                 setInspectionAddRollEditingField(null)
-                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-                setInspectionAddRollForm({
-                  jobCardNumber: first.jobCardNumber,
-                  jobCardId: first.jobCardId,
-                  roll: first.roll,
-                  parent: { gradeId: parent.gradeId },
-                  size: first.roll.size != null ? String(first.roll.size) : "",
-                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
-                  grossweight: grossFromScale || (parent.grossweight != null ? String(parent.grossweight) : (first.roll.netweight != null ? String(first.roll.netweight) : "")),
+                setInspectionAddRollForm((prev) => {
+                  if (!prev || prev.roll.id !== first.roll.id) return prev
+                  return {
+                    ...prev,
+                    parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    grossweight:
+                      prev.grossweight ||
+                      (parent.grossweight != null ? String(parent.grossweight) : prev.grossweight),
+                  }
                 })
               }
             } catch {
-              if (!cancelled) {
-                setInspectionAddRollForm(null)
-                setInspectionAddRollEditingField(null)
-              }
+              // Keep the in-progress form; grade can stay unset.
             }
           } else {
             setInspectionAddRollForm(null)
@@ -2547,6 +2554,11 @@ export default function Home() {
   useEffect(() => {
     setInspectionFormCommittedForRollId(null)
     setInspectionChildRollsFromDb([])
+    setFloorInspectionBarcode("")
+    setFloorInspectionBarcodeError(null)
+    setFloorInspectionWipPickerOpen(false)
+    setFloorInspectionWipRolls([])
+    setFloorInspectionWipRollsError(null)
   }, [inspectionSelectedWo])
 
   // Reset ECL committed state and child rolls when switching work order
@@ -2589,16 +2601,15 @@ export default function Home() {
     }
   }, [printingSelectedWo?.id])
 
-  // Fetch child rolls (WIP inspection) for loaded rolls in Inspection section
+  // Fetch produced rolls (WIP inspection) for selected work order from DB.
   useEffect(() => {
-    if (inspectionLoadedRolls.length === 0) {
+    if (!inspectionSelectedWo) {
       setInspectionChildRollsFromDb([])
       return
     }
-    const parentIds = inspectionLoadedRolls.map((r) => r.roll.id)
     let cancelled = false
     setInspectionChildRollsLoading(true)
-    getRollsStockByParentIds(parentIds, "wip_inspection")
+    getRollsStockByWorkOrder(inspectionSelectedWo.id, "wip_inspection")
       .then((rows) => {
         if (!cancelled) setInspectionChildRollsFromDb(rows)
       })
@@ -2611,7 +2622,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [inspectionLoadedRolls])
+  }, [inspectionSelectedWo?.id])
 
   // Fetch child rolls (WIP ECL) for loaded rolls in ECL section
   useEffect(() => {
@@ -2773,6 +2784,19 @@ export default function Home() {
                 (floorView === "ecl" && eclSelectedWo) ||
                 (floorView === "lamination" && laminationSelectedWo) ||
                 (floorView === "slitting" && slittingSelectedWo) ? (
+                  (() => {
+                    const selectedWo =
+                      floorView === "printing"
+                        ? printingSelectedWo
+                        : floorView === "inspection"
+                          ? inspectionSelectedWo
+                          : floorView === "ecl"
+                            ? eclSelectedWo
+                            : floorView === "lamination"
+                              ? laminationSelectedWo
+                              : slittingSelectedWo
+                    const routing = selectedWo?.itemRouting ?? []
+                    return (
                   <div className="flex items-center gap-3">
                     <Button
                       type="button"
@@ -2789,40 +2813,39 @@ export default function Home() {
                     >
                       <ArrowLeft className="h-4 w-4" />
                       Work Order - #
-                      {(floorView === "printing"
-                        ? printingSelectedWo
-                        : floorView === "inspection"
-                          ? inspectionSelectedWo
-                          : floorView === "ecl"
-                            ? eclSelectedWo
-                            : floorView === "lamination"
-                              ? laminationSelectedWo
-                              : slittingSelectedWo)?.woNumber ??
-                        String(
-                          (floorView === "printing"
-                            ? printingSelectedWo
-                            : floorView === "inspection"
-                              ? inspectionSelectedWo
-                              : floorView === "ecl"
-                                ? eclSelectedWo
-                                : floorView === "lamination"
-                                  ? laminationSelectedWo
-                                  : slittingSelectedWo)?.id ?? ""
-                        )}
+                      {selectedWo?.woNumber ?? String(selectedWo?.id ?? "")}
                     </Button>
                     <div
-                      className="h-6 w-px bg-gray-300 dark:bg-gray-600 shrink-0"
+                      className="self-stretch w-px bg-gray-300 dark:bg-gray-600 shrink-0"
                       aria-hidden
                     />
                     <div className="space-y-0.5 text-left min-w-0">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Customer — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.partyName ?? "—"}
+                        Customer — {selectedWo?.partyName ?? "—"}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Variety — {(floorView === "printing" ? printingSelectedWo : floorView === "inspection" ? inspectionSelectedWo : floorView === "ecl" ? eclSelectedWo : floorView === "lamination" ? laminationSelectedWo : slittingSelectedWo)?.itemName ?? "—"}
+                        Variety — {selectedWo?.itemName ?? "—"}
                       </p>
                     </div>
+                    <div
+                      className="self-stretch w-px bg-gray-300 dark:bg-gray-600 shrink-0"
+                      aria-hidden
+                    />
+                    <div className="space-y-0.5 text-left min-w-0">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Routing</p>
+                      {routing.length === 0 ? (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">—</p>
+                      ) : (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {routing
+                            .map((step) => `${step.sno} ${step.operation}`)
+                            .join(" → ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                    )
+                  })()
                 ) : null}
                 {floorView === "printing" ? (
                   <PrintingPanel
@@ -2919,7 +2942,7 @@ export default function Home() {
                     inspectionError={inspectionError}
                     inspectionWorkOrders={inspectionWorkOrders}
                     setInspectionSelectedWo={setInspectionSelectedWo}
-                    getRollsStockByParentIds={getRollsStockByParentIds}
+                    getRollsStockByWorkOrder={getRollsStockByWorkOrder}
                     unloadFloorLoadedRoll={unloadFloorLoadedRoll}
                     onSkipWorkOrder={skipInspectionWorkOrder}
                   />

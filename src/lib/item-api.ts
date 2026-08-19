@@ -1,5 +1,10 @@
 import api from "./axios"
 
+export type RoutingStep = {
+  sno: number
+  operation: string
+}
+
 type ItemResponse = {
   id: number
   item_code: string
@@ -11,6 +16,7 @@ type ItemResponse = {
   density?: number | null
   uom_id?: number | null
   uom?: string | null
+  routing?: RoutingStep[] | null
   created_by?: number | null
   created_at?: string
 }
@@ -24,6 +30,7 @@ export type Item = {
   partyCode?: string | null
   partyName?: string | null
   density?: number | null
+  routing: RoutingStep[]
   uom: string
 }
 
@@ -33,6 +40,7 @@ export type ItemPayload = {
   itemGroup: string
   partyId?: number | null
   density?: number | null
+  routing?: RoutingStep[]
   uomId?: number
 }
 
@@ -45,6 +53,7 @@ const mapItem = (item: ItemResponse): Item => ({
   partyCode: item.party_code,
   partyName: item.party_name,
   density: item.density ?? null,
+  routing: Array.isArray(item.routing) ? item.routing : [],
   uom: item.uom || "",
 })
 
@@ -77,6 +86,7 @@ export const createItem = async (payload: ItemPayload) => {
     item_group: payload.itemGroup,
     party_id: payload.partyId ?? null,
     density: payload.density ?? null,
+    routing: payload.routing ?? [],
     uom_id: payload.uomId || null,
   })
   return mapItem(response.data)
@@ -89,6 +99,7 @@ export const updateItem = async (itemId: number, payload: Partial<ItemPayload>) 
   if (payload.itemGroup !== undefined) body.item_group = payload.itemGroup
   if (payload.partyId !== undefined) body.party_id = payload.partyId ?? null
   if (payload.density !== undefined) body.density = payload.density ?? null
+  if (payload.routing !== undefined) body.routing = payload.routing
   if (payload.uomId !== undefined) body.uom_id = payload.uomId
   const response = await api.patch<ItemResponse>(`/item/${itemId}`, body)
   return mapItem(response.data)

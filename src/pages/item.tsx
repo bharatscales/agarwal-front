@@ -1,14 +1,30 @@
-import { useEffect, useRef, useState } from "react"
-import { Plus, RefreshCw, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Plus, RefreshCw, Trash2, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getItemColumns, type Item } from "@/components/columns/item-columns"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import api from "@/lib/axios"
-import { getItems, createItem, updateItem, deleteItem, type ItemPayload } from "@/lib/item-api"
+import { getItems, createItem, updateItem, deleteItem, type ItemPayload, type RoutingStep } from "@/lib/item-api"
 import { getAllParties } from "@/lib/party-api"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -19,6 +35,105 @@ type ItemForm = {
   partyId: string
   uom: string
   density: string
+}
+
+type RoutingRow = {
+  key: string
+  operation: string
+}
+
+let routingRowSeq = 0
+
+const makeRoutingRow = (operation = ""): RoutingRow => ({
+  key: `routing-${++routingRowSeq}`,
+  operation,
+})
+
+const toRoutingPayload = (rows: RoutingRow[]): RoutingStep[] =>
+  rows
+    .filter(row => row.operation.trim())
+    .map((row, index) => ({ sno: index + 1, operation: row.operation.trim() }))
+
+const fromRoutingPayload = (routing?: RoutingStep[] | null): RoutingRow[] =>
+  (routing ?? []).map(step => makeRoutingRow(step.operation || ""))
+
+function ItemRoutingTable({
+  rows,
+  operations,
+  onChange,
+}: {
+  rows: RoutingRow[]
+  operations: string[]
+  onChange: (rows: RoutingRow[]) => void
+}) {
+  const addRow = () => onChange([...rows, makeRoutingRow()])
+  const removeRow = (key: string) => onChange(rows.filter(row => row.key !== key))
+  const setOperation = (key: string, operation: string) =>
+    onChange(rows.map(row => (row.key === key ? { ...row, operation } : row)))
+
+  return (
+    <div className="space-y-2">
+      <Label>Routing</Label>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">SNO</TableHead>
+              <TableHead>OPERATION</TableHead>
+              <TableHead className="w-16" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="text-sm text-muted-foreground">
+                  No routing steps. Click Add row to add an operation.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row, index) => (
+                <TableRow key={row.key}>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell>
+                    <Select
+                      value={row.operation || undefined}
+                      onValueChange={(value) => setOperation(row.key, value)}
+                    >
+                      <SelectTrigger className="w-full" size="sm">
+                        <SelectValue placeholder="Select operation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {operations.map((operation) => (
+                          <SelectItem key={operation} value={operation}>
+                            {operation}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                      onClick={() => removeRow(row.key)}
+                      aria-label="Remove routing step"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={addRow}>
+        Add row
+      </Button>
+    </div>
+  )
 }
 
 const emptyItemForm = (): ItemForm => ({
@@ -51,6 +166,7 @@ export default function Item() {
     { value: "chemical", label: "Chemical" },
   ]
   const fallbackUoms: CreatableOption[] = [{ value: "Nos", label: "Nos" }]
+  const fallbackOperations = ["Printing", "Inspection", "ECL", "Lamination", "Slitting"]
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   const [isEditItemOpen, setIsEditItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -63,9 +179,13 @@ export default function Item() {
   const [partyOptions, setPartyOptions] = useState<CreatableOption[]>([])
   const [uomOptions, setUomOptions] = useState<CreatableOption[]>(fallbackUoms)
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map()) // Map UOM name to ID
+  const [operations, setOperations] = useState<string[]>(fallbackOperations)
+  const [routingRows, setRoutingRows] = useState<RoutingRow[]>([])
+  const [editRoutingRows, setEditRoutingRows] = useState<RoutingRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [itemGroupFilter, setItemGroupFilter] = useState("all")
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   const fetchItems = async () => {
@@ -106,6 +226,7 @@ export default function Item() {
   }
 
   const handleAddItem = () => {
+    setRoutingRows([])
     setIsAddItemOpen(true)
   }
 
@@ -119,6 +240,7 @@ export default function Item() {
       uom: item.uom,
       density: item.itemGroup === "rm film" && item.density != null ? String(item.density) : "",
     })
+    setEditRoutingRows(item.itemGroup === "fg variety" ? fromRoutingPayload(item.routing) : [])
     setEditErrors({})
     setIsEditItemOpen(true)
   }
@@ -135,6 +257,9 @@ export default function Item() {
         }
       }
       if (field === "itemGroup") {
+        if (value !== "fg variety") {
+          setRoutingRows([])
+        }
         return {
           ...prev,
           itemGroup: value,
@@ -173,6 +298,9 @@ export default function Item() {
         }
       }
       if (field === "itemGroup") {
+        if (value !== "fg variety") {
+          setEditRoutingRows([])
+        }
         return {
           ...prev,
           itemGroup: value,
@@ -273,6 +401,7 @@ export default function Item() {
         itemGroup: formData.itemGroup.trim(),
         partyId: formData.partyId.trim() ? parseInt(formData.partyId, 10) : undefined,
         density: parseDensity(formData.itemGroup, formData.density),
+        routing: toRoutingPayload(formData.itemGroup === "fg variety" ? routingRows : []),
         uomId: uomId,
       }
 
@@ -280,6 +409,7 @@ export default function Item() {
       setItems(prev => [newItem, ...prev])
       setFormData(emptyItemForm())
       setFormErrors({})
+      setRoutingRows([])
       setIsAddItemOpen(false)
     } catch (err: any) {
       console.error("Error creating item:", err)
@@ -308,6 +438,7 @@ export default function Item() {
         itemGroup: editFormData.itemGroup.trim(),
         partyId: editFormData.partyId.trim() ? parseInt(editFormData.partyId, 10) : null,
         density: parseDensity(editFormData.itemGroup, editFormData.density),
+        routing: toRoutingPayload(editFormData.itemGroup === "fg variety" ? editRoutingRows : []),
         uomId: uomId,
       }
 
@@ -353,6 +484,7 @@ export default function Item() {
     setIsAddItemOpen(false)
     setFormData(emptyItemForm())
     setFormErrors({})
+    setRoutingRows([])
   }
 
   useEffect(() => {
@@ -387,6 +519,22 @@ export default function Item() {
     }
 
     fetchItemGroups()
+  }, [])
+
+  useEffect(() => {
+    const fetchOperations = async () => {
+      try {
+        const response = await api.get<string[]>("/meta/machine-operations")
+        if (response.data.length > 0) {
+          setOperations(response.data)
+        }
+      } catch (error) {
+        console.error("Failed to load machine operations:", error)
+        setOperations(fallbackOperations)
+      }
+    }
+
+    fetchOperations()
   }, [])
 
   const fetchParties = async () => {
@@ -436,7 +584,26 @@ export default function Item() {
     setEditItemId(null)
     setEditFormData(emptyItemForm())
     setEditErrors({})
+    setEditRoutingRows([])
   }
+
+  const itemGroupFilterBadges = useMemo(() => {
+    const seen = new Set(itemGroupOptions.map(option => option.value.toLowerCase()))
+    const extraGroups = items
+      .map(item => item.itemGroup)
+      .filter(group => group && !seen.has(group.toLowerCase()))
+      .filter((group, index, all) => all.findIndex(g => g.toLowerCase() === group.toLowerCase()) === index)
+      .map(value => ({
+        value,
+        label: value.replace(/^rm\b/i, "RM").replace(/^fg\b/i, "FG"),
+      }))
+    return [...itemGroupOptions, ...extraGroups]
+  }, [itemGroupOptions, items])
+
+  const filteredItems = useMemo(() => {
+    if (itemGroupFilter === "all") return items
+    return items.filter(item => item.itemGroup === itemGroupFilter)
+  }, [items, itemGroupFilter])
 
   return (
     <div className="px-6 pt-2 pb-6">
@@ -469,6 +636,30 @@ export default function Item() {
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Badge
+          asChild
+          variant={itemGroupFilter === "all" ? "default" : "outline"}
+          className="cursor-pointer"
+        >
+          <button type="button" onClick={() => setItemGroupFilter("all")}>
+            All
+          </button>
+        </Badge>
+        {itemGroupFilterBadges.map((group) => (
+          <Badge
+            key={group.value}
+            asChild
+            variant={itemGroupFilter === group.value ? "default" : "outline"}
+            className="cursor-pointer"
+          >
+            <button type="button" onClick={() => setItemGroupFilter(group.value)}>
+              {group.label}
+            </button>
+          </Badge>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
@@ -479,12 +670,13 @@ export default function Item() {
       ) : (
         <div>
           <DataTable
+            key={`item-list-${itemGroupFilter}`}
             columns={getItemColumns({
               onEdit: handleEditItemOpen,
               onDelete: handleDeleteItem,
               canEdit,
             })}
-            data={items}
+            data={filteredItems}
           />
         </div>
       )}
@@ -499,7 +691,7 @@ export default function Item() {
 
       {isAddItemOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
                 <CardTitle>Add New Item</CardTitle>
@@ -635,6 +827,14 @@ export default function Item() {
                   </div>
                 </div>
 
+                {formData.itemGroup === "fg variety" && (
+                  <ItemRoutingTable
+                    rows={routingRows}
+                    operations={operations}
+                    onChange={setRoutingRows}
+                  />
+                )}
+
               </CardContent>
 
               <CardContent className="flex gap-2 mt-6">
@@ -658,7 +858,7 @@ export default function Item() {
 
       {isEditItemOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
                 <CardTitle>Edit Item</CardTitle>
@@ -778,6 +978,14 @@ export default function Item() {
                     )}
                   </div>
                 </div>
+
+                {editFormData.itemGroup === "fg variety" && (
+                  <ItemRoutingTable
+                    rows={editRoutingRows}
+                    operations={operations}
+                    onChange={setEditRoutingRows}
+                  />
+                )}
 
               </CardContent>
 

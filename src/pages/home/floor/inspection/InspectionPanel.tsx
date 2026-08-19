@@ -1,11 +1,14 @@
-import { Check, Pencil, Plus, Printer, ScanBarcode, X } from "lucide-react"
+import { Plus, Printer, ScanBarcode, X } from "lucide-react"
 import { useMemo } from "react"
 
+import { ColumnHeader } from "@/components/column-header"
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { formatWeightWithMeter } from "@/lib/film-calc"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type InspectionPanelProps = any
@@ -20,7 +23,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
     setInspectionCreateChildLoading,
     setInspectionCreateChildMessage,
     getRollsStockById,
-    setInspectionAddRollEditingField,
     scaleWeight,
     setInspectionAddRollForm,
     inspectionChildRollsLoading,
@@ -30,7 +32,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
     getPrintJob,
     setPrintingPrintStatus,
     inspectionFormCommittedForRollId,
-    inspectionAddRollEditingField,
     addInspectionRoll,
     setInspectionFormCommittedForRollId,
     setInspectionChildRollsFromDb,
@@ -54,6 +55,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
     inspectionWorkOrders,
     setInspectionSelectedWo,
     unloadFloorLoadedRoll,
+    getRollsStockByWorkOrder,
     onSkipWorkOrder,
   } = props
 
@@ -61,6 +63,18 @@ export function InspectionPanel(props: InspectionPanelProps) {
     () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
     [onSkipWorkOrder]
   )
+
+  const inspectionProducedTotals = useMemo(() => {
+    return inspectionChildRollsFromDb.reduce(
+      (acc: { rollCount: number; netWeight: number; grossWeight: number }, row: any) => {
+        acc.rollCount += 1
+        acc.netWeight += Number(row.netweight || 0)
+        acc.grossWeight += Number(row.grossweight || 0)
+        return acc
+      },
+      { rollCount: 0, netWeight: 0, grossWeight: 0 }
+    )
+  }, [inspectionChildRollsFromDb])
 
   const handleUnloadInspectionRoll = async (jobCardId: number, rollId: number) => {
     try {
@@ -80,440 +94,201 @@ export function InspectionPanel(props: InspectionPanelProps) {
     }
   }
 
-  return inspectionSelectedWo ? (
-    <div className="space-y-4 mt-4">
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
-        <div>
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll</h4>
-            {inspectionRollsLoading ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-            ) : inspectionLoadedRolls.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No roll currently loaded for this work order.</p>
-            ) : (
-              <div className="space-y-4">
-                {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }: any) => {
-                  const hasChildren = inspectionChildRollsFromDb.length > 0
-                  return (
-                  <div key={`${jobCardNumber}-${roll.id}`} className="rounded-md border border-gray-200 dark:border-gray-700 p-4 text-sm">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="font-medium text-gray-700 dark:text-gray-300">Job card: {jobCardNumber}</div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 -mt-1 -mr-1"
-                        title={
-                          hasChildren
-                            ? "Cannot unload: this roll has produced child rolls"
-                            : "Remove loaded roll"
-                        }
-                        disabled={inspectionCreateChildLoading || hasChildren}
-                        onClick={() => void handleUnloadInspectionRoll(jobCardId, roll.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <dl className="grid grid-cols-5 gap-x-6 gap-y-2 text-gray-600 dark:text-gray-400">
-                      <div>
-                        <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Barcode</dt>
-                        <dd className="font-mono text-gray-900 dark:text-gray-100">{roll.barcode}</dd>
-                      </div>
-                      {(roll.item_name ?? roll.itemName) != null && (
-                        <div>
-                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Structure</dt>
-                          <dd>{roll.item_name ?? roll.itemName}</dd>
-                        </div>
-                      )}
-                      {roll.size != null && (
-                        <div>
-                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Size</dt>
-                          <dd>{roll.size}</dd>
-                        </div>
-                      )}
-                      {roll.micron != null && (
-                        <div>
-                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Micron</dt>
-                          <dd>{roll.micron}</dd>
-                        </div>
-                      )}
-                      {roll.netweight != null && (
-                        <div>
-                          <dt className="text-xs uppercase text-gray-500 dark:text-gray-500">Net weight</dt>
-                          <dd>{Number(roll.netweight).toFixed(2)} kg</dd>
-                        </div>
-                      )}
-                    </dl>
-                    {!(inspectionAddRollForm?.roll.id === roll.id) && (
-                      <div className="mt-4 pt-3 flex items-center justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-1"
-                          disabled={inspectionCreateChildLoading}
-                          onClick={async () => {
-                            try {
-                              setInspectionCreateChildLoading(true)
-                              setInspectionCreateChildMessage(null)
-                              const parent = await getRollsStockById(roll.id)
-                              setInspectionAddRollEditingField(null)
-                              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-                              setInspectionAddRollForm({
-                                jobCardNumber,
-                                jobCardId,
-                                roll,
-                                parent: { gradeId: parent.gradeId },
-                                size: roll.size != null ? String(roll.size) : "",
-                                micron: roll.micron != null ? String(roll.micron) : "",
-                                netweight: roll.netweight != null ? String(roll.netweight) : "",
-                                grossweight:
-                                  grossFromScale ||
-                                  (parent.grossweight != null
-                                    ? String(parent.grossweight)
-                                    : roll.netweight != null
-                                      ? String(roll.netweight)
-                                      : ""),
-                              })
-                            } catch {
-                              setInspectionCreateChildMessage("Failed to load parent roll.")
-                            } finally {
-                              setInspectionCreateChildLoading(false)
-                            }
-                          }}
-                        >
-                          Add to stock
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  )
-                })}
-              </div>
-            )}
+  const pollPrintJob = (jobId: number) => {
+    setPrintingPrintStatus("printing")
+    let pollCount = 0
+    const maxPolls = 30
+    const pollInterval = setInterval(async () => {
+      pollCount++
+      try {
+        const updatedJob = await getPrintJob(jobId)
+        if (updatedJob.status === "done") {
+          clearInterval(pollInterval)
+          setPrintingPrintStatus("done")
+          setTimeout(() => setPrintingPrintStatus("idle"), 3000)
+        } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
+          clearInterval(pollInterval)
+          setPrintingPrintStatus("idle")
+        }
+      } catch {
+        clearInterval(pollInterval)
+        setPrintingPrintStatus("idle")
+      }
+    }, 1000)
+  }
+
+  const handleInspectionProducedRollReprint = async (r: any) => {
+    const wo = inspectionSelectedWo
+    if (!wo || !wipPrintingTemplate) return
+    try {
+      setInspectionCreateChildLoading(true)
+      const printData = {
+        workOrder: {
+          id: wo.id,
+          woNumber: wo.woNumber,
+          partyName: wo.partyName,
+          partyCode: wo.partyCode,
+          itemName: wo.itemName,
+          itemCode: wo.itemCode,
+          plannedQty: wo.plannedQty,
+          producedQty: wo.producedQty,
+          status: wo.status,
+          priority: wo.priority,
+          createdAt: wo.createdAt,
+          startedAt: wo.startedAt,
+          completedAt: wo.completedAt,
+        },
+        roll: {
+          id: r.id,
+          barcode: r.barcode,
+          size: r.size,
+          micron: r.micron,
+          netweight: r.netweight,
+          grossweight: r.grossweight,
+          itemName: wo.itemName ?? r.itemName ?? null,
+        },
+      }
+      const job = await createPrintJob({
+        name: `Inspection Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
+        template_id: wipPrintingTemplate.id,
+        data: printData,
+        copies: 1,
+      })
+      setInspectionCreateChildMessage("Label reprint sent to printer.")
+      pollPrintJob(job.id)
+    } catch {
+      setInspectionCreateChildMessage("Failed to send reprint to printer.")
+    } finally {
+      setInspectionCreateChildLoading(false)
+    }
+  }
+
+  const inspectionProducedRollColumns = useMemo(
+    () => [
+      {
+        id: "sno",
+        header: () => <div>S. no.</div>,
+        cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
+      },
+      {
+        accessorKey: "barcode",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "size",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "micron",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "netweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Net weight (kg)" column={column} placeholder="Filter net weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "grossweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Gross weight (kg)" column={column} placeholder="Filter gross weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.grossweight != null ? `${Number(row.original.grossweight).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        id: "reprint",
+        header: () => <div className="text-left">Reprint</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={!wipPrintingTemplate || inspectionCreateChildLoading}
+              onClick={() => handleInspectionProducedRollReprint(row.original)}
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [wipPrintingTemplate, inspectionCreateChildLoading, inspectionSelectedWo]
+  )
 
-          {(inspectionChildRollsLoading || inspectionChildRollsFromDb.length > 0) && (
-            <div className="mb-4">
-              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Produced rolls</h4>
-              {inspectionChildRollsLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
-              ) : (
-                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Reprint</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inspectionChildRollsFromDb.map((r: any) => (
-                        <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
-                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">{r.barcode || "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.size != null ? String(r.size) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.micron != null ? String(r.micron) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}</td>
-                          <td className="py-2 px-3 text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              disabled={!wipPrintingTemplate || inspectionCreateChildLoading}
-                              onClick={async () => {
-                                const wo = inspectionSelectedWo
-                                if (!wo || !wipPrintingTemplate) return
-                                try {
-                                  setInspectionCreateChildLoading(true)
-                                  const printData = {
-                                    workOrder: {
-                                      id: wo.id,
-                                      woNumber: wo.woNumber,
-                                      partyName: wo.partyName,
-                                      partyCode: wo.partyCode,
-                                      itemName: wo.itemName,
-                                      itemCode: wo.itemCode,
-                                      plannedQty: wo.plannedQty,
-                                      producedQty: wo.producedQty,
-                                      status: wo.status,
-                                      priority: wo.priority,
-                                      createdAt: wo.createdAt,
-                                      startedAt: wo.startedAt,
-                                      completedAt: wo.completedAt,
-                                    },
-                                    roll: {
-                                      id: r.id,
-                                      barcode: r.barcode,
-                                      size: r.size,
-                                      micron: r.micron,
-                                      netweight: r.netweight,
-                                      grossweight: r.grossweight,
-                                      itemName: wo.itemName ?? r.itemName ?? null,
-                                    },
-                                  }
-                                  const job = await createPrintJob({
-                                    name: `Inspection Reprint - ${wo.woNumber} - ${r.barcode || r.id}`,
-                                    template_id: wipPrintingTemplate.id,
-                                    data: printData,
-                                    copies: 1,
-                                  })
-                                  setInspectionCreateChildMessage("Label reprint sent to printer.")
-                                  setPrintingPrintStatus("printing")
-                                  let pollCount = 0
-                                  const maxPolls = 30
-                                  const pollInterval = setInterval(async () => {
-                                    pollCount++
-                                    try {
-                                      const updatedJob = await getPrintJob(job.id)
-                                      if (updatedJob.status === "done") {
-                                        clearInterval(pollInterval)
-                                        setPrintingPrintStatus("done")
-                                        setTimeout(() => setPrintingPrintStatus("idle"), 3000)
-                                      } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
-                                        clearInterval(pollInterval)
-                                        setPrintingPrintStatus("idle")
-                                      }
-                                    } catch {
-                                      clearInterval(pollInterval)
-                                      setPrintingPrintStatus("idle")
-                                    }
-                                  }, 1000)
-                                } catch {
-                                  setInspectionCreateChildMessage("Failed to send reprint to printer.")
-                                } finally {
-                                  setInspectionCreateChildLoading(false)
-                                }
-                              }}
-                            >
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+  const selectLoadedRoll = async (jobCardNumber: string, jobCardId: number, roll: any) => {
+    if (inspectionCreateChildLoading) return
+    if (inspectionAddRollForm?.roll.id === roll.id) return
+    const woItemId = inspectionSelectedWo?.itemId
+    if (woItemId == null) {
+      setInspectionCreateChildMessage("Work order has no item.")
+      return
+    }
+    const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+    setInspectionAddRollForm({
+      jobCardNumber,
+      jobCardId,
+      roll,
+      parent: { gradeId: undefined },
+      size: roll.size != null ? String(roll.size) : "",
+      micron: roll.micron != null ? String(roll.micron) : "",
+      netweight: roll.netweight != null ? String(roll.netweight) : "",
+      grossweight:
+        grossFromScale || (roll.netweight != null ? String(roll.netweight) : ""),
+    })
+    try {
+      const parent = await getRollsStockById(roll.id)
+      setInspectionAddRollForm((prev: any) => {
+        if (!prev || prev.roll.id !== roll.id) return prev
+        return {
+          ...prev,
+          parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+          grossweight:
+            prev.grossweight ||
+            (parent.grossweight != null ? String(parent.grossweight) : prev.grossweight),
+        }
+      })
+    } catch {
+      setInspectionCreateChildMessage("Failed to load parent roll.")
+    }
+  }
 
-          {inspectionAddRollForm && inspectionFormCommittedForRollId !== inspectionAddRollForm.roll.id && (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="col-span-1 sm:col-span-2">
-                  <Label className="text-xs">Item (from work order)</Label>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5">{inspectionSelectedWo?.itemName ?? "—"}</p>
-                </div>
-                <div className="col-span-1 sm:col-span-2">
-                  <Label className="text-xs">Barcode</Label>
-                  <p className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100 mt-0.5">{inspectionAddRollForm.roll.barcode ?? "—"}</p>
-                </div>
-                <div>
-                  <Label className="text-xs">Net weight (kg)</Label>
-                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                    {inspectionAddRollEditingField === "netweight" ? (
-                      <>
-                        <Input
-                          type="number"
-                          step="any"
-                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                          value={inspectionAddRollForm.netweight}
-                          onChange={(e) => setInspectionAddRollForm((prev: any) => (prev ? { ...prev, netweight: e.target.value } : null))}
-                          autoFocus
-                        />
-                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setInspectionAddRollEditingField(null)}>
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">{inspectionAddRollForm.netweight || "—"}</span>
-                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setInspectionAddRollEditingField("netweight")}>
-                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Gross weight (kg)</Label>
-                  <div className="mt-1 flex items-center gap-1 rounded-md border border-input bg-background h-8 px-3 py-0">
-                    {inspectionAddRollEditingField === "grossweight" ? (
-                      <>
-                        <Input
-                          type="number"
-                          step="any"
-                          className="h-7 flex-1 min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                          value={inspectionAddRollForm.grossweight}
-                          onChange={(e) => setInspectionAddRollForm((prev: any) => (prev ? { ...prev, grossweight: e.target.value } : null))}
-                          autoFocus
-                        />
-                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setInspectionAddRollEditingField(null)}>
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">{inspectionAddRollForm.grossweight || "—"}</span>
-                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setInspectionAddRollEditingField("grossweight")}>
-                          <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4 flex-wrap">
-          {!inspectionRollsLoading && inspectionLoadedRolls.length > 0 && (
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="gap-2"
-                disabled={inspectionCreateChildLoading || (inspectionAddRollForm != null && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id)}
-                onClick={async () => {
-                  const form = inspectionAddRollForm
-                  const wo = inspectionSelectedWo
-                  if (form && wo?.itemId != null) {
-                    try {
-                      setInspectionCreateChildLoading(true)
-                      setInspectionCreateChildMessage(null)
-                      const parentIds = inspectionLoadedRolls.map((r: any) => r.roll.id)
-                      if (wipPrintingTemplate) {
-                        const printData = {
-                          workOrder: {
-                            id: wo.id,
-                            woNumber: wo.woNumber,
-                            partyName: wo.partyName,
-                            partyCode: wo.partyCode,
-                            itemName: wo.itemName,
-                            itemCode: wo.itemCode,
-                            plannedQty: wo.plannedQty,
-                            producedQty: wo.producedQty,
-                            status: wo.status,
-                            priority: wo.priority,
-                            createdAt: wo.createdAt,
-                            startedAt: wo.startedAt,
-                            completedAt: wo.completedAt,
-                          },
-                          jobCard: { id: form.jobCardId, jobCardNumber: form.jobCardNumber },
-                          roll: {
-                            size: form.size ? parseFloat(form.size) : undefined,
-                            micron: form.micron ? parseFloat(form.micron) : undefined,
-                            netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                            grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
-                            itemName: wo.itemName ?? null,
-                          },
-                        }
-                        const job = await createPrintJob({
-                          name: `Inspection - ${form.jobCardNumber}`,
-                          template_id: wipPrintingTemplate.id,
-                          data: printData,
-                          copies: 1,
-                        })
-                        setPrintingPrintStatus("printing")
-                        let pollCount = 0
-                        const maxPolls = 30
-                        const pollInterval = setInterval(async () => {
-                          pollCount++
-                          try {
-                            const updatedJob = await getPrintJob(job.id)
-                            if (updatedJob.status === "done") {
-                              clearInterval(pollInterval)
-                              setPrintingPrintStatus("done")
-                              setTimeout(() => setPrintingPrintStatus("idle"), 3000)
-                            } else if (updatedJob.status === "failed" || pollCount >= maxPolls) {
-                              clearInterval(pollInterval)
-                              setPrintingPrintStatus("idle")
-                            }
-                          } catch {
-                            clearInterval(pollInterval)
-                            setPrintingPrintStatus("idle")
-                          }
-                        }, 1000)
-                      }
-                      await addInspectionRoll(form.jobCardId, {
-                        itemId: wo.itemId,
-                        rollno: "",
-                        size: form.size ? parseFloat(form.size) : undefined,
-                        micron: form.micron ? parseFloat(form.micron) : undefined,
-                        netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                        grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
-                        gradeId: form.parent.gradeId,
-                        parentRollIds: parentIds.length > 0 ? parentIds : undefined,
-                        weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
-                      })
-                      setInspectionFormCommittedForRollId(form.roll.id)
-                      props.getRollsStockByParentIds(parentIds, "wip_inspection").then(setInspectionChildRollsFromDb)
-                      setInspectionCreateChildMessage(
-                        wipPrintingTemplate
-                          ? "Roll added and label sent to printer."
-                          : "Roll added and movement recorded. No WIP printing template configured."
-                      )
-                    } catch {
-                      setInspectionCreateChildMessage(
-                        wipPrintingTemplate
-                          ? "Failed to print label. Roll not added or movement not recorded."
-                          : "Failed to add roll or record movement."
-                      )
-                    } finally {
-                      setInspectionCreateChildLoading(false)
-                    }
-                  }
-                }}
-              >
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
-              {inspectionAddRollForm && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    setInspectionFormCommittedForRollId(null)
-                    setInspectionAddRollForm((prev: any) =>
-                      prev
-                        ? {
-                            ...prev,
-                            size: prev.roll.size != null ? String(prev.roll.size) : "",
-                            micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
-                            netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
-                            grossweight: "",
-                          }
-                        : null
-                    )
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add new roll
-                </Button>
-              )}
-            </div>
-          )}
-          {inspectionCreateChildMessage && (
-            <p className="text-xs text-gray-600 dark:text-gray-400">{inspectionCreateChildMessage}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  ) : (
+  const barcodeAndStockPicker = (
     <>
-      <div className="mb-4 space-y-1">
+      <div className="space-y-1 max-w-2xl">
         <Label htmlFor="floor-inspection-barcode" className="text-xs text-gray-600 dark:text-gray-400">
           Barcode
         </Label>
-        <div className="flex flex-wrap items-center gap-2 max-w-2xl">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[min(100%,18rem)] flex-1">
             <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -534,6 +309,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
               disabled={floorInspectionBarcodeChecking}
               className="pl-9"
               autoComplete="off"
+              autoFocus
             />
           </div>
           <Button
@@ -547,7 +323,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
             Select Stock
           </Button>
         </div>
-        {floorInspectionBarcodeError && <p className="text-sm text-red-500">{floorInspectionBarcodeError}</p>}
+        {floorInspectionBarcodeError && (
+          <p className="text-sm text-red-500">{floorInspectionBarcodeError}</p>
+        )}
       </div>
       {floorInspectionWipPickerOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -556,7 +334,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
               <div>
                 <CardTitle>Select WIP Printing roll</CardTitle>
                 <CardDescription>
-                  Pick a roll to load into inspection (same as scanning its barcode). Non-issued rolls in WIP Printing stage are listed.
+                  Pick a roll to load into inspection (same as scanning its barcode). Only unused WIP Printing rolls from this work order are listed.
                 </CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={closeFloorInspectionWipPicker} className="h-8 w-8 p-0">
@@ -573,7 +351,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
                 </div>
               ) : (
                 <>
-                  {floorInspectionWipRollsError && <p className="text-sm text-red-500 mb-3">{floorInspectionWipRollsError}</p>}
+                  {floorInspectionWipRollsError && (
+                    <p className="text-sm text-red-500 mb-3">{floorInspectionWipRollsError}</p>
+                  )}
                   <DataTable
                     key="floor-inspection-wip-picker"
                     columns={floorInspectionWipStockColumns}
@@ -610,6 +390,293 @@ export function InspectionPanel(props: InspectionPanelProps) {
           </Card>
         </div>
       )}
+    </>
+  )
+
+  return inspectionSelectedWo ? (
+    <div className="space-y-4 mt-4">
+      <div>
+        <div className="flex flex-col-reverse gap-2">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll</h4>
+            {inspectionRollsLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+            ) : inspectionLoadedRolls.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No roll currently loaded for this work order.
+                </p>
+                {barcodeAndStockPicker}
+              </div>
+            ) : (
+              <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Job card</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Structure</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Size</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Micron</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Net weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Gross weight (kg)</th>
+                      <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }: any) => {
+                      const isSelected = inspectionAddRollForm?.roll.id === roll.id
+                      return (
+                        <tr
+                          key={`${jobCardNumber}-${roll.id}`}
+                          className={`border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer ${
+                            isSelected ? "bg-gray-50 dark:bg-gray-800/40" : ""
+                          }`}
+                          onClick={() => void selectLoadedRoll(jobCardNumber, jobCardId, roll)}
+                        >
+                          <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+                            {roll.item_name ?? roll.itemName ?? "—"}
+                          </td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+                            {roll.size != null ? String(roll.size) : "—"}
+                          </td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+                            {roll.micron != null ? String(roll.micron) : "—"}
+                          </td>
+                          <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+                            {formatWeightWithMeter(roll.netweight, roll.meter)}
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-7 w-20 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={isSelected ? inspectionAddRollForm.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, netweight: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-7 w-20 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={
+                                isSelected
+                                  ? inspectionAddRollForm.grossweight
+                                  : roll.netweight != null
+                                    ? String(roll.netweight)
+                                    : ""
+                              }
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, grossweight: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Remove loaded roll"
+                              disabled={inspectionCreateChildLoading}
+                              onClick={() => void handleUnloadInspectionRoll(jobCardId, roll.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Produced rolls</h4>
+              {!inspectionChildRollsLoading && (
+                <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                          Total produced rolls
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">
+                          {inspectionProducedTotals.rollCount}
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                          Total net weight (kg)
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">
+                          {inspectionProducedTotals.netWeight.toFixed(2)} kg
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
+                          Total gross weight (kg)
+                        </td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">
+                          {inspectionProducedTotals.grossWeight.toFixed(2)} kg
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {inspectionChildRollsLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
+            ) : inspectionChildRollsFromDb.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No produced rolls found for this work order.</p>
+            ) : (
+              <DataTable
+                columns={inspectionProducedRollColumns}
+                data={inspectionChildRollsFromDb}
+                scrollable
+                scrollHeight="45vh"
+                compact
+                showSelectionSummary={false}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4 flex-wrap">
+        {!inspectionRollsLoading && inspectionLoadedRolls.length > 0 && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="gap-2"
+              disabled={
+                inspectionCreateChildLoading ||
+                (inspectionAddRollForm != null && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id)
+              }
+              onClick={async () => {
+                const form = inspectionAddRollForm
+                const wo = inspectionSelectedWo
+                if (form && wo?.itemId != null) {
+                  try {
+                    setInspectionCreateChildLoading(true)
+                    setInspectionCreateChildMessage(null)
+                    const parentIds = inspectionLoadedRolls.map((r: any) => r.roll.id)
+                    if (parentIds.length === 0) {
+                      setInspectionCreateChildMessage("Load a roll before printing.")
+                      return
+                    }
+                    if (wipPrintingTemplate) {
+                      const printData = {
+                        workOrder: {
+                          id: wo.id,
+                          woNumber: wo.woNumber,
+                          partyName: wo.partyName,
+                          partyCode: wo.partyCode,
+                          itemName: wo.itemName,
+                          itemCode: wo.itemCode,
+                          plannedQty: wo.plannedQty,
+                          producedQty: wo.producedQty,
+                          status: wo.status,
+                          priority: wo.priority,
+                          createdAt: wo.createdAt,
+                          startedAt: wo.startedAt,
+                          completedAt: wo.completedAt,
+                        },
+                        jobCard: { id: form.jobCardId, jobCardNumber: form.jobCardNumber },
+                        roll: {
+                          size: form.size ? parseFloat(form.size) : undefined,
+                          micron: form.micron ? parseFloat(form.micron) : undefined,
+                          netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                          grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                          itemName: wo.itemName ?? null,
+                        },
+                      }
+                      const job = await createPrintJob({
+                        name: `Inspection - ${form.jobCardNumber}`,
+                        template_id: wipPrintingTemplate.id,
+                        data: printData,
+                        copies: 1,
+                      })
+                      pollPrintJob(job.id)
+                    }
+                    await addInspectionRoll(form.jobCardId, {
+                      itemId: wo.itemId,
+                      rollno: "",
+                      size: form.size ? parseFloat(form.size) : undefined,
+                      micron: form.micron ? parseFloat(form.micron) : undefined,
+                      netweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                      grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                      gradeId: form.parent.gradeId,
+                      parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                      weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                    })
+                    setInspectionFormCommittedForRollId(form.roll.id)
+                    getRollsStockByWorkOrder(wo.id, "wip_inspection").then(setInspectionChildRollsFromDb)
+                    setInspectionCreateChildMessage(
+                      wipPrintingTemplate
+                        ? "Roll added and label sent to printer."
+                        : "Roll added and movement recorded. No WIP printing template configured."
+                    )
+                  } catch {
+                    setInspectionCreateChildMessage(
+                      wipPrintingTemplate
+                        ? "Failed to print label. Roll not added or movement not recorded."
+                        : "Failed to add roll or record movement."
+                    )
+                  } finally {
+                    setInspectionCreateChildLoading(false)
+                  }
+                }
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            {inspectionAddRollForm && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  setInspectionFormCommittedForRollId(null)
+                  setInspectionAddRollForm((prev: any) =>
+                    prev
+                      ? {
+                          ...prev,
+                          size: prev.roll.size != null ? String(prev.roll.size) : "",
+                          micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
+                          netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
+                          grossweight: "",
+                        }
+                      : null
+                  )
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Add new roll
+              </Button>
+            )}
+          </div>
+        )}
+        {inspectionCreateChildMessage && (
+          <p className="text-xs text-gray-600 dark:text-gray-400">{inspectionCreateChildMessage}</p>
+        )}
+      </div>
+    </div>
+  ) : (
+    <>
       {inspectionLoading ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
       ) : inspectionError ? (

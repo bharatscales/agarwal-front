@@ -30,6 +30,7 @@ type WorkOrderResponse = {
   started_at?: string | null
   completed_at?: string | null
   skipped_operations?: string[] | null
+  item_routing?: { sno: number; operation: string }[] | null
 }
 
 const mapWorkOrder = (wo: WorkOrderResponse) => ({
@@ -50,6 +51,7 @@ const mapWorkOrder = (wo: WorkOrderResponse) => ({
   startedAt: wo.started_at,
   completedAt: wo.completed_at,
   skippedOperations: wo.skipped_operations ?? [],
+  itemRouting: Array.isArray(wo.item_routing) ? wo.item_routing : [],
 })
 
 export const getAllWorkOrders = async (skip = 0, limit = 100, status?: string) => {
