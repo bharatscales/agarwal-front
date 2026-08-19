@@ -15,11 +15,15 @@ export function FloorDepartmentGrid({ onSelect }: FloorDepartmentGridProps) {
           <button
             key={id}
             type="button"
+            data-floor-theme={id}
             onClick={() => onSelect(id)}
-            className="h-28 sm:h-32 flex flex-col items-center justify-center gap-2 text-base rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            className="relative h-28 sm:h-32 flex flex-col items-center justify-center gap-2 text-base rounded-lg overflow-hidden border-2 border-primary/35 bg-secondary/80 hover:bg-secondary hover:border-primary/70 transition-colors cursor-pointer"
           >
-            <Icon className="h-7 w-7 text-gray-600 dark:text-gray-400" />
-            <span className="text-center leading-tight font-medium text-gray-700 dark:text-gray-300">{label}</span>
+            <span className="absolute inset-x-0 top-0 h-1.5 bg-primary" aria-hidden />
+            <Icon className="h-7 w-7 text-primary" />
+            <span className="text-center leading-tight font-semibold text-secondary-foreground">
+              {label}
+            </span>
           </button>
         ))}
       </div>

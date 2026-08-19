@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/AuthContext"
 import { IMPERSONATION_BAR_HEIGHT } from "@/components/ImpersonationBar"
+import { cn } from "@/lib/utils"
 import type { FloorDepartmentId } from "../constants"
 
 type FloorShellProps = {
@@ -49,9 +50,17 @@ export function FloorShell({
   const impersonationOffset = impersonatedBy ? IMPERSONATION_BAR_HEIGHT : 0
 
   return (
-    <div className="pt-16 pb-10">
+    <div
+      className={cn("pt-16 pb-10 min-h-screen", floorView && "bg-background")}
+      data-floor-theme={floorView ?? undefined}
+    >
       <div
-        className="fixed h-16 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40 transition-all duration-200"
+        className={cn(
+          "fixed h-16 flex items-center justify-between px-4 z-40 transition-all duration-200",
+          floorView
+            ? "bg-secondary border-b-2 border-primary/40"
+            : "bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800"
+        )}
         style={{
           top: impersonationOffset,
           left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
@@ -60,7 +69,7 @@ export function FloorShell({
       >
         {floorView !== null && (
           <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
+            <h2 className="text-lg font-semibold text-primary capitalize">
               {floorViewLabel ?? floorView}
             </h2>
           </div>
@@ -97,7 +106,14 @@ export function FloorShell({
           )}
         </div>
         <div className="flex items-center gap-4">
-          <div className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 min-w-[130px] text-center flex flex-col items-center justify-center gap-1">
+          <div
+            className={cn(
+              "rounded-md px-3 py-2 min-w-[130px] text-center flex flex-col items-center justify-center gap-1",
+              floorView
+                ? "border border-primary/30 bg-background"
+                : "border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+            )}
+          >
             <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-medium">
               Weight
             </div>
@@ -128,7 +144,12 @@ export function FloorShell({
       <div className="px-6 pt-4 pb-6">{children}</div>
 
       <div
-        className="fixed bottom-0 h-7 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 z-50 transition-all duration-200"
+        className={cn(
+          "fixed bottom-0 h-7 flex items-center justify-between px-3 z-50 transition-all duration-200",
+          floorView
+            ? "bg-secondary border-t-2 border-primary/40"
+            : "bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+        )}
         style={{
           left: isMobile ? 0 : sidebarState === "expanded" ? "14rem" : "3rem",
           right: 0,
@@ -145,7 +166,7 @@ export function FloorShell({
               !printerAvailable
                 ? "text-red-600 dark:text-red-400"
                 : printingPrintStatus === "printing"
-                  ? "text-blue-600 dark:text-blue-400"
+                  ? "text-primary"
                   : printingPrintStatus === "done"
                     ? "text-green-600 dark:text-green-400"
                     : websocketConnected

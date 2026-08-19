@@ -25,6 +25,7 @@ export const homeActions = [
 
 export type FloorDepartmentId = "printing" | "inspection" | "lamination" | "ecl" | "slitting"
 
+/** Distinct floor-panel accents: Printing blue, Inspection amber, ECL teal, Lamination violet, Slitting orange. */
 export const floorDepartmentBlocks = [
   { id: "printing", label: "Printing", icon: Printer },
   { id: "inspection", label: "Inspection", icon: ClipboardCheck },
