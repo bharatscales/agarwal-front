@@ -238,7 +238,7 @@ export default function Home() {
   const [inspectionRollsRefreshKey, setInspectionRollsRefreshKey] = useState(0)
   const [inspectionRollsLoading, setInspectionRollsLoading] = useState(false)
   const [inspectionLoadedRolls, setInspectionLoadedRolls] = useState<
-    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
+    { jobCardNumber: string; jobCardId: number; roll: CurrentRoll; operatorName?: string; shift?: string }[]
   >([])
   const [inspectionCreateChildLoading, setInspectionCreateChildLoading] = useState(false)
   const [inspectionCreateChildMessage, setInspectionCreateChildMessage] = useState<string | null>(null)
@@ -250,7 +250,13 @@ export default function Home() {
     size: string
     micron: string
     netweight: string
-    grossweight: string
+    wastage: string
+    wastageReason: string
+    noOfTag: string
+    noOfCuts: string
+    operatorName: string
+    shift: string
+    remark: string
   } | null>(null)
   const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -2215,11 +2221,29 @@ export default function Home() {
           })
         )
         if (!cancelled) {
-          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          const loaded = results
+            .filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+            .map((row) => {
+              const card = cards.find((c) => c.id === row.jobCardId)
+              return {
+                ...row,
+                operatorName: card?.operatorName,
+                shift: card?.shift,
+              }
+            })
           setInspectionLoadedRolls(loaded)
           if (loaded.length > 0) {
             const first = loaded[0]
-            const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+            const firstCard = cards.find((c) => c.id === first.jobCardId)
+            const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
+            const outputWeight =
+              outputFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : "")
+            const inputWeight = Number(first.roll.netweight || 0)
+            const parsedOutput = parseFloat(outputWeight)
+            const wastage =
+              Number.isNaN(parsedOutput)
+                ? "0"
+                : String(Math.max(0, Number((inputWeight - parsedOutput).toFixed(2))))
             setInspectionAddRollForm((prev) => {
               if (prev?.roll.id === first.roll.id) return prev
               return {
@@ -2229,9 +2253,14 @@ export default function Home() {
                 parent: { gradeId: undefined },
                 size: first.roll.size != null ? String(first.roll.size) : "",
                 micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
-                grossweight:
-                  grossFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : ""),
+                netweight: outputWeight,
+                wastage,
+                wastageReason: "",
+                noOfTag: "",
+                noOfCuts: "",
+                operatorName: firstCard?.operatorName ?? "",
+                shift: firstCard?.shift ?? "A",
+                remark: "",
               }
             })
             try {
@@ -2243,9 +2272,6 @@ export default function Home() {
                   return {
                     ...prev,
                     parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
-                    grossweight:
-                      prev.grossweight ||
-                      (parent.grossweight != null ? String(parent.grossweight) : prev.grossweight),
                   }
                 })
               }
@@ -2723,9 +2749,12 @@ export default function Home() {
       )
     }
     if (inspectionAddRollForm && scaleWeight != null) {
-      setInspectionAddRollForm((prev) =>
-        prev ? { ...prev, grossweight: String(scaleWeight) } : null
-      )
+      setInspectionAddRollForm((prev) => {
+        if (!prev) return null
+        const inputWeight = Number(prev.roll.netweight || 0)
+        const wastage = String(Math.max(0, Number((inputWeight - scaleWeight).toFixed(2))))
+        return { ...prev, netweight: String(scaleWeight), wastage }
+      })
     }
     if (eclAddRollForm && scaleWeight != null) {
       setEclAddRollForm((prev) =>

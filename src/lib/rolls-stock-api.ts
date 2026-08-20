@@ -9,6 +9,12 @@ export type RollsStockPayload = {
   meter?: number
   grossweight?: number
   wastage?: number
+  wastageReason?: string | null
+  noOfTag?: number | null
+  noOfCuts?: number | null
+  operatorName?: string | null
+  shift?: string | null
+  remark?: string | null
   plainWastage?: number
   printedWastage?: number
   inkGsm?: number
@@ -40,6 +46,12 @@ type RollsStockResponse = {
   meter?: number | null
   grossweight?: number | null
   wastage?: number | null
+  wastage_reason?: string | null
+  no_of_tag?: number | null
+  no_of_cuts?: number | null
+  operator_name?: string | null
+  shift?: string | null
+  remark?: string | null
   plain_wastage?: number | null
   printed_wastage?: number | null
   ink_gsm?: number | null
@@ -78,6 +90,12 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   meter: rollsStock.meter != null ? Math.round(rollsStock.meter) : 0,
   grossweight: rollsStock.grossweight ?? 0,
   wastage: rollsStock.wastage ?? 0,
+  wastageReason: rollsStock.wastage_reason ?? null,
+  noOfTag: rollsStock.no_of_tag ?? null,
+  noOfCuts: rollsStock.no_of_cuts ?? null,
+  operatorName: rollsStock.operator_name ?? null,
+  shift: rollsStock.shift ?? null,
+  remark: rollsStock.remark ?? null,
   plainWastage: rollsStock.plain_wastage ?? null,
   printedWastage: rollsStock.printed_wastage ?? null,
   inkGsm: rollsStock.ink_gsm ?? null,
@@ -135,6 +153,12 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     meter: payload.meter,
     grossweight: payload.grossweight,
     wastage: payload.wastage,
+    wastage_reason: payload.wastageReason,
+    no_of_tag: payload.noOfTag,
+    no_of_cuts: payload.noOfCuts,
+    operator_name: payload.operatorName,
+    shift: payload.shift,
+    remark: payload.remark,
     plain_wastage: payload.plainWastage,
     printed_wastage: payload.printedWastage,
     ink_gsm: payload.inkGsm,
@@ -175,6 +199,12 @@ export const updateRollsStock = async (
   if ("printedWastage" in payload) body.printed_wastage = payload.printedWastage
   if ("inkGsm" in payload) body.ink_gsm = payload.inkGsm
   if ("inkGsmByInkWt" in payload) body.ink_gsm_by_ink_wt = payload.inkGsmByInkWt
+  if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
+  if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
+  if ("noOfCuts" in payload) body.no_of_cuts = payload.noOfCuts
+  if ("operatorName" in payload) body.operator_name = payload.operatorName
+  if ("shift" in payload) body.shift = payload.shift
+  if ("remark" in payload) body.remark = payload.remark
   const response = await api.patch<RollsStockResponse>(`/rolls-stock/${rollsStockId}`, body)
   return mapRollsStock(response.data)
 }

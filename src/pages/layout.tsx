@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import Home from "./home"
 import Users from "./users"
 import Item from "./item"
+import ItemNew from "./item-new"
 import Party from "./party"
 import Template from "./template"
 import Machine from "./machine"
@@ -11,6 +12,7 @@ import Warehouse from "./warehouse"
 import Operation from "./operation"
 import WorkOrder from "./work-order"
 import WorkOrderDetail from "./work-order-detail"
+import OrderBook from "./order-book"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
 import StockEntryPartyIndex from "./stock-entry-party-index"
@@ -180,6 +182,8 @@ export default function Layout() {
 
       case "/users":
         return <Users />;
+      case "/masters/item/new":
+        return <ItemNew />;
       case "/masters/item":
         return <Item />;
       case "/masters/party":
@@ -196,6 +200,8 @@ export default function Layout() {
         return <Operation />;
       case "/manufacturing/work-order":
         return <WorkOrder />;
+      case "/manufacturing/order-book":
+        return <OrderBook />;
       case "/manufacturing/job-card":
         return <JobCard />;
       case "/manufacturing/stock-entry":

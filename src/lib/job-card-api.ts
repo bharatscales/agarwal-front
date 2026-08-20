@@ -218,6 +218,12 @@ export type AddPrintedRollPayload = {
   meter?: number
   grossweight?: number
   wastage?: number
+  wastageReason?: string | null
+  noOfTag?: number | null
+  noOfCuts?: number | null
+  operatorName?: string | null
+  shift?: string | null
+  remark?: string | null
   plainWastage?: number
   printedWastage?: number
   inkGsm?: number
@@ -284,6 +290,12 @@ export const addInspectionRoll = async (
       netweight: payload.netweight,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
+      wastage_reason: payload.wastageReason || undefined,
+      no_of_tag: payload.noOfTag ?? undefined,
+      no_of_cuts: payload.noOfCuts ?? undefined,
+      operator_name: payload.operatorName || undefined,
+      shift: payload.shift || undefined,
+      remark: payload.remark || undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,

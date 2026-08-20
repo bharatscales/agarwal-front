@@ -1,5 +1,5 @@
 import { Plus, Printer, ScanBarcode, X } from "lucide-react"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
 import { DataTable } from "@/components/data-table"
@@ -7,11 +7,46 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
+import { getAllOperators } from "@/lib/operator-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type InspectionPanelProps = any
+
+const INSPECTION_SHIFTS = ["A", "B"]
+
+function parseOptionalNumber(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const n = Number(trimmed)
+  return Number.isNaN(n) ? undefined : n
+}
+
+function parseOptionalInt(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const n = parseInt(trimmed, 10)
+  return Number.isNaN(n) ? undefined : n
+}
+
+function wastageFromWeights(inputKg: number | null | undefined, outputRaw: string): string {
+  const output = parseFloat(outputRaw)
+  if (Number.isNaN(output)) return "0"
+  return String(Math.max(0, Number(((Number(inputKg) || 0) - output).toFixed(2))))
+}
+
+function displayValue(value: unknown) {
+  if (value == null || value === "") return "-"
+  return String(value)
+}
 
 export function InspectionPanel(props: InspectionPanelProps) {
   const {
@@ -59,6 +94,34 @@ export function InspectionPanel(props: InspectionPanelProps) {
     onSkipWorkOrder,
   } = props
 
+  const [inspectionOperators, setInspectionOperators] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    getAllOperators(0, 500)
+      .then((ops) => {
+        if (cancelled) return
+        const names = ops
+          .filter((op) => (op.operation ?? "").toLowerCase() === "inspection")
+          .map((op) => op.operatorName.trim())
+          .filter(Boolean)
+        setInspectionOperators(Array.from(new Set(names)))
+      })
+      .catch(() => {
+        if (!cancelled) setInspectionOperators([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const operatorOptions = useMemo(() => {
+    const names = [...inspectionOperators]
+    const current = inspectionAddRollForm?.operatorName?.trim()
+    if (current && !names.includes(current)) names.push(current)
+    return names
+  }, [inspectionOperators, inspectionAddRollForm?.operatorName])
+
   const floorWorkOrderColumns = useMemo(
     () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
     [onSkipWorkOrder]
@@ -66,13 +129,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
 
   const inspectionProducedTotals = useMemo(() => {
     return inspectionChildRollsFromDb.reduce(
-      (acc: { rollCount: number; netWeight: number; grossWeight: number }, row: any) => {
+      (acc: { rollCount: number; netWeight: number; wastage: number }, row: any) => {
         acc.rollCount += 1
         acc.netWeight += Number(row.netweight || 0)
-        acc.grossWeight += Number(row.grossweight || 0)
+        acc.wastage += Number(row.wastage || 0)
         return acc
       },
-      { rollCount: 0, netWeight: 0, grossWeight: 0 }
+      { rollCount: 0, netWeight: 0, wastage: 0 }
     )
   }, [inspectionChildRollsFromDb])
 
@@ -144,7 +207,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
           size: r.size,
           micron: r.micron,
           netweight: r.netweight,
-          grossweight: r.grossweight,
+          wastage: r.wastage,
+          wastageReason: r.wastageReason,
+          noOfTag: r.noOfTag,
+          noOfCuts: r.noOfCuts,
+          operatorName: r.operatorName,
+          shift: r.shift,
+          remark: r.remark,
           itemName: wo.itemName ?? r.itemName ?? null,
         },
       }
@@ -203,7 +272,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
       {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Net weight (kg)" column={column} placeholder="Filter net weight..." />
+          <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
@@ -213,14 +282,74 @@ export function InspectionPanel(props: InspectionPanelProps) {
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "grossweight",
+        accessorKey: "wastage",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Gross weight (kg)" column={column} placeholder="Filter gross weight..." />
+          <ColumnHeader title="Wastage (kg)" column={column} placeholder="Filter wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">
-            {row.original.grossweight != null ? `${Number(row.original.grossweight).toFixed(2)} kg` : "-"}
+            {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
           </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "wastageReason",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Reason of wastage" column={column} placeholder="Filter reason..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.wastageReason)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "noOfTag",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="No. of tag" column={column} placeholder="Filter tags..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.noOfTag)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "noOfCuts",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="No. of cuts" column={column} placeholder="Filter cuts..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.noOfCuts)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "operatorName",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Operator name" column={column} placeholder="Filter operator..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.operatorName)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "shift",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Shift" column={column} placeholder="Filter shift..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.shift)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "remark",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Remark" column={column} placeholder="Filter remark..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.remark)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -245,7 +374,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
     [wipPrintingTemplate, inspectionCreateChildLoading, inspectionSelectedWo]
   )
 
-  const selectLoadedRoll = async (jobCardNumber: string, jobCardId: number, roll: any) => {
+  const selectLoadedRoll = async (jobCardNumber: string, jobCardId: number, roll: any, extras?: { operatorName?: string; shift?: string }) => {
     if (inspectionCreateChildLoading) return
     if (inspectionAddRollForm?.roll.id === roll.id) return
     const woItemId = inspectionSelectedWo?.itemId
@@ -253,7 +382,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
       setInspectionCreateChildMessage("Work order has no item.")
       return
     }
-    const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
+    const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
+    const outputWeight =
+      outputFromScale || (roll.netweight != null ? String(roll.netweight) : "")
     setInspectionAddRollForm({
       jobCardNumber,
       jobCardId,
@@ -261,9 +392,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
       parent: { gradeId: undefined },
       size: roll.size != null ? String(roll.size) : "",
       micron: roll.micron != null ? String(roll.micron) : "",
-      netweight: roll.netweight != null ? String(roll.netweight) : "",
-      grossweight:
-        grossFromScale || (roll.netweight != null ? String(roll.netweight) : ""),
+      netweight: outputWeight,
+      wastage: wastageFromWeights(roll.netweight, outputWeight),
+      wastageReason: "",
+      noOfTag: "",
+      noOfCuts: "",
+      operatorName: extras?.operatorName ?? "",
+      shift: extras?.shift ?? "A",
+      remark: "",
     })
     try {
       const parent = await getRollsStockById(roll.id)
@@ -272,9 +408,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
         return {
           ...prev,
           parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
-          grossweight:
-            prev.grossweight ||
-            (parent.grossweight != null ? String(parent.grossweight) : prev.grossweight),
         }
       })
     } catch {
@@ -418,21 +551,28 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Size</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Micron</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
-                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Net weight (kg)</th>
-                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Gross weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Reason of wastage</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of tag</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of cuts</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Operator name</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Shift</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Remark</th>
                       <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll }: any) => {
+                    {inspectionLoadedRolls.map(({ jobCardNumber, jobCardId, roll, operatorName, shift }: any) => {
                       const isSelected = inspectionAddRollForm?.roll.id === roll.id
+                      const form = isSelected ? inspectionAddRollForm : null
                       return (
                         <tr
                           key={`${jobCardNumber}-${roll.id}`}
                           className={`border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer ${
                             isSelected ? "bg-gray-50 dark:bg-gray-800/40" : ""
                           }`}
-                          onClick={() => void selectLoadedRoll(jobCardNumber, jobCardId, roll)}
+                          onClick={() => void selectLoadedRoll(jobCardNumber, jobCardId, roll, { operatorName, shift })}
                         >
                           <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
                           <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
@@ -453,12 +593,19 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               step="any"
                               className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
-                              value={isSelected ? inspectionAddRollForm.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
-                              onChange={(e) =>
+                              value={form ? form.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
+                              onChange={(e) => {
+                                const netweight = e.target.value
                                 setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, netweight: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id
+                                    ? {
+                                        ...prev,
+                                        netweight,
+                                        wastage: wastageFromWeights(roll.netweight, netweight),
+                                      }
+                                    : prev
                                 )
-                              }
+                              }}
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
@@ -467,16 +614,124 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               step="any"
                               className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
-                              value={
-                                isSelected
-                                  ? inspectionAddRollForm.grossweight
-                                  : roll.netweight != null
-                                    ? String(roll.netweight)
-                                    : ""
-                              }
+                              value={form ? form.wastage : ""}
                               onChange={(e) =>
                                 setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, grossweight: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, wastage: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="text"
+                              className="h-7 w-32 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={form ? form.wastageReason : ""}
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, wastageReason: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="1"
+                              className="h-7 w-16 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={form ? form.noOfTag : ""}
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, noOfTag: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="1"
+                              className="h-7 w-16 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={form ? form.noOfCuts : ""}
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, noOfCuts: e.target.value } : prev
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            {operatorOptions.length > 0 ? (
+                              <Select
+                                value={form?.operatorName || undefined}
+                                disabled={!isSelected}
+                                onValueChange={(value) =>
+                                  setInspectionAddRollForm((prev: any) =>
+                                    prev && prev.roll.id === roll.id ? { ...prev, operatorName: value } : prev
+                                  )
+                                }
+                              >
+                                <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {operatorOptions.map((name) => (
+                                    <SelectItem key={name} value={name}>
+                                      {name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                type="text"
+                                className="h-7 w-28 px-1.5 text-xs"
+                                disabled={!isSelected}
+                                value={form ? form.operatorName : ""}
+                                onChange={(e) =>
+                                  setInspectionAddRollForm((prev: any) =>
+                                    prev && prev.roll.id === roll.id ? { ...prev, operatorName: e.target.value } : prev
+                                  )
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={form?.shift || undefined}
+                              disabled={!isSelected}
+                              onValueChange={(value) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, shift: value } : prev
+                                )
+                              }
+                            >
+                              <SelectTrigger size="sm" className="h-7 w-16 px-1.5 text-xs">
+                                <SelectValue placeholder="Shift" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {INSPECTION_SHIFTS.map((shiftOption) => (
+                                  <SelectItem key={shiftOption} value={shiftOption}>
+                                    {shiftOption}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="text"
+                              className="h-7 w-32 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={form ? form.remark : ""}
+                              onChange={(e) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, remark: e.target.value } : prev
                                 )
                               }
                             />
@@ -518,16 +773,16 @@ export function InspectionPanel(props: InspectionPanelProps) {
                           {inspectionProducedTotals.rollCount}
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
-                          Total net weight (kg)
+                          Total output weight (kg)
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold border-r border-zinc-600">
                           {inspectionProducedTotals.netWeight.toFixed(2)} kg
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
-                          Total gross weight (kg)
+                          Total wastage (kg)
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">
-                          {inspectionProducedTotals.grossWeight.toFixed(2)} kg
+                          {inspectionProducedTotals.wastage.toFixed(2)} kg
                         </td>
                       </tr>
                     </tbody>
@@ -598,7 +853,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
                           size: form.size ? parseFloat(form.size) : undefined,
                           micron: form.micron ? parseFloat(form.micron) : undefined,
                           netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                          grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                          grossweight: form.netweight ? parseFloat(form.netweight) : undefined,
+                          wastage: parseOptionalNumber(form.wastage),
+                          wastageReason: form.wastageReason || undefined,
+                          noOfTag: parseOptionalInt(form.noOfTag),
+                          noOfCuts: parseOptionalInt(form.noOfCuts),
+                          operatorName: form.operatorName || undefined,
+                          shift: form.shift || undefined,
+                          remark: form.remark || undefined,
                           itemName: wo.itemName ?? null,
                         },
                       }
@@ -610,16 +872,24 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       })
                       pollPrintJob(job.id)
                     }
+                    const outputWeight = form.netweight ? parseFloat(form.netweight) : undefined
                     await addInspectionRoll(form.jobCardId, {
                       itemId: wo.itemId,
                       rollno: "",
                       size: form.size ? parseFloat(form.size) : undefined,
                       micron: form.micron ? parseFloat(form.micron) : undefined,
-                      netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                      grossweight: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                      netweight: outputWeight,
+                      grossweight: outputWeight,
+                      wastage: parseOptionalNumber(form.wastage),
+                      wastageReason: form.wastageReason.trim() || undefined,
+                      noOfTag: parseOptionalInt(form.noOfTag),
+                      noOfCuts: parseOptionalInt(form.noOfCuts),
+                      operatorName: form.operatorName.trim() || undefined,
+                      shift: form.shift.trim() || undefined,
+                      remark: form.remark.trim() || undefined,
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds.length > 0 ? parentIds : undefined,
-                      weightAtTime: form.grossweight ? parseFloat(form.grossweight) : undefined,
+                      weightAtTime: outputWeight,
                     })
                     setInspectionFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_inspection").then(setInspectionChildRollsFromDb)
@@ -658,7 +928,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
                           size: prev.roll.size != null ? String(prev.roll.size) : "",
                           micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
                           netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
-                          grossweight: "",
+                          wastage: wastageFromWeights(
+                            prev.roll.netweight,
+                            prev.roll.netweight != null ? String(prev.roll.netweight) : ""
+                          ),
+                          wastageReason: "",
+                          noOfTag: "",
+                          noOfCuts: "",
+                          remark: "",
                         }
                       : null
                   )

@@ -14,6 +14,7 @@ import {
   Factory,
   Box,
   BarChart3,
+  BookOpen,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -64,6 +65,12 @@ const manufacturingItems: MenuItem[] = [
     title: "Stock Entry",
     icon: Box,
     path: "/manufacturing/stock-entry",
+  },
+  {
+    title: "Order Book",
+    icon: BookOpen,
+    path: "/manufacturing/order-book",
+    adminOnly: true,
   },
   {
     title: "Work Order",
@@ -450,6 +457,9 @@ export function AppSidebar() {
             <SidebarMenu>
               {manufacturingItems
                 .filter((item) => {
+                  if (item.adminOnly) {
+                    return currentUser?.role === "admin" || currentUser?.role === "superuser";
+                  }
                   // Stock user: only Stock Entry; hide Work Order and Job Card
                   if (isStockUser) {
                     return item.title === "Stock Entry";

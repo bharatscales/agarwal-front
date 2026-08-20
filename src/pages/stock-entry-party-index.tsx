@@ -104,9 +104,6 @@ export default function StockEntryPartyIndex() {
   return (
     <div className="px-6 pt-2 pb-6">
       <div className="mb-6">
-        <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
-          <span className="text-gray-900 dark:text-gray-100 font-medium">Stock Entry</span>
-        </nav>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg sm:text-xl font-bold">Stock Entry</h1>

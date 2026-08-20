@@ -9,10 +9,12 @@ import { DataTable } from "@/components/data-table"
 import { ColumnHeader } from "@/components/column-header"
 import { useAuth } from "@/contexts/AuthContext"
 import { getAllWorkOrders } from "@/lib/work-order-api"
+import { getItemBom, type BomLine } from "@/lib/item-api"
 import { getAllJobCards, scanRoll, mapJobCard, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
 import { getAllRollsStock } from "@/lib/rolls-stock-api"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
+import { FgStageBomReadonly } from "@/components/fg-stage-bom-readonly"
 
 type JobCard = {
   id: number
@@ -88,6 +90,8 @@ export default function WorkOrderDetail() {
   const { user } = useAuth()
   const [workOrder, setWorkOrder] = useState<WorkOrderMaster | null>(null)
   const [jobCards, setJobCards] = useState<JobCard[]>([])
+  const [bomTemplateLines, setBomTemplateLines] = useState<BomLine[]>([])
+  const [bomTemplateLoading, setBomTemplateLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [scanValue, setScanValue] = useState<Record<number, string>>({})
@@ -118,6 +122,16 @@ export default function WorkOrderDetail() {
         return
       }
       setWorkOrder(wo)
+
+      if (wo.itemId) {
+        setBomTemplateLoading(true)
+        getItemBom(wo.itemId)
+          .then(setBomTemplateLines)
+          .catch(() => setBomTemplateLines([]))
+          .finally(() => setBomTemplateLoading(false))
+      } else {
+        setBomTemplateLines([])
+      }
 
       // Fetch job cards for this work order
       const cards = await getAllJobCards(0, 1000, parseInt(id))
@@ -391,6 +405,24 @@ export default function WorkOrderDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {workOrder.itemId != null && (
+        <Card className="mb-3">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">BOM & structure</CardTitle>
+            <CardDescription className="text-xs">
+              Loaded from the FG variety in Item Master (read-only).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0 pb-3">
+            {bomTemplateLoading ? (
+              <p className="text-sm text-muted-foreground">Loading BOM…</p>
+            ) : (
+              <FgStageBomReadonly lines={bomTemplateLines} />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Job Cards by Operation */}
       {operations.length > 0 ? (

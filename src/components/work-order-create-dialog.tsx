@@ -14,11 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getItemsFgVarietyByParty } from "@/lib/item-api"
+import { getItemBom, getItemsFgVarietyByParty, type BomLine } from "@/lib/item-api"
 import { getAllMachines } from "@/lib/machine-api"
 import { getAllOperators } from "@/lib/operator-api"
 import { getPartyCustomers } from "@/lib/party-api"
 import { createWorkOrder } from "@/lib/work-order-api"
+import { FgStageBomReadonly } from "@/components/fg-stage-bom-readonly"
 
 type WorkOrderForm = {
   partyId: string
@@ -57,6 +58,8 @@ export function WorkOrderCreateDialog({ open, onOpenChange, onCreated }: Props) 
   const [itemOptions, setItemOptions] = useState<CreatableOption[]>([])
   const [machines, setMachines] = useState<CreatableOption[]>([])
   const [operators, setOperators] = useState<string[]>([])
+  const [bomTemplateLines, setBomTemplateLines] = useState<BomLine[]>([])
+  const [bomTemplateLoading, setBomTemplateLoading] = useState(false)
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   useEffect(() => {
@@ -64,6 +67,7 @@ export function WorkOrderCreateDialog({ open, onOpenChange, onCreated }: Props) 
     setFormData(emptyForm())
     setFormErrors({})
     setItemOptions([])
+    setBomTemplateLines([])
     requestAnimationFrame(() => {
       addFieldRefs.current[0]?.focus()
     })
@@ -101,6 +105,31 @@ export function WorkOrderCreateDialog({ open, onOpenChange, onCreated }: Props) 
     }
     void loadItems()
   }, [open, formData.partyId])
+
+  useEffect(() => {
+    if (!open) return
+    const itemId = formData.itemId.trim()
+    if (!itemId) {
+      setBomTemplateLines([])
+      setBomTemplateLoading(false)
+      return
+    }
+    let cancelled = false
+    setBomTemplateLoading(true)
+    getItemBom(parseInt(itemId, 10))
+      .then((lines) => {
+        if (!cancelled) setBomTemplateLines(lines)
+      })
+      .catch(() => {
+        if (!cancelled) setBomTemplateLines([])
+      })
+      .finally(() => {
+        if (!cancelled) setBomTemplateLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, formData.itemId])
 
   const handleInputChange = (field: keyof WorkOrderForm, value: string) => {
     setFormData((prev) => {
@@ -183,7 +212,7 @@ export function WorkOrderCreateDialog({ open, onOpenChange, onCreated }: Props) 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle>Add New Work Order</CardTitle>
@@ -353,6 +382,20 @@ export function WorkOrderCreateDialog({ open, onOpenChange, onCreated }: Props) 
                   {formErrors.shift && <p className="text-sm text-red-500">{formErrors.shift}</p>}
                 </div>
               </div>
+            </div>
+
+            <div className="border-t pt-6 mt-6">
+              <h3 className="text-sm font-semibold mb-1">BOM & structure</h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Loaded from the selected FG variety in Item Master (read-only).
+              </p>
+              {!formData.itemId.trim() ? (
+                <p className="text-sm text-muted-foreground">Select an FG variety to view BOM.</p>
+              ) : bomTemplateLoading ? (
+                <p className="text-sm text-muted-foreground">Loading BOM…</p>
+              ) : (
+                <FgStageBomReadonly lines={bomTemplateLines} />
+              )}
             </div>
           </CardContent>
 
