@@ -12,7 +12,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getItems, type BomLine, type Item } from "@/lib/item-api"
+import { filmGsm } from "@/lib/film-calc"
 import { isGsmBomItemGroup, isRmFilmGroup, isRmItemGroup } from "@/lib/rm-item-groups"
+
+function gsmForFilmLine(
+  density: number | string | null | undefined,
+  micron: string | number | null | undefined,
+): string {
+  const computed = filmGsm(density, micron)
+  return computed != null ? String(computed) : ""
+}
 
 export type BomEditorLine = {
   id: number
@@ -110,6 +119,10 @@ export function FgBomEditor(props: FgBomEditorProps) {
           next.micron = ""
           next.gsm = ""
         }
+        const group = next.rmItemGroup || rmItemsById[next.rmItemId]?.itemGroup || ""
+        if (isRmFilmGroup(group)) {
+          next.gsm = gsmForFilmLine(rmItemsById[next.rmItemId]?.density, next.micron)
+        }
         return next
       }),
     )
@@ -166,6 +179,9 @@ export function FgBomEditor(props: FgBomEditorProps) {
                 const group = row.rmItemGroup || rmItemsById[row.rmItemId]?.itemGroup || ""
                 const film = isRmFilmGroup(group)
                 const gsm = isGsmBomItemGroup(group)
+                const filmGsmValue = film
+                  ? gsmForFilmLine(rmItemsById[row.rmItemId]?.density, row.micron) || row.gsm
+                  : row.gsm
                 return (
                   <TableRow key={row.id} className="hover:bg-transparent">
                     <TableCell className="py-2 align-middle">
@@ -213,10 +229,16 @@ export function FgBomEditor(props: FgBomEditorProps) {
                         type="number"
                         step="any"
                         min="0"
-                        className="h-9 tabular-nums"
-                        placeholder={gsm ? "GSM *" : "—"}
-                        value={row.gsm}
-                        disabled={!gsm}
+                        className={`h-9 tabular-nums${film ? " bg-muted/30" : ""}`}
+                        placeholder={gsm ? "GSM *" : film ? "auto" : "—"}
+                        value={film ? filmGsmValue : row.gsm}
+                        disabled={!gsm && !film}
+                        readOnly={film}
+                        title={
+                          film
+                            ? "GSM = density × micron from the selected RM film"
+                            : undefined
+                        }
                         onChange={(e) => updateLine(row.id, { gsm: e.target.value })}
                       />
                     </TableCell>
@@ -255,7 +277,11 @@ export function FgBomEditor(props: FgBomEditorProps) {
                     {isRmFilmGroup(line.rmItemGroup) && line.micron != null ? line.micron : "—"}
                   </TableCell>
                   <TableCell className="py-2 align-middle text-sm tabular-nums">
-                    {isGsmBomItemGroup(line.rmItemGroup) && line.gsm != null ? line.gsm : "—"}
+                    {isGsmBomItemGroup(line.rmItemGroup) && line.gsm != null
+                      ? line.gsm
+                      : isRmFilmGroup(line.rmItemGroup)
+                        ? filmGsm(line.rmDensity, line.micron) ?? line.gsm ?? "—"
+                        : "—"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -283,7 +309,11 @@ export function bomLinesToEditorLines(lines: BomLine[]): BomEditorLine[] {
       rmItemGroup: l.rmItemGroup ?? "",
       size: l.size != null ? String(l.size) : "",
       micron: l.micron != null ? String(l.micron) : "",
-      gsm: l.gsm != null ? String(l.gsm) : "",
+      gsm: isRmFilmGroup(l.rmItemGroup)
+        ? gsmForFilmLine(l.rmDensity, l.micron) || (l.gsm != null ? String(l.gsm) : "")
+        : l.gsm != null
+          ? String(l.gsm)
+          : "",
     }))
 }
 

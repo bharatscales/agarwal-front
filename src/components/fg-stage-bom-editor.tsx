@@ -8,6 +8,8 @@ import {
   type BomEditorLine,
 } from "@/components/fg-bom-editor"
 import type { BomLine, BomLinePayload } from "@/lib/item-api"
+import { filmGsm } from "@/lib/film-calc"
+import { isRmFilmGroup } from "@/lib/rm-item-groups"
 import {
   FG_BOM_MULTI_STAGE_OPERATIONS,
   FG_BOM_NO_RM_OPERATIONS,
@@ -106,15 +108,25 @@ export function bomLinesToStageEditors(lines: BomLine[]): BomStageEditor[] {
       lines: NO_RM_SET.has(operation)
         ? []
         : rmLines.length > 0
-          ? rmLines.map((l, i) => ({
-              id: l.id ?? i + 1,
-              layerNo: l.layerNo ?? i + 1,
-              rmItemId: String(l.rmItemId),
-              rmItemGroup: l.rmItemGroup ?? "",
-              size: l.size != null ? String(l.size) : "",
-              micron: l.micron != null ? String(l.micron) : "",
-              gsm: l.gsm != null ? String(l.gsm) : "",
-            }))
+          ? rmLines.map((l, i) => {
+              const computedGsm = isRmFilmGroup(l.rmItemGroup)
+                ? filmGsm(l.rmDensity, l.micron)
+                : null
+              return {
+                id: l.id ?? i + 1,
+                layerNo: l.layerNo ?? i + 1,
+                rmItemId: String(l.rmItemId),
+                rmItemGroup: l.rmItemGroup ?? "",
+                size: l.size != null ? String(l.size) : "",
+                micron: l.micron != null ? String(l.micron) : "",
+                gsm:
+                  computedGsm != null
+                    ? String(computedGsm)
+                    : l.gsm != null
+                      ? String(l.gsm)
+                      : "",
+              }
+            })
           : [createBomEditorLine(1, 1)],
     })
   }

@@ -34,6 +34,17 @@ export const meterFromNetWeight = (
   return Math.round((w * 1_000_000) / (d * size * thick))
 }
 
+/** Film GSM (g/m²) = density (g/cm³) × micron (µm). Size is not part of GSM. */
+export const filmGsm = (
+  density: number | string | null | undefined,
+  micron: number | string | null | undefined
+): number | null => {
+  const d = toPositiveNumber(density)
+  const thick = toPositiveNumber(micron)
+  if (d == null || thick == null) return null
+  return round2(d * thick)
+}
+
 export const netWeightFromMeter = (
   meter: number | null | undefined,
   sizeMm: number | null | undefined,
