@@ -8,9 +8,15 @@ import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatab
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { getItemsFgVarietyByParty } from "@/lib/item-api"
+import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
 import { getPartyCustomers } from "@/lib/party-api"
 import { createOrderBook } from "@/lib/order-book-api"
+import {
+  OrderBookSpecFields,
+  parseOptionalInt,
+  parseOptionalNumber,
+  type OrderBookSpecFieldsValue,
+} from "@/components/order-book-spec-fields"
 
 type OrderBookForm = {
   partyId: string
@@ -18,7 +24,7 @@ type OrderBookForm = {
   qty: string
   orderDate: string
   remarks: string
-}
+} & OrderBookSpecFieldsValue
 
 const todayIso = () => {
   const d = new Date()
@@ -34,6 +40,12 @@ const emptyForm = (): OrderBookForm => ({
   qty: "",
   orderDate: todayIso(),
   remarks: "",
+  totalGsm: "",
+  size: "",
+  structure: "",
+  coilWidth: "",
+  repeatLength: "",
+  noOfPanel: "",
 })
 
 type Props = {
@@ -87,11 +99,41 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
     void loadItems()
   }, [open, formData.partyId])
 
+  useEffect(() => {
+    if (!open || !formData.itemId) return
+    const itemId = formData.itemId
+    let cancelled = false
+    getItemBom(parseInt(itemId, 10))
+      .then((lines) => {
+        if (cancelled) return
+        const specs = specsFromFgBom(lines)
+        setFormData((prev) => (prev.itemId === itemId ? { ...prev, ...specs } : prev))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFormData((prev) =>
+            prev.itemId === itemId ? { ...prev, totalGsm: "", size: "", structure: "" } : prev
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, formData.itemId])
+
   const handleInputChange = (field: keyof OrderBookForm, value: string) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value }
       if (field === "partyId") {
         next.itemId = ""
+        next.totalGsm = ""
+        next.size = ""
+        next.structure = ""
+      }
+      if (field === "itemId" && !value) {
+        next.totalGsm = ""
+        next.size = ""
+        next.structure = ""
       }
       return next
     })
@@ -143,6 +185,12 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
       itemId: parseInt(formData.itemId),
       qty: parseFloat(formData.qty),
       orderDate: formData.orderDate.trim() || null,
+      totalGsm: parseOptionalNumber(formData.totalGsm),
+      size: parseOptionalNumber(formData.size),
+      structure: formData.structure.trim() || null,
+      coilWidth: parseOptionalNumber(formData.coilWidth),
+      repeatLength: parseOptionalNumber(formData.repeatLength),
+      noOfPanel: parseOptionalInt(formData.noOfPanel),
       remarks: formData.remarks.trim() || null,
     })
       .then((newOrder) => {
@@ -245,12 +293,20 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
               </div>
             </div>
 
+            <OrderBookSpecFields
+              value={formData}
+              onChange={(field, value) => handleInputChange(field, value)}
+              fieldRefs={addFieldRefs.current}
+              startIndex={4}
+              onEnterKey={handleEnterKey}
+            />
+
             <div className="space-y-2">
               <Label htmlFor="remarks">Remarks</Label>
               <Textarea
                 id="remarks"
                 ref={(el) => {
-                  addFieldRefs.current[4] = el
+                  addFieldRefs.current[10] = el
                 }}
                 value={formData.remarks}
                 onChange={(e) => handleInputChange("remarks", e.target.value)}

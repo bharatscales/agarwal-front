@@ -14,8 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { CreatableCombobox } from "@/components/ui/creatable-combobox"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getAllOperators } from "@/lib/operator-api"
+import { getWastageReasons } from "@/lib/rolls-stock-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -95,6 +97,8 @@ export function InspectionPanel(props: InspectionPanelProps) {
   } = props
 
   const [inspectionOperators, setInspectionOperators] = useState<string[]>([])
+  const [savedWastageReasons, setSavedWastageReasons] = useState<string[]>([])
+  const [createdWastageReasons, setCreatedWastageReasons] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -110,6 +114,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
       .catch(() => {
         if (!cancelled) setInspectionOperators([])
       })
+    getWastageReasons()
+      .then((reasons) => {
+        if (!cancelled) setSavedWastageReasons(reasons)
+      })
+      .catch(() => {
+        if (!cancelled) setSavedWastageReasons([])
+      })
     return () => {
       cancelled = true
     }
@@ -121,6 +132,32 @@ export function InspectionPanel(props: InspectionPanelProps) {
     if (current && !names.includes(current)) names.push(current)
     return names
   }, [inspectionOperators, inspectionAddRollForm?.operatorName])
+
+  const wastageReasonOptions = useMemo(() => {
+    const reasons = [...savedWastageReasons, ...createdWastageReasons]
+    const current = inspectionAddRollForm?.wastageReason?.trim()
+    if (current && !reasons.some((r) => r.toLowerCase() === current.toLowerCase())) {
+      reasons.push(current)
+    }
+    const seen = new Set<string>()
+    return reasons
+      .map((reason) => reason.trim())
+      .filter((reason) => {
+        const key = reason.toLowerCase()
+        if (!reason || seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .map((reason) => ({ value: reason, label: reason }))
+  }, [savedWastageReasons, createdWastageReasons, inspectionAddRollForm?.wastageReason])
+
+  const addWastageReasonOption = (label: string) => {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    setCreatedWastageReasons((prev) =>
+      prev.some((r) => r.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
+    )
+  }
 
   const floorWorkOrderColumns = useMemo(
     () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
@@ -622,17 +659,24 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               }
                             />
                           </td>
-                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="text"
-                              className="h-7 w-32 px-1.5 text-xs"
+                          <td className="py-1.5 px-2 min-w-[10rem]" onClick={(e) => e.stopPropagation()}>
+                            <CreatableCombobox
+                              options={wastageReasonOptions}
+                              value={form?.wastageReason ? form.wastageReason : null}
                               disabled={!isSelected}
-                              value={form ? form.wastageReason : ""}
-                              onChange={(e) =>
+                              placeholder="Select or create"
+                              searchPlaceholder="Search reason…"
+                              emptyMessage="No reasons yet."
+                              createLabel="Add reason"
+                              onValueChange={(selected) =>
                                 setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, wastageReason: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id
+                                    ? { ...prev, wastageReason: selected ?? "" }
+                                    : prev
                                 )
                               }
+                              onCreateOption={addWastageReasonOption}
+                              className="h-7 w-40 px-1.5 text-xs"
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>

@@ -1,4 +1,6 @@
 import api from "./axios"
+import { filmGsm } from "./film-calc"
+import { isRmFilmGroup } from "./rm-item-groups"
 
 export type RoutingStep = {
   sno: number
@@ -112,6 +114,39 @@ const mapBomLine = (row: BomLineResponse): BomLine => ({
 export const getItemBom = async (itemId: number): Promise<BomLine[]> => {
   const response = await api.get<BomLineResponse[]>(`/item/${itemId}/bom`)
   return response.data.map(mapBomLine)
+}
+
+/** Prefill order-book specs from an FG variety BOM. */
+export const specsFromFgBom = (lines: BomLine[]): {
+  totalGsm: string
+  size: string
+  structure: string
+} => {
+  const withRm = lines.filter((l) => l.rmItemId != null)
+  const filmLayers = withRm.filter((l) => isRmFilmGroup(l.rmItemGroup))
+  const structure = filmLayers
+    .map((l) => (l.rmItemCode || l.rmItemName || "").trim())
+    .filter(Boolean)
+    .join(" / ")
+  const sizeLine = filmLayers.find((l) => l.size != null) ?? withRm.find((l) => l.size != null)
+  let total = 0
+  let hasGsm = false
+  for (const line of withRm) {
+    const gsm = isRmFilmGroup(line.rmItemGroup)
+      ? filmGsm(line.rmDensity, line.micron) ?? (line.gsm != null ? Number(line.gsm) : null)
+      : line.gsm != null
+        ? Number(line.gsm)
+        : null
+    if (gsm != null && Number.isFinite(gsm) && gsm > 0) {
+      total += gsm
+      hasGsm = true
+    }
+  }
+  return {
+    totalGsm: hasGsm ? String(Math.round(total * 100) / 100) : "",
+    size: sizeLine?.size != null ? String(sizeLine.size) : "",
+    structure,
+  }
 }
 
 export type ItemPayload = {

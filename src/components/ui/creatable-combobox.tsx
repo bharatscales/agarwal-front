@@ -37,6 +37,7 @@ interface CreatableComboboxProps {
   tickable?: boolean
   triggerRef?: React.Ref<HTMLInputElement>
   onInputKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
+  className?: string
 }
 
 export function CreatableCombobox({
@@ -54,10 +55,12 @@ export function CreatableCombobox({
   tickable = false,
   triggerRef,
   onInputKeyDown,
+  className,
 }: CreatableComboboxProps) {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const skipCommitOnClose = useRef(false)
 
   const selectedOption = options.find(option => option.value === value)
   const trimmedSearch = searchValue.trim()
@@ -81,7 +84,26 @@ export function CreatableCombobox({
     ? searchValue
     : selectedOption
       ? selectedOption.label
-      : ""
+      : (value ?? "")
+
+  const closeAfterSelect = () => {
+    skipCommitOnClose.current = true
+    setSearchValue("")
+    setOpen(false)
+  }
+
+  const commitTypedValue = (typed: string) => {
+    if (!typed) return
+    const match = options.find(
+      option => option.label.toLowerCase() === typed.toLowerCase()
+    )
+    if (match) {
+      onValueChange(match.value)
+      return
+    }
+    onCreateOption?.(typed)
+    onValueChange(typed)
+  }
 
   useEffect(() => {
     if (open) {
@@ -105,10 +127,14 @@ export function CreatableCombobox({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        setOpen(next)
         if (!next) {
+          if (!skipCommitOnClose.current) {
+            commitTypedValue(searchValue.trim())
+          }
+          skipCommitOnClose.current = false
           setSearchValue("")
         }
+        setOpen(next)
       }}
     >
       <PopoverAnchor asChild>
@@ -136,7 +162,7 @@ export function CreatableCombobox({
               setOpen(true)
             }}
             onKeyDown={onInputKeyDown}
-            className="pr-9"
+            className={cn("pr-9", className)}
           />
           <ArrowRight className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
         </div>
@@ -169,11 +195,13 @@ export function CreatableCombobox({
                     onSelect={() => {
                       if (tickable && value === option.value) {
                         onValueChange(null)
+                        skipCommitOnClose.current = true
+                        setSearchValue("")
                         return
                       }
                       onValueChange(option.value)
                       if (!tickable) {
-                        setOpen(false)
+                        closeAfterSelect()
                       }
                     }}
                     disabled={option.disabled}
@@ -205,8 +233,7 @@ export function CreatableCombobox({
                   onSelect={() => {
                     onCreateOption?.(trimmedSearch)
                     onValueChange(trimmedSearch)
-                    setSearchValue("")
-                    setOpen(false)
+                    closeAfterSelect()
                   }}
                 >
                   <Plus className="mr-2 h-4 w-4" />

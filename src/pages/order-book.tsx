@@ -8,9 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { getPartyCustomers } from "@/lib/party-api"
-import { getItemsFgVarietyByParty } from "@/lib/item-api"
+import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
 import { deleteOrderBook, getAllOrderBooks, updateOrderBook } from "@/lib/order-book-api"
 import { OrderBookCreateDialog } from "@/components/order-book-create-dialog"
+import {
+  OrderBookSpecFields,
+  parseOptionalInt,
+  parseOptionalNumber,
+  type OrderBookSpecFieldsValue,
+} from "@/components/order-book-spec-fields"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 
 type OrderBookForm = {
@@ -19,7 +25,7 @@ type OrderBookForm = {
   qty: string
   orderDate: string
   remarks: string
-}
+} & OrderBookSpecFieldsValue
 
 const todayIso = () => {
   const d = new Date()
@@ -35,6 +41,12 @@ const emptyForm = (): OrderBookForm => ({
   qty: "",
   orderDate: todayIso(),
   remarks: "",
+  totalGsm: "",
+  size: "",
+  structure: "",
+  coilWidth: "",
+  repeatLength: "",
+  noOfPanel: "",
 })
 
 export default function OrderBook() {
@@ -66,6 +78,12 @@ export default function OrderBook() {
       qty: order.qty?.toString() || "",
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : "",
       remarks: order.remarks || "",
+      totalGsm: order.totalGsm != null ? String(order.totalGsm) : "",
+      size: order.size != null ? String(order.size) : "",
+      structure: order.structure || "",
+      coilWidth: order.coilWidth != null ? String(order.coilWidth) : "",
+      repeatLength: order.repeatLength != null ? String(order.repeatLength) : "",
+      noOfPanel: order.noOfPanel != null ? String(order.noOfPanel) : "",
     })
     setEditErrors({})
     setIsEditOrderOpen(true)
@@ -76,6 +94,14 @@ export default function OrderBook() {
       const next = { ...prev, [field]: value }
       if (field === "partyId") {
         next.itemId = ""
+        next.totalGsm = ""
+        next.size = ""
+        next.structure = ""
+      }
+      if (field === "itemId" && value !== prev.itemId) {
+        next.totalGsm = ""
+        next.size = ""
+        next.structure = ""
       }
       return next
     })
@@ -109,6 +135,12 @@ export default function OrderBook() {
       itemId: parseInt(editFormData.itemId),
       qty: parseFloat(editFormData.qty),
       orderDate: editFormData.orderDate.trim() || null,
+      totalGsm: parseOptionalNumber(editFormData.totalGsm),
+      size: parseOptionalNumber(editFormData.size),
+      structure: editFormData.structure.trim() || null,
+      coilWidth: parseOptionalNumber(editFormData.coilWidth),
+      repeatLength: parseOptionalNumber(editFormData.repeatLength),
+      noOfPanel: parseOptionalInt(editFormData.noOfPanel),
       remarks: editFormData.remarks.trim() || null,
     })
       .then((updated) => {
@@ -196,6 +228,33 @@ export default function OrderBook() {
       fetchItemsForParty(parseInt(editFormData.partyId, 10))
     }
   }, [isEditOrderOpen, editFormData.partyId])
+
+  useEffect(() => {
+    if (!isEditOrderOpen || !editFormData.itemId) return
+    const itemId = editFormData.itemId
+    let cancelled = false
+    getItemBom(parseInt(itemId, 10))
+      .then((lines) => {
+        if (cancelled) return
+        const specs = specsFromFgBom(lines)
+        setEditFormData((prev) =>
+          prev.itemId === itemId
+            ? {
+                ...prev,
+                totalGsm: prev.totalGsm || specs.totalGsm,
+                size: prev.size || specs.size,
+                structure: prev.structure || specs.structure,
+              }
+            : prev
+        )
+      })
+      .catch(() => {
+        /* keep existing spec values if BOM is unavailable */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isEditOrderOpen, editFormData.itemId])
 
   return (
     <div className="px-6 pt-2 pb-6">
@@ -355,6 +414,12 @@ export default function OrderBook() {
                     />
                   </div>
                 </div>
+
+                <OrderBookSpecFields
+                  idPrefix="edit-"
+                  value={editFormData}
+                  onChange={(field, value) => handleEditInputChange(field, value)}
+                />
 
                 <div className="space-y-2">
                   <Label htmlFor="edit-remarks">Remarks</Label>

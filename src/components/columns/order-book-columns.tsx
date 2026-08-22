@@ -22,6 +22,12 @@ export type OrderBookMaster = {
   itemName?: string | null
   qty: number
   orderDate?: string | null
+  totalGsm?: number | null
+  size?: number | null
+  structure?: string | null
+  coilWidth?: number | null
+  repeatLength?: number | null
+  noOfPanel?: number | null
   remarks?: string | null
   createdBy?: number | null
   createdAt?: string
@@ -90,6 +96,90 @@ export const getOrderBookColumns = ({
         return <div className="text-sm">{Number(qty).toFixed(2)}</div>
       },
       filterFn: includesStringFilterFn,
+    },
+    {
+      accessorKey: "totalGsm",
+      header: ({ column }) => (
+        <ColumnHeader title="TOTAL GSM" column={column} placeholder="Filter total GSM..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("totalGsm") as number | null
+        return (
+          <div className="text-sm">
+            {value != null ? Number(value).toFixed(2) : <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "size",
+      header: ({ column }) => (
+        <ColumnHeader title="SIZE" column={column} placeholder="Filter size..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("size") as number | null
+        return (
+          <div className="text-sm">
+            {value != null ? String(value) : <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "structure",
+      header: ({ column }) => (
+        <ColumnHeader title="STRUCTURE" column={column} placeholder="Filter structure..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("structure") as string | null
+        return (
+          <div className="text-sm text-gray-600 dark:text-gray-400 max-w-[220px] truncate">
+            {value || <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "coilWidth",
+      header: ({ column }) => (
+        <ColumnHeader title="COIL WIDTH" column={column} placeholder="Filter coil width..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("coilWidth") as number | null
+        return (
+          <div className="text-sm">
+            {value != null ? String(value) : <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "repeatLength",
+      header: ({ column }) => (
+        <ColumnHeader title="REPEAT LENGTH" column={column} placeholder="Filter repeat length..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("repeatLength") as number | null
+        return (
+          <div className="text-sm">
+            {value != null ? String(value) : <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "noOfPanel",
+      header: ({ column }) => (
+        <ColumnHeader title="NO OF PANEL" column={column} placeholder="Filter no of panel..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("noOfPanel") as number | null
+        return (
+          <div className="text-sm">
+            {value != null ? String(value) : <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
     },
     {
       accessorKey: "orderDate",

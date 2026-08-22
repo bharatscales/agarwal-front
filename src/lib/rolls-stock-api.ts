@@ -209,6 +209,13 @@ export const updateRollsStock = async (
   return mapRollsStock(response.data)
 }
 
+export const getWastageReasons = async (): Promise<string[]> => {
+  const response = await api.get<string[]>("/meta/wastage-reasons")
+  return Array.isArray(response.data)
+    ? response.data.map((r) => String(r).trim()).filter(Boolean)
+    : []
+}
+
 export const getRollsStockById = async (id: number) => {
   const response = await api.get<RollsStockResponse>(`/rolls-stock/${id}`)
   return mapRollsStock(response.data)
