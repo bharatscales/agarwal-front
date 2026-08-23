@@ -166,6 +166,28 @@ export const getOrderBookColumns = ({
       },
     },
     {
+      accessorKey: "qty",
+      header: ({ column }) => (
+        <Header title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
+      ),
+      cell: ({ row }) => {
+        const qty = row.getValue("qty") as number
+        return <div>{Number(qty).toFixed(2)}</div>
+      },
+      filterFn: includesStringFilterFn,
+    },
+    {
+      accessorKey: "dispatchQty",
+      header: ({ column }) => (
+        <Header title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("dispatchQty") as number | null
+        return <div>{Number(value || 0).toFixed(2)}</div>
+      },
+      filterFn: includesStringFilterFn,
+    },
+    {
       accessorKey: "coilWidth",
       header: ({ column }) => (
         <Header title="COIL WIDTH" column={column} placeholder="Filter coil width..." wrap />
@@ -206,28 +228,6 @@ export const getOrderBookColumns = ({
           </div>
         )
       },
-    },
-    {
-      accessorKey: "qty",
-      header: ({ column }) => (
-        <Header title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
-      ),
-      cell: ({ row }) => {
-        const qty = row.getValue("qty") as number
-        return <div>{Number(qty).toFixed(2)}</div>
-      },
-      filterFn: includesStringFilterFn,
-    },
-    {
-      accessorKey: "dispatchQty",
-      header: ({ column }) => (
-        <Header title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("dispatchQty") as number | null
-        return <div>{Number(value || 0).toFixed(2)}</div>
-      },
-      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "status",
