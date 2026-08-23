@@ -18,7 +18,6 @@ import { CreatableCombobox } from "@/components/ui/creatable-combobox"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getAllOperators } from "@/lib/operator-api"
 import { getWastageReasons } from "@/lib/rolls-stock-api"
-import { createEnumMasterValue } from "@/lib/enum-master-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -99,7 +98,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
 
   const [inspectionOperators, setInspectionOperators] = useState<string[]>([])
   const [savedWastageReasons, setSavedWastageReasons] = useState<string[]>([])
-  const [createdWastageReasons, setCreatedWastageReasons] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -135,7 +133,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
   }, [inspectionOperators, inspectionAddRollForm?.operatorName])
 
   const wastageReasonOptions = useMemo(() => {
-    const reasons = [...savedWastageReasons, ...createdWastageReasons]
+    const reasons = [...savedWastageReasons]
     const current = inspectionAddRollForm?.wastageReason?.trim()
     if (current && !reasons.some((r) => r.toLowerCase() === current.toLowerCase())) {
       reasons.push(current)
@@ -150,26 +148,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
         return true
       })
       .map((reason) => ({ value: reason, label: reason }))
-  }, [savedWastageReasons, createdWastageReasons, inspectionAddRollForm?.wastageReason])
-
-  const addWastageReasonOption = (label: string) => {
-    const trimmed = label.trim()
-    if (!trimmed) return
-    setCreatedWastageReasons((prev) =>
-      prev.some((r) => r.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
-    )
-    createEnumMasterValue("reason_of_wastage", trimmed)
-      .then((created) => {
-        setSavedWastageReasons((prev) =>
-          prev.some((r) => r.toLowerCase() === created.value.toLowerCase())
-            ? prev
-            : [...prev, created.value]
-        )
-      })
-      .catch(() => {
-        /* keep the local option if the master create is not permitted */
-      })
-  }
+  }, [savedWastageReasons, inspectionAddRollForm?.wastageReason])
 
   const floorWorkOrderColumns = useMemo(
     () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
@@ -676,10 +655,10 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               options={wastageReasonOptions}
                               value={form?.wastageReason ? form.wastageReason : null}
                               disabled={!isSelected}
-                              placeholder="Select or create"
+                              allowCreate={false}
+                              placeholder="Select"
                               searchPlaceholder="Search reason…"
-                              emptyMessage="No reasons yet."
-                              createLabel="Add reason"
+                              emptyMessage="No reasons found."
                               onValueChange={(selected) =>
                                 setInspectionAddRollForm((prev: any) =>
                                   prev && prev.roll.id === roll.id
@@ -687,7 +666,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
                                     : prev
                                 )
                               }
-                              onCreateOption={addWastageReasonOption}
                               className="h-7 w-40 px-1.5 text-xs"
                             />
                           </td>

@@ -27,6 +27,7 @@ interface CreatableComboboxProps {
   value?: string | null
   onValueChange: (value: string | null) => void
   onCreateOption?: (label: string) => void
+  allowCreate?: boolean
   placeholder?: string
   disabled?: boolean
   loading?: boolean
@@ -45,6 +46,7 @@ export function CreatableCombobox({
   value,
   onValueChange,
   onCreateOption,
+  allowCreate = true,
   placeholder = "Select option...",
   disabled = false,
   loading = false,
@@ -65,6 +67,7 @@ export function CreatableCombobox({
   const selectedOption = options.find(option => option.value === value)
   const trimmedSearch = searchValue.trim()
   const canCreate =
+    allowCreate &&
     !!onCreateOption &&
     trimmedSearch.length > 0 &&
     !options.some(
@@ -101,6 +104,7 @@ export function CreatableCombobox({
       onValueChange(match.value)
       return
     }
+    if (!allowCreate) return
     onCreateOption?.(typed)
     onValueChange(typed)
   }
