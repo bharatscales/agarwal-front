@@ -120,11 +120,6 @@ const masterItems: MenuItem[] = [
     icon: Building2,
     path: "/masters/operator",
   },
-  {
-    title: "Enum Master",
-    icon: Building2,
-    path: "/masters/enum",
-  },
 ];
 
 
@@ -236,7 +231,7 @@ export function AppSidebar() {
   }, [state]);
 
   useEffect(() => {
-    if (location.pathname.startsWith("/masters/")) {
+    if (location.pathname.startsWith("/masters/") && location.pathname !== "/masters/enum") {
       setIsMastersOpen(true);
     }
   }, [location.pathname]);
@@ -918,6 +913,20 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   ))}
                 </div>
+              )}
+              {!isStockUser && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={isActive("/masters/enum")}
+                    onClick={() => handleNavigation("/masters/enum")}
+                    className="w-full"
+                  >
+                    <div className="flex items-center">
+                      <Building2 className="h-4 w-4 mr-2" />
+                      <span>Enum Master</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

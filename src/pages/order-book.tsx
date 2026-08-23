@@ -271,15 +271,20 @@ export default function OrderBook() {
 
   return (
     <div className="px-6 pt-2 pb-6">
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold">Order Book</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Add and manage orders from parties.
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
+      <div className="mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-base font-semibold shrink-0">Order Book</h1>
+          <div className="flex items-center gap-2">
+            <div className="relative w-44 sm:w-56">
+              <Search className="absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 left-3" />
+              <Input
+                type="text"
+                placeholder="Order number"
+                value={orderNumberSearch}
+                onChange={(e) => setOrderNumberSearch(e.target.value)}
+                className="pl-9 h-8"
+              />
+            </div>
             <Button onClick={handleRefresh} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
@@ -314,19 +319,9 @@ export default function OrderBook() {
         </div>
       ) : (
         <div>
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 left-3" />
-              <Input
-                type="text"
-                placeholder="Order number"
-                value={orderNumberSearch}
-                onChange={(e) => setOrderNumberSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
           <DataTable
+            size="xs"
+            compact
             columns={getOrderBookColumns({
               onEdit: handleEditOrderOpen,
               onDispatch: setDispatchOrder,

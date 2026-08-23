@@ -44,6 +44,8 @@ interface DataTableProps<TData, TValue> {
   hasMore?: boolean;
   /** Compact spacing for denser row height. */
   compact?: boolean;
+  /** Table font size. Use "xs" for denser grids like Order Book. */
+  size?: "sm" | "xs";
   /** Show selected-row summary text in footer. */
   showSelectionSummary?: boolean;
 }
@@ -63,8 +65,10 @@ export function DataTable<TData, TValue>({
   isLoadingMore = false,
   hasMore = false,
   compact = false,
+  size = "sm",
   showSelectionSummary = true,
 }: DataTableProps<TData, TValue>) {
+  const textSize = size === "xs" ? "text-xs" : "text-sm";
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState({});
@@ -141,14 +145,14 @@ export function DataTable<TData, TValue>({
             className="overflow-auto"
             style={{ maxHeight: scrollHeight }}
           >
-            <table className="w-full caption-bottom text-sm border-collapse">
+            <table className={`w-full caption-bottom border-collapse ${textSize}`}>
               <TableHeader className="[&_tr]:border-b-0">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className={`sticky top-0 z-20 bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)] ${compact ? "py-1" : ""}`}
+                        className={`sticky top-0 z-20 bg-sidebar ${textSize} font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)] ${compact ? "py-1" : ""}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -173,7 +177,7 @@ export function DataTable<TData, TValue>({
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
-                          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm`}
+                          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize}`}
                         >
                           {flexRender(
                             cell.column.columnDef.cell,
@@ -187,7 +191,7 @@ export function DataTable<TData, TValue>({
                   <TableRow className="border-b border-zinc-600">
                     <TableCell
                       colSpan={columns.length}
-                      className="h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 text-sm"
+                      className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
                     >
                       No results.
                     </TableCell>
@@ -204,7 +208,7 @@ export function DataTable<TData, TValue>({
             )}
           </div>
         ) : (
-          <Table className="border-collapse">
+          <Table className={`border-collapse ${textSize}`}>
             <TableHeader className="[&_tr]:border-b-0">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -212,7 +216,7 @@ export function DataTable<TData, TValue>({
                     return (
                       <TableHead
                         key={header.id}
-                        className={`bg-sidebar text-sm font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${compact ? "py-1" : ""}`}
+                        className={`bg-sidebar ${textSize} font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${compact ? "py-1" : ""}`}
                       >
                         {header.isPlaceholder
                           ? null
@@ -238,7 +242,7 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black text-sm`}
+                        className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize}`}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -252,7 +256,7 @@ export function DataTable<TData, TValue>({
                 <TableRow className="border-b border-zinc-600">
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 text-sm"
+                    className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
                   >
                     No results.
                   </TableCell>

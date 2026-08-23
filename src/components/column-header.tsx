@@ -29,7 +29,7 @@ export function ColumnHeader({ title, column, placeholder, wrap }: ColumnHeaderP
     <div className={`flex justify-between gap-1 ${wrap ? "items-start w-min" : "items-center w-full"}`}>
              <span
                data-wrap-header={wrap ? "" : undefined}
-               className={`text-black dark:text-zinc-300 text-sm font-bold ${wrap ? "whitespace-pre-line leading-tight" : ""}`}
+               className={`text-black dark:text-zinc-300 font-bold ${wrap ? "whitespace-pre-line leading-tight" : ""}`}
              >
                {label}
              </span>

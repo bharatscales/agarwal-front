@@ -80,7 +80,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const orderDate = row.getValue("orderDate") as string | null
         return (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-gray-600 dark:text-gray-400">
             {orderDate || <span className="text-gray-400">-</span>}
           </div>
         )
@@ -94,7 +94,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const partyCode = row.getValue("partyCode") as string | null
         return (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-gray-600 dark:text-gray-400">
             {partyCode || <span className="text-gray-400">-</span>}
           </div>
         )
@@ -108,7 +108,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const itemCode = row.getValue("itemCode") as string | null
         return (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-gray-600 dark:text-gray-400">
             {itemCode || <span className="text-gray-400">-</span>}
           </div>
         )
@@ -122,7 +122,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("totalGsm") as number | null
         return (
-          <div className="text-sm">
+          <div>
             {value != null ? Number(value).toFixed(2) : <span className="text-gray-400">-</span>}
           </div>
         )
@@ -136,7 +136,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("size") as number | null
         return (
-          <div className="text-sm">
+          <div>
             {value != null ? String(value) : <span className="text-gray-400">-</span>}
           </div>
         )
@@ -150,7 +150,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("structure") as string | null
         return (
-          <div className="text-sm text-gray-600 dark:text-gray-400 max-w-[220px] truncate">
+          <div className="text-gray-600 dark:text-gray-400 max-w-[220px] truncate">
             {value || <span className="text-gray-400">-</span>}
           </div>
         )
@@ -164,7 +164,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("coilWidth") as number | null
         return (
-          <div className="text-sm">
+          <div>
             {value != null ? String(value) : <span className="text-gray-400">-</span>}
           </div>
         )
@@ -178,7 +178,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("repeatLength") as number | null
         return (
-          <div className="text-sm">
+          <div>
             {value != null ? String(value) : <span className="text-gray-400">-</span>}
           </div>
         )
@@ -192,11 +192,33 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("noOfPanel") as number | null
         return (
-          <div className="text-sm">
+          <div>
             {value != null ? String(value) : <span className="text-gray-400">-</span>}
           </div>
         )
       },
+    },
+    {
+      accessorKey: "qty",
+      header: ({ column }) => (
+        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
+      ),
+      cell: ({ row }) => {
+        const qty = row.getValue("qty") as number
+        return <div>{Number(qty).toFixed(2)}</div>
+      },
+      filterFn: includesStringFilterFn,
+    },
+    {
+      accessorKey: "dispatchQty",
+      header: ({ column }) => (
+        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("dispatchQty") as number | null
+        return <div>{Number(value || 0).toFixed(2)}</div>
+      },
+      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "status",
@@ -211,28 +233,6 @@ export const getOrderBookColumns = ({
           </span>
         )
       },
-    },
-    {
-      accessorKey: "qty",
-      header: ({ column }) => (
-        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
-      ),
-      cell: ({ row }) => {
-        const qty = row.getValue("qty") as number
-        return <div className="text-sm">{Number(qty).toFixed(2)}</div>
-      },
-      filterFn: includesStringFilterFn,
-    },
-    {
-      accessorKey: "dispatchQty",
-      header: ({ column }) => (
-        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("dispatchQty") as number | null
-        return <div className="text-sm">{Number(value || 0).toFixed(2)}</div>
-      },
-      filterFn: includesStringFilterFn,
     },
     ...(hasActions
       ? [
