@@ -142,10 +142,10 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
   }
 
   const handleEnterKey = (
-    event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>,
+    event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>,
     index: number
   ) => {
-    if (event.key !== "Enter") return
+    if (event.key !== "Enter" || event.currentTarget.tagName === "TEXTAREA") return
     const nextField = addFieldRefs.current[index + 1]
     if (nextField) {
       event.preventDefault()
