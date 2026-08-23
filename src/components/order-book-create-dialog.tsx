@@ -7,17 +7,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
 import { getPartyCustomers } from "@/lib/party-api"
-import { createOrderBook, ORDER_BOOK_STATUSES, type OrderBookStatus } from "@/lib/order-book-api"
+import { createOrderBook } from "@/lib/order-book-api"
 import {
   OrderBookSpecFields,
   parseOptionalInt,
@@ -31,8 +23,6 @@ type OrderBookForm = {
   qty: string
   orderDate: string
   poNo: string
-  status: OrderBookStatus
-  remarks: string
 } & OrderBookSpecFieldsValue
 
 const todayIso = () => {
@@ -49,8 +39,6 @@ const emptyForm = (): OrderBookForm => ({
   qty: "",
   orderDate: todayIso(),
   poNo: "",
-  status: "pending",
-  remarks: "",
   totalGsm: "",
   size: "",
   structure: "",
@@ -71,7 +59,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [partyOptions, setPartyOptions] = useState<CreatableOption[]>([])
   const [itemOptions, setItemOptions] = useState<CreatableOption[]>([])
-  const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement | null>>([])
+  const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
 
   useEffect(() => {
     if (!open) return
@@ -154,10 +142,10 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
   }
 
   const handleEnterKey = (
-    event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement>,
+    event: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>,
     index: number
   ) => {
-    if (event.key !== "Enter" || event.currentTarget.tagName === "TEXTAREA") return
+    if (event.key !== "Enter") return
     const nextField = addFieldRefs.current[index + 1]
     if (nextField) {
       event.preventDefault()
@@ -203,8 +191,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
       coilWidth: parseOptionalNumber(formData.coilWidth),
       repeatLength: parseOptionalNumber(formData.repeatLength),
       noOfPanel: parseOptionalInt(formData.noOfPanel),
-      status: formData.status,
-      remarks: formData.remarks.trim() || null,
+      status: "pending",
     })
       .then((newOrder) => {
         onCreated(newOrder)
@@ -271,7 +258,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="orderDate">Order Date</Label>
                 <Input
@@ -299,25 +286,6 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
                   onKeyDown={(e) => handleEnterKey(e, 3)}
                   placeholder="Enter PO number"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => handleInputChange("status", value)}
-                >
-                  <SelectTrigger id="status" className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORDER_BOOK_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 
@@ -348,20 +316,6 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
                 />
                 {formErrors.qty && <p className="text-sm text-red-500">{formErrors.qty}</p>}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea
-                id="remarks"
-                ref={(el) => {
-                  addFieldRefs.current[11] = el
-                }}
-                value={formData.remarks}
-                onChange={(e) => handleInputChange("remarks", e.target.value)}
-                placeholder="Optional remarks"
-                rows={3}
-              />
             </div>
           </CardContent>
 

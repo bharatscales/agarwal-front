@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
 import { getPartyCustomers } from "@/lib/party-api"
 import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
-import { deleteOrderBook, getAllOrderBooks, updateOrderBook, ORDER_BOOK_STATUSES, type OrderBookStatus } from "@/lib/order-book-api"
+import { deleteOrderBook, getAllOrderBooks, updateOrderBook } from "@/lib/order-book-api"
 import { OrderBookCreateDialog } from "@/components/order-book-create-dialog"
 import { OrderBookDispatchDialog } from "@/components/order-book-dispatch-dialog"
 import {
@@ -19,13 +18,6 @@ import {
   type OrderBookSpecFieldsValue,
 } from "@/components/order-book-spec-fields"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 type OrderBookForm = {
   partyId: string
@@ -33,8 +25,6 @@ type OrderBookForm = {
   qty: string
   orderDate: string
   poNo: string
-  status: OrderBookStatus
-  remarks: string
 } & OrderBookSpecFieldsValue
 
 const todayIso = () => {
@@ -51,8 +41,6 @@ const emptyForm = (): OrderBookForm => ({
   qty: "",
   orderDate: todayIso(),
   poNo: "",
-  status: "pending",
-  remarks: "",
   totalGsm: "",
   size: "",
   structure: "",
@@ -91,8 +79,6 @@ export default function OrderBook() {
       qty: order.qty?.toString() || "",
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : "",
       poNo: order.poNo || "",
-      status: order.status === "closed" ? "closed" : "pending",
-      remarks: order.remarks || "",
       totalGsm: order.totalGsm != null ? String(order.totalGsm) : "",
       size: order.size != null ? String(order.size) : "",
       structure: order.structure || "",
@@ -157,8 +143,6 @@ export default function OrderBook() {
       coilWidth: parseOptionalNumber(editFormData.coilWidth),
       repeatLength: parseOptionalNumber(editFormData.repeatLength),
       noOfPanel: parseOptionalInt(editFormData.noOfPanel),
-      status: editFormData.status,
-      remarks: editFormData.remarks.trim() || null,
     })
       .then((updated) => {
         setOrders((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
@@ -414,7 +398,7 @@ export default function OrderBook() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-orderDate">Order Date</Label>
                     <Input
@@ -434,25 +418,6 @@ export default function OrderBook() {
                       onChange={(e) => handleEditInputChange("poNo", e.target.value)}
                       placeholder="Enter PO number"
                     />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <Select
-                      value={editFormData.status}
-                      onValueChange={(value) => handleEditInputChange("status", value)}
-                    >
-                      <SelectTrigger id="edit-status" className="w-full">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ORDER_BOOK_STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
@@ -477,17 +442,6 @@ export default function OrderBook() {
                     />
                     {editErrors.qty && <p className="text-sm text-red-500">{editErrors.qty}</p>}
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-remarks">Remarks</Label>
-                  <Textarea
-                    id="edit-remarks"
-                    value={editFormData.remarks}
-                    onChange={(e) => handleEditInputChange("remarks", e.target.value)}
-                    placeholder="Optional remarks"
-                    rows={3}
-                  />
                 </div>
               </CardContent>
 

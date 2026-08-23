@@ -10,6 +10,7 @@ export const RM_ITEM_GROUP_SET = new Set([
 
 const GSM_BOM_GROUP_SET = new Set([
   "rm ink/adhesive/chemicals",
+  "rm extrusion",
   "ink",
   "adhesive",
   "chemical",

@@ -327,7 +327,7 @@ export function validateBomEditorLines(lines: BomEditorLine[], stageLabel: strin
       }
     } else if (isGsmBomItemGroup(group)) {
       if (parsePositive(row.gsm) == null) {
-        return `${stageLabel} layer ${row.layerNo}: GSM is required for ink, adhesive, or chemical.`
+        return `${stageLabel} layer ${row.layerNo}: GSM is required for extrusion, ink, adhesive, or chemical.`
       }
     }
   }

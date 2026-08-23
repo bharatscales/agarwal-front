@@ -1,6 +1,6 @@
 import api from "./axios"
 import { filmGsm } from "./film-calc"
-import { isRmFilmGroup } from "./rm-item-groups"
+import { isGsmBomItemGroup, isRmFilmGroup } from "./rm-item-groups"
 
 export type RoutingStep = {
   sno: number
@@ -74,6 +74,7 @@ type BomLineResponse = {
   rm_item_id?: number | null
   rm_item_code?: string | null
   rm_item_name?: string | null
+  rm_item_abv?: string | null
   rm_item_group?: string | null
   rm_density?: number | null
   size?: number | null
@@ -90,6 +91,7 @@ export type BomLine = {
   rmItemId?: number | null
   rmItemCode?: string | null
   rmItemName?: string | null
+  rmItemAbv?: string | null
   rmItemGroup?: string | null
   rmDensity?: number | null
   size?: number | null
@@ -106,6 +108,7 @@ const mapBomLine = (row: BomLineResponse): BomLine => ({
   rmItemId: row.rm_item_id ?? null,
   rmItemCode: row.rm_item_code ?? null,
   rmItemName: row.rm_item_name ?? null,
+  rmItemAbv: row.rm_item_abv ?? null,
   rmItemGroup: row.rm_item_group ?? null,
   rmDensity: row.rm_density ?? null,
   size: row.size ?? null,
@@ -118,6 +121,25 @@ export const getItemBom = async (itemId: number): Promise<BomLine[]> => {
   return response.data.map(mapBomLine)
 }
 
+const formatStructureNumber = (value: number | null | undefined): string | null => {
+  if (value == null) return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return String(Math.round(n * 1000) / 1000)
+}
+
+const structureTokenFromBomLine = (line: BomLine): string | null => {
+  const abv = (line.rmItemAbv || line.rmItemCode || line.rmItemName || "").trim()
+  if (!abv) return null
+  const amount = isRmFilmGroup(line.rmItemGroup)
+    ? formatStructureNumber(line.micron)
+    : isGsmBomItemGroup(line.rmItemGroup)
+      ? formatStructureNumber(line.gsm)
+      : null
+  if (amount == null) return null
+  return `${amount} ${abv}`
+}
+
 /** Prefill order-book specs from an FG variety BOM. */
 export const specsFromFgBom = (lines: BomLine[]): {
   totalGsm: string
@@ -126,9 +148,9 @@ export const specsFromFgBom = (lines: BomLine[]): {
 } => {
   const withRm = lines.filter((l) => l.rmItemId != null)
   const filmLayers = withRm.filter((l) => isRmFilmGroup(l.rmItemGroup))
-  const structure = filmLayers
-    .map((l) => (l.rmItemCode || l.rmItemName || "").trim())
-    .filter(Boolean)
+  const structure = withRm
+    .map(structureTokenFromBomLine)
+    .filter((token): token is string => Boolean(token))
     .join(" / ")
   const sizeLine = filmLayers.find((l) => l.size != null) ?? withRm.find((l) => l.size != null)
   let total = 0
