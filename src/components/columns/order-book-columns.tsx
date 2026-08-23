@@ -203,6 +203,15 @@ export const getOrderBookColumns = ({
       filterFn: includesStringFilterFn,
     },
     {
+      id: "pendingQty",
+      accessorFn: (row) => Number(row.qty || 0) - Number(row.dispatchQty || 0),
+      header: ({ column }) => (
+        <Header title="PENDING QTY" column={column} placeholder="Filter pending qty..." wrap />
+      ),
+      cell: ({ getValue }) => <div>{Number(getValue() ?? 0).toFixed(2)}</div>,
+      filterFn: includesStringFilterFn,
+    },
+    {
       accessorKey: "coilWidth",
       header: ({ column }) => (
         <Header title="COIL WIDTH" column={column} placeholder="Filter coil width..." wrap />
