@@ -919,12 +919,9 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     isActive={isActive("/masters/enum")}
                     onClick={() => handleNavigation("/masters/enum")}
-                    className="w-full"
                   >
-                    <div className="flex items-center">
-                      <Building2 className="h-4 w-4 mr-2" />
-                      <span>Enum Master</span>
-                    </div>
+                    <Building2 />
+                    <span>Enum Master</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}

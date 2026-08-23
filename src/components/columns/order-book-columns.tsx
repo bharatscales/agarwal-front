@@ -11,6 +11,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+function Header(props: {
+  title: string
+  column: any
+  placeholder?: string
+  wrap?: boolean
+}) {
+  return <ColumnHeader {...props} compact />
+}
+
 export type OrderBookMaster = {
   id: number
   orderNumber?: string | null
@@ -61,7 +70,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "orderNumber",
       header: ({ column }) => (
-        <ColumnHeader title="ORDER NO" column={column} placeholder="Filter order number..." />
+        <Header title="ORDER NO" column={column} placeholder="Filter order number..." />
       ),
       cell: ({ row }) => {
         const orderNumber = row.getValue("orderNumber") as string | null
@@ -75,7 +84,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "orderDate",
       header: ({ column }) => (
-        <ColumnHeader title="ORDER DATE" column={column} placeholder="Filter order date..." />
+        <Header title="ORDER DATE" column={column} placeholder="Filter order date..." />
       ),
       cell: ({ row }) => {
         const orderDate = row.getValue("orderDate") as string | null
@@ -89,7 +98,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "partyCode",
       header: ({ column }) => (
-        <ColumnHeader title="PARTY CODE" column={column} placeholder="Filter party code..." />
+        <Header title="PARTY CODE" column={column} placeholder="Filter party code..." />
       ),
       cell: ({ row }) => {
         const partyCode = row.getValue("partyCode") as string | null
@@ -103,7 +112,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "itemCode",
       header: ({ column }) => (
-        <ColumnHeader title="ITEM CODE" column={column} placeholder="Filter item code..." />
+        <Header title="ITEM CODE" column={column} placeholder="Filter item code..." />
       ),
       cell: ({ row }) => {
         const itemCode = row.getValue("itemCode") as string | null
@@ -117,7 +126,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "totalGsm",
       header: ({ column }) => (
-        <ColumnHeader title="TOTAL GSM" column={column} placeholder="Filter total GSM..." wrap />
+        <Header title="TOTAL GSM" column={column} placeholder="Filter total GSM..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("totalGsm") as number | null
@@ -131,7 +140,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "size",
       header: ({ column }) => (
-        <ColumnHeader title="SIZE" column={column} placeholder="Filter size..." />
+        <Header title="SIZE" column={column} placeholder="Filter size..." />
       ),
       cell: ({ row }) => {
         const value = row.getValue("size") as number | null
@@ -145,7 +154,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "structure",
       header: ({ column }) => (
-        <ColumnHeader title="STRUCTURE" column={column} placeholder="Filter structure..." />
+        <Header title="STRUCTURE" column={column} placeholder="Filter structure..." />
       ),
       cell: ({ row }) => {
         const value = row.getValue("structure") as string | null
@@ -159,7 +168,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "coilWidth",
       header: ({ column }) => (
-        <ColumnHeader title="COIL WIDTH" column={column} placeholder="Filter coil width..." wrap />
+        <Header title="COIL WIDTH" column={column} placeholder="Filter coil width..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("coilWidth") as number | null
@@ -173,7 +182,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "repeatLength",
       header: ({ column }) => (
-        <ColumnHeader title="REPEAT LENGTH" column={column} placeholder="Filter repeat length..." wrap />
+        <Header title="REPEAT LENGTH" column={column} placeholder="Filter repeat length..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("repeatLength") as number | null
@@ -187,7 +196,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "noOfPanel",
       header: ({ column }) => (
-        <ColumnHeader title="NO OF PANEL" column={column} placeholder="Filter no of panel..." wrap />
+        <Header title="NO OF PANEL" column={column} placeholder="Filter no of panel..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("noOfPanel") as number | null
@@ -201,7 +210,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "qty",
       header: ({ column }) => (
-        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
+        <Header title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
       ),
       cell: ({ row }) => {
         const qty = row.getValue("qty") as number
@@ -212,7 +221,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "dispatchQty",
       header: ({ column }) => (
-        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
+        <Header title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("dispatchQty") as number | null
@@ -223,7 +232,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "status",
       header: ({ column }) => (
-        <ColumnHeader title="STATUS" column={column} placeholder="Filter status..." />
+        <Header title="STATUS" column={column} placeholder="Filter status..." />
       ),
       cell: ({ row }) => {
         const status = ((row.getValue("status") as string | null) || "pending").toLowerCase()
