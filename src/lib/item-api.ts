@@ -75,6 +75,7 @@ type BomLineResponse = {
   rm_item_code?: string | null
   rm_item_name?: string | null
   rm_item_abv?: string | null
+  rmItemAbv?: string | null
   rm_item_group?: string | null
   rm_density?: number | null
   size?: number | null
@@ -108,18 +109,13 @@ const mapBomLine = (row: BomLineResponse): BomLine => ({
   rmItemId: row.rm_item_id ?? null,
   rmItemCode: row.rm_item_code ?? null,
   rmItemName: row.rm_item_name ?? null,
-  rmItemAbv: row.rm_item_abv ?? null,
+  rmItemAbv: (row.rm_item_abv ?? row.rmItemAbv ?? "").trim() || null,
   rmItemGroup: row.rm_item_group ?? null,
   rmDensity: row.rm_density ?? null,
   size: row.size ?? null,
   micron: row.micron ?? null,
   gsm: row.gsm ?? null,
 })
-
-export const getItemBom = async (itemId: number): Promise<BomLine[]> => {
-  const response = await api.get<BomLineResponse[]>(`/item/${itemId}/bom`)
-  return response.data.map(mapBomLine)
-}
 
 const formatStructureNumber = (value: number | null | undefined): string | null => {
   if (value == null) return null
@@ -129,7 +125,7 @@ const formatStructureNumber = (value: number | null | undefined): string | null 
 }
 
 const structureTokenFromBomLine = (line: BomLine): string | null => {
-  const abv = (line.rmItemAbv || line.rmItemCode || line.rmItemName || "").trim()
+  const abv = (line.rmItemAbv || "").trim()
   if (!abv) return null
   const amount = isRmFilmGroup(line.rmItemGroup)
     ? formatStructureNumber(line.micron)
@@ -201,6 +197,39 @@ const mapItem = (item: ItemResponse): Item => ({
 export const getItems = async (skip = 0, limit = 100): Promise<Item[]> => {
   const response = await api.get<ItemResponse[]>(`/item/?skip=${skip}&limit=${limit}`)
   return response.data.map(mapItem)
+}
+
+const fillMissingRmAbv = async (lines: BomLine[]): Promise<BomLine[]> => {
+  const missingIds = [
+    ...new Set(
+      lines
+        .filter((line) => line.rmItemId != null && !(line.rmItemAbv || "").trim())
+        .map((line) => line.rmItemId as number)
+    ),
+  ]
+  if (missingIds.length === 0) return lines
+  const fetched = await Promise.all(
+    missingIds.map((id) =>
+      api
+        .get<ItemResponse>(`/item/${id}`)
+        .then((res) => mapItem(res.data))
+        .catch(() => null)
+    )
+  )
+  const abvById = new Map(
+    fetched
+      .filter((item): item is Item => item != null)
+      .map((item) => [item.id, (item.abv || "").trim() || null])
+  )
+  return lines.map((line) => {
+    if ((line.rmItemAbv || "").trim() || line.rmItemId == null) return line
+    return { ...line, rmItemAbv: abvById.get(line.rmItemId) ?? null }
+  })
+}
+
+export const getItemBom = async (itemId: number): Promise<BomLine[]> => {
+  const response = await api.get<BomLineResponse[]>(`/item/${itemId}/bom`)
+  return fillMissingRmAbv(response.data.map(mapBomLine))
 }
 
 export type MenuItem = { id: number; item_code: string; name: string }
