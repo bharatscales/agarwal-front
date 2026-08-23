@@ -174,7 +174,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const value = row.getValue("structure") as string | null
         return (
-          <div className="text-gray-600 dark:text-gray-400 max-w-[220px] truncate">
+          <div className="text-gray-600 dark:text-gray-400 min-w-[420px] max-w-[520px] truncate" title={value || undefined}>
             {value || <span className="text-gray-400">-</span>}
           </div>
         )
