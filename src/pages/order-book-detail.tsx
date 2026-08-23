@@ -6,8 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FgStageBomReadonly } from "@/components/fg-stage-bom-readonly"
 import type { OrderBookMaster } from "@/components/columns/order-book-columns"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
+import { materialRowsFromBom, type FilmStockRow } from "@/lib/bom-material"
+import { getAllChemStock, type ChemStockRow } from "@/lib/chem-stock-api"
 import { getItem, getItemBom, type BomLine, type Item } from "@/lib/item-api"
 import { getOrderBook, getOrderDispatches, type OrderDispatch } from "@/lib/order-book-api"
+import { getAllRollsStock } from "@/lib/rolls-stock-api"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 
 const dash = (value: unknown) => {
@@ -63,6 +66,8 @@ export default function OrderBookDetail() {
   const [order, setOrder] = useState<OrderBookMaster | null>(null)
   const [item, setItem] = useState<Item | null>(null)
   const [bomLines, setBomLines] = useState<BomLine[]>([])
+  const [filmStock, setFilmStock] = useState<FilmStockRow[]>([])
+  const [chemStock, setChemStock] = useState<ChemStockRow[]>([])
   const [dispatches, setDispatches] = useState<OrderDispatch[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrderMaster[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -108,9 +113,23 @@ export default function OrderBookDetail() {
             .then((rows) => setWorkOrders(rows.filter((wo) => wo.itemId === row.itemId)))
             .catch(() => setWorkOrders([]))
         )
+        extra.push(
+          Promise.all([
+            getAllRollsStock(0, 5000, false, "virgin_rm").catch(() => []),
+            getAllRollsStock(0, 5000, false, "rm_balance").catch(() => []),
+            getAllChemStock(0, 5000, "ink", false).catch(() => []),
+            getAllChemStock(0, 5000, "adhesive", false).catch(() => []),
+            getAllChemStock(0, 5000, "chemical", false).catch(() => []),
+          ]).then(([virgin, balance, ink, adhesive, chemical]) => {
+            setFilmStock([...virgin, ...balance])
+            setChemStock([...ink, ...adhesive, ...chemical])
+          })
+        )
       } else {
         setItem(null)
         setBomLines([])
+        setFilmStock([])
+        setChemStock([])
         setWorkOrders([])
       }
 
@@ -131,6 +150,17 @@ export default function OrderBookDetail() {
     if (!order) return 0
     return Math.max(0, Number(order.qty || 0) - Number(order.dispatchQty || 0))
   }, [order])
+
+  const materialRows = useMemo(
+    () =>
+      materialRowsFromBom({
+        bomLines,
+        orderQtyKg: Number(order?.qty || 0),
+        filmStock,
+        chemStock,
+      }),
+    [bomLines, order?.qty, filmStock, chemStock]
+  )
 
   if (isLoading) {
     return (
@@ -278,6 +308,86 @@ export default function OrderBookDetail() {
               <p className="text-sm text-muted-foreground">Loading BOM…</p>
             ) : (
               <FgStageBomReadonly lines={bomLines} />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {order.itemId != null && (
+        <Card className="mb-3">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Required vs available material</CardTitle>
+            <CardDescription className="text-xs">
+              Required is this order qty split by BOM GSM share. Available is current RM stock
+              (virgin RM + RM balance for film; ink / adhesive / chemical stock for others).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0 pb-3">
+            {bomLoading ? (
+              <p className="text-sm text-muted-foreground">Loading material…</p>
+            ) : materialRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No BOM RM lines with GSM to calculate material for this order.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 dark:text-gray-400 border-b">
+                      <th className="py-1.5 pr-4 font-medium">Item</th>
+                      <th className="py-1.5 pr-4 font-medium">Stage</th>
+                      <th className="py-1.5 pr-4 font-medium">Spec</th>
+                      <th className="py-1.5 pr-4 font-medium text-right">Required (KG)</th>
+                      <th className="py-1.5 pr-4 font-medium text-right">Available (KG)</th>
+                      <th className="py-1.5 font-medium text-right">Shortage (KG)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {materialRows.map((row) => {
+                      const shortage = Math.max(0, Math.round((row.requiredKg - row.availableKg) * 100) / 100)
+                      const short = shortage > 0.009
+                      const spec = row.isFilm
+                        ? [
+                            row.size != null ? `${row.size} mm` : null,
+                            row.micron != null ? `${row.micron} µ` : null,
+                            row.gsm > 0 ? `${row.gsm} gsm` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" / ")
+                        : row.gsm > 0
+                          ? `${row.gsm} gsm`
+                          : "—"
+                      return (
+                        <tr key={row.key} className="border-b last:border-0">
+                          <td className="py-1.5 pr-4">
+                            <div className="font-medium">
+                              {row.itemCode || row.itemName || `Item #${row.rmItemId}`}
+                            </div>
+                            {row.itemCode && row.itemName ? (
+                              <div className="text-xs text-muted-foreground">{row.itemName}</div>
+                            ) : null}
+                          </td>
+                          <td className="py-1.5 pr-4">{row.stages.join(", ") || "—"}</td>
+                          <td className="py-1.5 pr-4 tabular-nums">{spec || "—"}</td>
+                          <td className="py-1.5 pr-4 text-right tabular-nums font-medium">
+                            {formatQty(row.requiredKg)}
+                          </td>
+                          <td className="py-1.5 pr-4 text-right tabular-nums">
+                            {formatQty(row.availableKg)}
+                          </td>
+                          <td
+                            className={`py-1.5 text-right tabular-nums font-medium ${
+                              short ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"
+                            }`}
+                          >
+                            {short ? formatQty(shortage) : "0.00"}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>
