@@ -28,6 +28,8 @@ export type OrderBookMaster = {
   coilWidth?: number | null
   repeatLength?: number | null
   noOfPanel?: number | null
+  status?: string | null
+  dispatchQty?: number | null
   remarks?: string | null
   createdBy?: number | null
   createdAt?: string
@@ -36,6 +38,16 @@ export type OrderBookMaster = {
 type OrderBookColumnHandlers = {
   onEdit?: (order: OrderBookMaster) => void
   onDelete?: (order: OrderBookMaster) => void
+}
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "closed":
+      return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+    case "pending":
+    default:
+      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+  }
 }
 
 export const getOrderBookColumns = ({
@@ -54,6 +66,20 @@ export const getOrderBookColumns = ({
         return (
           <div className="font-medium">
             {orderNumber || <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "orderDate",
+      header: ({ column }) => (
+        <ColumnHeader title="ORDER DATE" column={column} placeholder="Filter order date..." />
+      ),
+      cell: ({ row }) => {
+        const orderDate = row.getValue("orderDate") as string | null
+        return (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {orderDate || <span className="text-gray-400">-</span>}
           </div>
         )
       },
@@ -85,17 +111,6 @@ export const getOrderBookColumns = ({
           </div>
         )
       },
-    },
-    {
-      accessorKey: "qty",
-      header: ({ column }) => (
-        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." />
-      ),
-      cell: ({ row }) => {
-        const qty = row.getValue("qty") as number
-        return <div className="text-sm">{Number(qty).toFixed(2)}</div>
-      },
-      filterFn: includesStringFilterFn,
     },
     {
       accessorKey: "totalGsm",
@@ -182,32 +197,40 @@ export const getOrderBookColumns = ({
       },
     },
     {
-      accessorKey: "orderDate",
+      accessorKey: "status",
       header: ({ column }) => (
-        <ColumnHeader title="ORDER DATE" column={column} placeholder="Filter order date..." />
+        <ColumnHeader title="STATUS" column={column} placeholder="Filter status..." />
       ),
       cell: ({ row }) => {
-        const orderDate = row.getValue("orderDate") as string | null
+        const status = ((row.getValue("status") as string | null) || "pending").toLowerCase()
         return (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {orderDate || <span className="text-gray-400">-</span>}
-          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+            {status.toUpperCase()}
+          </span>
         )
       },
     },
     {
-      accessorKey: "remarks",
+      accessorKey: "qty",
       header: ({ column }) => (
-        <ColumnHeader title="REMARKS" column={column} placeholder="Filter remarks..." />
+        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." />
       ),
       cell: ({ row }) => {
-        const remarks = row.getValue("remarks") as string | null
-        return (
-          <div className="text-sm text-gray-600 dark:text-gray-400 max-w-[240px] truncate">
-            {remarks || <span className="text-gray-400">-</span>}
-          </div>
-        )
+        const qty = row.getValue("qty") as number
+        return <div className="text-sm">{Number(qty).toFixed(2)}</div>
       },
+      filterFn: includesStringFilterFn,
+    },
+    {
+      accessorKey: "dispatchQty",
+      header: ({ column }) => (
+        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." />
+      ),
+      cell: ({ row }) => {
+        const value = row.getValue("dispatchQty") as number | null
+        return <div className="text-sm">{Number(value || 0).toFixed(2)}</div>
+      },
+      filterFn: includesStringFilterFn,
     },
     ...(hasActions
       ? [

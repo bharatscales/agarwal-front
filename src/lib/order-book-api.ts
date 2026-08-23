@@ -1,5 +1,8 @@
 import api from "./axios"
 
+export const ORDER_BOOK_STATUSES = ["pending", "closed"] as const
+export type OrderBookStatus = (typeof ORDER_BOOK_STATUSES)[number]
+
 export type OrderBookPayload = {
   partyId: number
   itemId: number
@@ -11,6 +14,8 @@ export type OrderBookPayload = {
   coilWidth?: number | null
   repeatLength?: number | null
   noOfPanel?: number | null
+  status?: OrderBookStatus | null
+  dispatchQty?: number | null
   remarks?: string | null
 }
 
@@ -31,6 +36,8 @@ type OrderBookResponse = {
   coil_width?: number | null
   repeat_length?: number | null
   no_of_panel?: number | null
+  status?: string | null
+  dispatch_qty?: number | null
   remarks?: string | null
   created_by?: number | null
   created_at?: string
@@ -53,6 +60,8 @@ const mapOrderBook = (row: OrderBookResponse) => ({
   coilWidth: row.coil_width ?? null,
   repeatLength: row.repeat_length ?? null,
   noOfPanel: row.no_of_panel ?? null,
+  status: row.status || "pending",
+  dispatchQty: row.dispatch_qty ?? 0,
   remarks: row.remarks,
   createdBy: row.created_by,
   createdAt: row.created_at,
@@ -80,6 +89,8 @@ export const createOrderBook = async (payload: OrderBookPayload) => {
   if (payload.coilWidth !== undefined) requestPayload.coil_width = payload.coilWidth
   if (payload.repeatLength !== undefined) requestPayload.repeat_length = payload.repeatLength
   if (payload.noOfPanel !== undefined) requestPayload.no_of_panel = payload.noOfPanel
+  if (payload.status !== undefined) requestPayload.status = payload.status
+  if (payload.dispatchQty !== undefined) requestPayload.dispatch_qty = payload.dispatchQty
   if (payload.remarks !== undefined) requestPayload.remarks = payload.remarks || null
 
   const response = await api.post<OrderBookResponse>("/order-book/", requestPayload)
@@ -98,6 +109,8 @@ export const updateOrderBook = async (orderBookId: number, payload: Partial<Orde
   if (payload.coilWidth !== undefined) updatePayload.coil_width = payload.coilWidth
   if (payload.repeatLength !== undefined) updatePayload.repeat_length = payload.repeatLength
   if (payload.noOfPanel !== undefined) updatePayload.no_of_panel = payload.noOfPanel
+  if (payload.status !== undefined) updatePayload.status = payload.status
+  if (payload.dispatchQty !== undefined) updatePayload.dispatch_qty = payload.dispatchQty
   if (payload.remarks !== undefined) updatePayload.remarks = payload.remarks || null
 
   const response = await api.patch<OrderBookResponse>(`/order-book/${orderBookId}`, updatePayload)

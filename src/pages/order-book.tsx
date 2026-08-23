@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Textarea } from "@/components/ui/textarea"
 import { getPartyCustomers } from "@/lib/party-api"
 import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
-import { deleteOrderBook, getAllOrderBooks, updateOrderBook } from "@/lib/order-book-api"
+import { deleteOrderBook, getAllOrderBooks, updateOrderBook, ORDER_BOOK_STATUSES, type OrderBookStatus } from "@/lib/order-book-api"
 import { OrderBookCreateDialog } from "@/components/order-book-create-dialog"
 import {
   OrderBookSpecFields,
@@ -18,12 +18,21 @@ import {
   type OrderBookSpecFieldsValue,
 } from "@/components/order-book-spec-fields"
 import { CreatableCombobox, type CreatableOption } from "@/components/ui/creatable-combobox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type OrderBookForm = {
   partyId: string
   itemId: string
   qty: string
+  dispatchQty: string
   orderDate: string
+  status: OrderBookStatus
   remarks: string
 } & OrderBookSpecFieldsValue
 
@@ -39,7 +48,9 @@ const emptyForm = (): OrderBookForm => ({
   partyId: "",
   itemId: "",
   qty: "",
+  dispatchQty: "0",
   orderDate: todayIso(),
+  status: "pending",
   remarks: "",
   totalGsm: "",
   size: "",
@@ -76,7 +87,9 @@ export default function OrderBook() {
       partyId: order.partyId?.toString() || "",
       itemId: order.itemId?.toString() || "",
       qty: order.qty?.toString() || "",
+      dispatchQty: order.dispatchQty != null ? String(order.dispatchQty) : "0",
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : "",
+      status: order.status === "closed" ? "closed" : "pending",
       remarks: order.remarks || "",
       totalGsm: order.totalGsm != null ? String(order.totalGsm) : "",
       size: order.size != null ? String(order.size) : "",
@@ -122,6 +135,12 @@ export default function OrderBook() {
         errors.qty = "Quantity must be a positive number"
       }
     }
+    if (editFormData.dispatchQty.trim()) {
+      const dispatchQty = parseFloat(editFormData.dispatchQty)
+      if (isNaN(dispatchQty) || dispatchQty < 0) {
+        errors.dispatchQty = "Dispatch quantity cannot be negative"
+      }
+    }
     setEditErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -141,6 +160,8 @@ export default function OrderBook() {
       coilWidth: parseOptionalNumber(editFormData.coilWidth),
       repeatLength: parseOptionalNumber(editFormData.repeatLength),
       noOfPanel: parseOptionalInt(editFormData.noOfPanel),
+      status: editFormData.status,
+      dispatchQty: parseOptionalNumber(editFormData.dispatchQty) ?? 0,
       remarks: editFormData.remarks.trim() || null,
     })
       .then((updated) => {
@@ -390,6 +411,43 @@ export default function OrderBook() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="edit-orderDate">Order Date</Label>
+                    <Input
+                      id="edit-orderDate"
+                      type="date"
+                      value={editFormData.orderDate}
+                      onChange={(e) => handleEditInputChange("orderDate", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select
+                      value={editFormData.status}
+                      onValueChange={(value) => handleEditInputChange("status", value)}
+                    >
+                      <SelectTrigger id="edit-status" className="w-full">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ORDER_BOOK_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <OrderBookSpecFields
+                  idPrefix="edit-"
+                  value={editFormData}
+                  onChange={(field, value) => handleEditInputChange(field, value)}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label htmlFor="edit-qty">Quantity (KG) *</Label>
                     <Input
                       id="edit-qty"
@@ -405,21 +463,22 @@ export default function OrderBook() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit-orderDate">Order Date</Label>
+                    <Label htmlFor="edit-dispatchQty">Dispatch quantity</Label>
                     <Input
-                      id="edit-orderDate"
-                      type="date"
-                      value={editFormData.orderDate}
-                      onChange={(e) => handleEditInputChange("orderDate", e.target.value)}
+                      id="edit-dispatchQty"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editFormData.dispatchQty}
+                      onChange={(e) => handleEditInputChange("dispatchQty", e.target.value)}
+                      placeholder="0"
+                      className={editErrors.dispatchQty ? "border-red-500" : ""}
                     />
+                    {editErrors.dispatchQty && (
+                      <p className="text-sm text-red-500">{editErrors.dispatchQty}</p>
+                    )}
                   </div>
                 </div>
-
-                <OrderBookSpecFields
-                  idPrefix="edit-"
-                  value={editFormData}
-                  onChange={(field, value) => handleEditInputChange(field, value)}
-                />
 
                 <div className="space-y-2">
                   <Label htmlFor="edit-remarks">Remarks</Label>
