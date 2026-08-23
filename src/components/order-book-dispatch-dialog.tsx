@@ -40,7 +40,7 @@ export function OrderBookDispatchDialog({ open, order, onOpenChange, onDispatche
   const [history, setHistory] = useState<OrderDispatch[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
-  const remaining = Math.max(0, Number(order?.qty || 0) - Number(order?.dispatchQty || 0))
+  const remaining = Number(order?.qty || 0) - Number(order?.dispatchQty || 0)
 
   useEffect(() => {
     if (!open || !order) return
@@ -95,7 +95,10 @@ export function OrderBookDispatchDialog({ open, order, onOpenChange, onDispatche
           <div>
             <CardTitle>Dispatch order</CardTitle>
             <CardDescription>
-              {order.orderNumber || `Order #${order.id}`} — remaining {remaining.toFixed(2)} KG
+              {order.orderNumber || `Order #${order.id}`}
+              {remaining >= 0
+                ? ` — remaining ${remaining.toFixed(2)} KG`
+                : ` — over by ${Math.abs(remaining).toFixed(2)} KG`}
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0">

@@ -2,6 +2,7 @@
 export const RM_ITEM_GROUP_SET = new Set([
   "rm film",
   "rm ink/adhesive/chemicals",
+  "rm extrusion",
   "ink",
   "adhesive",
   "chemical",

@@ -20,6 +20,7 @@ import {
 type ItemForm = {
   itemCode: string
   itemName: string
+  abv: string
   itemGroup: string
   partyId: string
   uom: string
@@ -29,6 +30,7 @@ type ItemForm = {
 const fallbackItemGroups: CreatableOption[] = [
   { value: "rm film", label: "RM Film" },
   { value: "rm ink/adhesive/chemicals", label: "RM Ink/Adhesive/Chemicals" },
+  { value: "rm extrusion", label: "RM Extrusion" },
   { value: "fg variety", label: "FG Variety" },
   { value: "ink", label: "Ink" },
   { value: "adhesive", label: "Adhesive" },
@@ -51,6 +53,7 @@ export default function ItemNew() {
   const [formData, setFormData] = useState<ItemForm>({
     itemCode: "",
     itemName: "",
+    abv: "",
     itemGroup: "",
     partyId: "",
     uom: "",
@@ -100,6 +103,7 @@ export default function ItemNew() {
         const labelMap: Record<string, string> = {
           "rm film": "RM Film",
           "rm ink/adhesive/chemicals": "RM Ink/Adhesive/Chemicals",
+          "rm extrusion": "RM Extrusion",
           "fg variety": "FG Variety",
         }
         const options = response.data.map((value) => ({
@@ -201,6 +205,7 @@ export default function ItemNew() {
       const payload: ItemPayload = {
         itemCode: formData.itemCode.trim(),
         itemName: formData.itemName.trim() || formData.itemCode.trim(),
+        abv: formData.abv.trim() || null,
         itemGroup: group,
         partyId: formData.partyId.trim() ? parseInt(formData.partyId, 10) : undefined,
         density: parseDensity(group, formData.density),
@@ -271,6 +276,15 @@ export default function ItemNew() {
                   value={formData.itemName}
                   onChange={(e) => handleInputChange("itemName", e.target.value)}
                   placeholder="Enter item name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-abv">Abv</Label>
+                <Input
+                  id="new-abv"
+                  value={formData.abv}
+                  onChange={(e) => handleInputChange("abv", e.target.value)}
+                  placeholder="Abbreviation"
                 />
               </div>
             </div>

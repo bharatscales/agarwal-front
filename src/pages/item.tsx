@@ -24,6 +24,7 @@ import {
 type ItemForm = {
   itemCode: string
   itemName: string
+  abv: string
   itemGroup: string
   partyId: string
   uom: string
@@ -33,6 +34,7 @@ type ItemForm = {
 const emptyItemForm = (): ItemForm => ({
   itemCode: "",
   itemName: "",
+  abv: "",
   itemGroup: "",
   partyId: "",
   uom: "",
@@ -55,6 +57,7 @@ export default function Item() {
   const fallbackItemGroups: CreatableOption[] = [
     { value: "rm film", label: "RM Film" },
     { value: "rm ink/adhesive/chemicals", label: "RM Ink/Adhesive/Chemicals" },
+    { value: "rm extrusion", label: "RM Extrusion" },
     { value: "fg variety", label: "FG Variety" },
     { value: "ink", label: "Ink" },
     { value: "adhesive", label: "Adhesive" },
@@ -121,6 +124,7 @@ export default function Item() {
     setEditFormData({
       itemCode: item.itemCode,
       itemName: item.itemName,
+      abv: item.abv ?? "",
       itemGroup: item.itemGroup,
       partyId: item.partyId != null ? String(item.partyId) : "",
       uom: item.uom,
@@ -229,6 +233,7 @@ export default function Item() {
       const payload: Partial<ItemPayload> = {
         itemCode: editFormData.itemCode.trim(),
         itemName: editFormData.itemName.trim() || editFormData.itemCode.trim(),
+        abv: editFormData.abv.trim() || null,
         itemGroup: editFormData.itemGroup.trim(),
         partyId: editFormData.partyId.trim() ? parseInt(editFormData.partyId, 10) : null,
         density: parseDensity(editFormData.itemGroup, editFormData.density),
@@ -283,6 +288,7 @@ export default function Item() {
         const labelMap: Record<string, string> = {
           "rm film": "RM Film",
           "rm ink/adhesive/chemicals": "RM Ink/Adhesive/Chemicals",
+          "rm extrusion": "RM Extrusion",
           "fg variety": "FG Variety",
         }
         const options = response.data.map((value) => ({
@@ -480,6 +486,15 @@ export default function Item() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-abv">Abv</Label>
+                    <Input
+                      id="edit-abv"
+                      value={editFormData.abv}
+                      onChange={(e) => handleEditInputChange("abv", e.target.value)}
+                      placeholder="Abbreviation"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-itemGroup">Item Group *</Label>
                     <CreatableCombobox

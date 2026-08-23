@@ -14,6 +14,7 @@ export type Item = {
   id: number
   itemCode: string
   itemName: string
+  abv?: string | null
   itemGroup: string
   partyId?: number | null
   partyCode?: string | null
@@ -53,6 +54,16 @@ export const getItemColumns = ({
     cell: ({ row }) => {
       const itemName = row.getValue("itemName") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{itemName || "-"}</div>
+    },
+  },
+  {
+    accessorKey: "abv",
+    header: ({ column }) => (
+      <ColumnHeader title="ABV" column={column} placeholder="Filter abbreviation..." />
+    ),
+    cell: ({ row }) => {
+      const abv = row.original.abv
+      return <div className="text-sm text-gray-600 dark:text-gray-400">{abv || "-"}</div>
     },
   },
   {

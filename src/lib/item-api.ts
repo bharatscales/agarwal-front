@@ -11,6 +11,7 @@ type ItemResponse = {
   id: number
   item_code: string
   name: string
+  abv?: string | null
   item_group: string
   party_id?: number | null
   party_code?: string | null
@@ -27,6 +28,7 @@ export type Item = {
   id: number
   itemCode: string
   itemName: string
+  abv?: string | null
   itemGroup: string
   partyId?: number | null
   partyCode?: string | null
@@ -152,6 +154,7 @@ export const specsFromFgBom = (lines: BomLine[]): {
 export type ItemPayload = {
   itemCode: string
   itemName: string
+  abv?: string | null
   itemGroup: string
   partyId?: number | null
   density?: number | null
@@ -163,6 +166,7 @@ const mapItem = (item: ItemResponse): Item => ({
   id: item.id,
   itemCode: item.item_code,
   itemName: item.name,
+  abv: item.abv ?? null,
   itemGroup: item.item_group,
   partyId: item.party_id,
   partyCode: item.party_code,
@@ -209,6 +213,7 @@ export const createItem = async (payload: ItemPayload) => {
   const body: Record<string, unknown> = {
     item_code: payload.itemCode,
     name: payload.itemName,
+    abv: payload.abv?.trim() || null,
     item_group: payload.itemGroup,
     party_id: payload.partyId ?? null,
     density: payload.density ?? null,
@@ -225,6 +230,7 @@ export const updateItem = async (itemId: number, payload: Partial<ItemPayload>) 
   const body: Record<string, unknown> = {}
   if (payload.itemCode !== undefined) body.item_code = payload.itemCode
   if (payload.itemName !== undefined) body.name = payload.itemName
+  if (payload.abv !== undefined) body.abv = payload.abv?.trim() || null
   if (payload.itemGroup !== undefined) body.item_group = payload.itemGroup
   if (payload.partyId !== undefined) body.party_id = payload.partyId ?? null
   if (payload.density !== undefined) body.density = payload.density ?? null
