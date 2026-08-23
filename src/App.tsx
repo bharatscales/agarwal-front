@@ -69,6 +69,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/manufacturing/order-book/:id" element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/manufacturing/order-book" element={
               <ProtectedRoute requiredRole="admin">
                 <Layout />

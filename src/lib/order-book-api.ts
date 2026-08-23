@@ -79,6 +79,11 @@ export const getAllOrderBooks = async (skip = 0, limit = 500) => {
   return response.data.map(mapOrderBook)
 }
 
+export const getOrderBook = async (orderBookId: number) => {
+  const response = await api.get<OrderBookResponse>(`/order-book/${orderBookId}`)
+  return mapOrderBook(response.data)
+}
+
 export const createOrderBook = async (payload: OrderBookPayload) => {
   const requestPayload: Record<string, unknown> = {
     party_id: payload.partyId,

@@ -76,7 +76,7 @@ export const getOrderBookColumns = ({
       cell: ({ row }) => {
         const orderNumber = row.getValue("orderNumber") as string | null
         return (
-          <div className="font-medium">
+          <div className="font-medium text-blue-700 dark:text-blue-400 hover:underline">
             {orderNumber || <span className="text-gray-400">-</span>}
           </div>
         )

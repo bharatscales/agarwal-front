@@ -14,6 +14,7 @@ import Operation from "./operation"
 import WorkOrder from "./work-order"
 import WorkOrderDetail from "./work-order-detail"
 import OrderBook from "./order-book"
+import OrderBookDetail from "./order-book-detail"
 import JobCard from "./job-card"
 import StockEntry from "./stock-entry"
 import StockEntryPartyIndex from "./stock-entry-party-index"
@@ -212,6 +213,9 @@ export default function Layout() {
       default:
         if (location.pathname.startsWith("/manufacturing/work-order/") && location.pathname !== "/manufacturing/work-order") {
           return <WorkOrderDetail />;
+        }
+        if (location.pathname.startsWith("/manufacturing/order-book/") && location.pathname !== "/manufacturing/order-book") {
+          return <OrderBookDetail />;
         }
         if (
           location.pathname.startsWith("/manufacturing/stock-entry/party/") &&

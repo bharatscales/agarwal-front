@@ -162,8 +162,10 @@ export function AppSidebar() {
   };
 
   const isActive = (path: string) => {
-    return location.pathname === path;
-  };
+    if (location.pathname === path) return true
+    if (path !== "/home" && location.pathname.startsWith(`${path}/`)) return true
+    return false
+  }
 
   // Stock department user: can access Item/Party masters, Stock Entry, and all stock reports only; no Work Order / Job Card
   const isStockUser =

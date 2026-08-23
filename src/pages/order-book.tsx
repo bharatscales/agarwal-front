@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Plus, RefreshCw, Search, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getOrderBookColumns, type OrderBookMaster } from "@/components/columns/order-book-columns"
@@ -50,6 +51,7 @@ const emptyForm = (): OrderBookForm => ({
 })
 
 export default function OrderBook() {
+  const navigate = useNavigate()
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false)
   const [isEditOrderOpen, setIsEditOrderOpen] = useState(false)
   const [editOrderId, setEditOrderId] = useState<number | null>(null)
@@ -322,6 +324,7 @@ export default function OrderBook() {
               const po = (order.poNo ?? "").toString().toLowerCase()
               return num.includes(q) || po.includes(q)
             })}
+            onRowClick={(order) => navigate(`/manufacturing/order-book/${order.id}`)}
           />
         </div>
       )}

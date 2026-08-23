@@ -199,6 +199,11 @@ export const getItems = async (skip = 0, limit = 100): Promise<Item[]> => {
   return response.data.map(mapItem)
 }
 
+export const getItem = async (itemId: number): Promise<Item> => {
+  const response = await api.get<ItemResponse>(`/item/${itemId}`)
+  return mapItem(response.data)
+}
+
 const fillMissingRmAbv = async (lines: BomLine[]): Promise<BomLine[]> => {
   const missingIds = [
     ...new Set(
