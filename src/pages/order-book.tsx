@@ -32,6 +32,7 @@ type OrderBookForm = {
   itemId: string
   qty: string
   orderDate: string
+  poNo: string
   status: OrderBookStatus
   remarks: string
 } & OrderBookSpecFieldsValue
@@ -49,6 +50,7 @@ const emptyForm = (): OrderBookForm => ({
   itemId: "",
   qty: "",
   orderDate: todayIso(),
+  poNo: "",
   status: "pending",
   remarks: "",
   totalGsm: "",
@@ -88,6 +90,7 @@ export default function OrderBook() {
       itemId: order.itemId?.toString() || "",
       qty: order.qty?.toString() || "",
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : "",
+      poNo: order.poNo || "",
       status: order.status === "closed" ? "closed" : "pending",
       remarks: order.remarks || "",
       totalGsm: order.totalGsm != null ? String(order.totalGsm) : "",
@@ -147,6 +150,7 @@ export default function OrderBook() {
       itemId: parseInt(editFormData.itemId),
       qty: parseFloat(editFormData.qty),
       orderDate: editFormData.orderDate.trim() || null,
+      poNo: editFormData.poNo.trim() || null,
       totalGsm: parseOptionalNumber(editFormData.totalGsm),
       size: parseOptionalNumber(editFormData.size),
       structure: editFormData.structure.trim() || null,
@@ -329,8 +333,10 @@ export default function OrderBook() {
             })}
             data={orders.filter((order) => {
               if (!orderNumberSearch.trim()) return true
-              const num = (order.orderNumber ?? "").toString()
-              return num.toLowerCase().includes(orderNumberSearch.trim().toLowerCase())
+              const q = orderNumberSearch.trim().toLowerCase()
+              const num = (order.orderNumber ?? "").toString().toLowerCase()
+              const po = (order.poNo ?? "").toString().toLowerCase()
+              return num.includes(q) || po.includes(q)
             })}
           />
         </div>
@@ -408,7 +414,7 @@ export default function OrderBook() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-orderDate">Order Date</Label>
                     <Input
@@ -416,6 +422,17 @@ export default function OrderBook() {
                       type="date"
                       value={editFormData.orderDate}
                       onChange={(e) => handleEditInputChange("orderDate", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-poNo">PO No.</Label>
+                    <Input
+                      id="edit-poNo"
+                      type="text"
+                      value={editFormData.poNo}
+                      onChange={(e) => handleEditInputChange("poNo", e.target.value)}
+                      placeholder="Enter PO number"
                     />
                   </div>
 

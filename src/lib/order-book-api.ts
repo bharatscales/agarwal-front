@@ -8,6 +8,7 @@ export type OrderBookPayload = {
   itemId: number
   qty: number
   orderDate?: string | null
+  poNo?: string | null
   totalGsm?: number | null
   size?: number | null
   structure?: string | null
@@ -30,6 +31,7 @@ type OrderBookResponse = {
   item_name?: string | null
   qty: number
   order_date?: string | null
+  po_no?: string | null
   total_gsm?: number | null
   size?: number | null
   structure?: string | null
@@ -54,6 +56,7 @@ const mapOrderBook = (row: OrderBookResponse) => ({
   itemName: row.item_name,
   qty: row.qty,
   orderDate: row.order_date,
+  poNo: row.po_no ?? null,
   totalGsm: row.total_gsm ?? null,
   size: row.size ?? null,
   structure: row.structure ?? null,
@@ -83,6 +86,7 @@ export const createOrderBook = async (payload: OrderBookPayload) => {
     qty: payload.qty,
   }
   if (payload.orderDate) requestPayload.order_date = payload.orderDate
+  if (payload.poNo !== undefined) requestPayload.po_no = payload.poNo || null
   if (payload.totalGsm !== undefined) requestPayload.total_gsm = payload.totalGsm
   if (payload.size !== undefined) requestPayload.size = payload.size
   if (payload.structure !== undefined) requestPayload.structure = payload.structure || null
@@ -102,6 +106,7 @@ export const updateOrderBook = async (orderBookId: number, payload: Partial<Orde
   if (payload.itemId !== undefined) updatePayload.item_id = payload.itemId
   if (payload.qty !== undefined) updatePayload.qty = payload.qty
   if (payload.orderDate !== undefined) updatePayload.order_date = payload.orderDate || null
+  if (payload.poNo !== undefined) updatePayload.po_no = payload.poNo || null
   if (payload.totalGsm !== undefined) updatePayload.total_gsm = payload.totalGsm
   if (payload.size !== undefined) updatePayload.size = payload.size
   if (payload.structure !== undefined) updatePayload.structure = payload.structure || null

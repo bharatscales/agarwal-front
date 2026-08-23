@@ -30,6 +30,7 @@ type OrderBookForm = {
   itemId: string
   qty: string
   orderDate: string
+  poNo: string
   status: OrderBookStatus
   remarks: string
 } & OrderBookSpecFieldsValue
@@ -47,6 +48,7 @@ const emptyForm = (): OrderBookForm => ({
   itemId: "",
   qty: "",
   orderDate: todayIso(),
+  poNo: "",
   status: "pending",
   remarks: "",
   totalGsm: "",
@@ -194,6 +196,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
       itemId: parseInt(formData.itemId),
       qty: parseFloat(formData.qty),
       orderDate: formData.orderDate.trim() || null,
+      poNo: formData.poNo.trim() || null,
       totalGsm: parseOptionalNumber(formData.totalGsm),
       size: parseOptionalNumber(formData.size),
       structure: formData.structure.trim() || null,
@@ -268,7 +271,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="orderDate">Order Date</Label>
                 <Input
@@ -280,6 +283,21 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
                   value={formData.orderDate}
                   onChange={(e) => handleInputChange("orderDate", e.target.value)}
                   onKeyDown={(e) => handleEnterKey(e, 2)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="poNo">PO No.</Label>
+                <Input
+                  id="poNo"
+                  type="text"
+                  ref={(el) => {
+                    addFieldRefs.current[3] = el
+                  }}
+                  value={formData.poNo}
+                  onChange={(e) => handleInputChange("poNo", e.target.value)}
+                  onKeyDown={(e) => handleEnterKey(e, 3)}
+                  placeholder="Enter PO number"
                 />
               </div>
 
@@ -307,7 +325,7 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
               value={formData}
               onChange={(field, value) => handleInputChange(field, value)}
               fieldRefs={addFieldRefs.current}
-              startIndex={3}
+              startIndex={4}
               onEnterKey={handleEnterKey}
             />
 
@@ -320,11 +338,11 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
                   step="0.01"
                   min="0"
                   ref={(el) => {
-                    addFieldRefs.current[9] = el
+                    addFieldRefs.current[10] = el
                   }}
                   value={formData.qty}
                   onChange={(e) => handleInputChange("qty", e.target.value)}
-                  onKeyDown={(e) => handleEnterKey(e, 9)}
+                  onKeyDown={(e) => handleEnterKey(e, 10)}
                   placeholder="Enter quantity"
                   className={formErrors.qty ? "border-red-500" : ""}
                 />

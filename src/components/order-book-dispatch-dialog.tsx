@@ -67,10 +67,6 @@ export function OrderBookDispatchDialog({ open, order, onOpenChange, onDispatche
       setError("Dispatch quantity must be a positive number")
       return
     }
-    if (dispatchQty > remaining + 0.001) {
-      setError(`Dispatch quantity cannot exceed remaining ${remaining.toFixed(2)} KG`)
-      return
-    }
 
     setIsSubmitting(true)
     createOrderDispatch(order.id, {
@@ -182,7 +178,7 @@ export function OrderBookDispatchDialog({ open, order, onOpenChange, onDispatche
             <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" className="flex-1" disabled={isSubmitting || remaining <= 0}>
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? "Saving…" : "Save dispatch"}
             </Button>
           </CardFooter>

@@ -23,6 +23,7 @@ function Header(props: {
 export type OrderBookMaster = {
   id: number
   orderNumber?: string | null
+  poNo?: string | null
   partyId?: number | null
   partyCode?: string | null
   partyName?: string | null
@@ -77,6 +78,20 @@ export const getOrderBookColumns = ({
         return (
           <div className="font-medium">
             {orderNumber || <span className="text-gray-400">-</span>}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "poNo",
+      header: ({ column }) => (
+        <Header title="PO NO." column={column} placeholder="Filter PO no..." />
+      ),
+      cell: ({ row }) => {
+        const poNo = row.getValue("poNo") as string | null
+        return (
+          <div className="font-medium">
+            {poNo || <span className="text-gray-400">-</span>}
           </div>
         )
       },
