@@ -90,7 +90,6 @@ export const createOrderBook = async (payload: OrderBookPayload) => {
   if (payload.repeatLength !== undefined) requestPayload.repeat_length = payload.repeatLength
   if (payload.noOfPanel !== undefined) requestPayload.no_of_panel = payload.noOfPanel
   if (payload.status !== undefined) requestPayload.status = payload.status
-  if (payload.dispatchQty !== undefined) requestPayload.dispatch_qty = payload.dispatchQty
   if (payload.remarks !== undefined) requestPayload.remarks = payload.remarks || null
 
   const response = await api.post<OrderBookResponse>("/order-book/", requestPayload)
@@ -110,7 +109,6 @@ export const updateOrderBook = async (orderBookId: number, payload: Partial<Orde
   if (payload.repeatLength !== undefined) updatePayload.repeat_length = payload.repeatLength
   if (payload.noOfPanel !== undefined) updatePayload.no_of_panel = payload.noOfPanel
   if (payload.status !== undefined) updatePayload.status = payload.status
-  if (payload.dispatchQty !== undefined) updatePayload.dispatch_qty = payload.dispatchQty
   if (payload.remarks !== undefined) updatePayload.remarks = payload.remarks || null
 
   const response = await api.patch<OrderBookResponse>(`/order-book/${orderBookId}`, updatePayload)
@@ -119,4 +117,47 @@ export const updateOrderBook = async (orderBookId: number, payload: Partial<Orde
 
 export const deleteOrderBook = async (orderBookId: number) => {
   await api.delete(`/order-book/${orderBookId}`)
+}
+
+type OrderDispatchResponse = {
+  id: number
+  order_book_id: number
+  dispatch_date: string
+  qty: number
+  created_by?: number | null
+  created_at: string
+}
+
+export type OrderDispatch = {
+  id: number
+  orderBookId: number
+  dispatchDate: string
+  qty: number
+  createdBy?: number | null
+  createdAt: string
+}
+
+const mapOrderDispatch = (row: OrderDispatchResponse): OrderDispatch => ({
+  id: row.id,
+  orderBookId: row.order_book_id,
+  dispatchDate: row.dispatch_date,
+  qty: row.qty,
+  createdBy: row.created_by ?? null,
+  createdAt: row.created_at,
+})
+
+export const getOrderDispatches = async (orderBookId: number) => {
+  const response = await api.get<OrderDispatchResponse[]>(`/order-book/${orderBookId}/dispatches`)
+  return response.data.map(mapOrderDispatch)
+}
+
+export const createOrderDispatch = async (
+  orderBookId: number,
+  payload: { dispatchDate: string; qty: number }
+) => {
+  const response = await api.post<OrderBookResponse>(`/order-book/${orderBookId}/dispatches`, {
+    dispatch_date: payload.dispatchDate,
+    qty: payload.qty,
+  })
+  return mapOrderBook(response.data)
 }

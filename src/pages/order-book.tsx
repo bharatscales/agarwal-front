@@ -11,6 +11,7 @@ import { getPartyCustomers } from "@/lib/party-api"
 import { getItemBom, getItemsFgVarietyByParty, specsFromFgBom } from "@/lib/item-api"
 import { deleteOrderBook, getAllOrderBooks, updateOrderBook, ORDER_BOOK_STATUSES, type OrderBookStatus } from "@/lib/order-book-api"
 import { OrderBookCreateDialog } from "@/components/order-book-create-dialog"
+import { OrderBookDispatchDialog } from "@/components/order-book-dispatch-dialog"
 import {
   OrderBookSpecFields,
   parseOptionalInt,
@@ -30,7 +31,6 @@ type OrderBookForm = {
   partyId: string
   itemId: string
   qty: string
-  dispatchQty: string
   orderDate: string
   status: OrderBookStatus
   remarks: string
@@ -48,7 +48,6 @@ const emptyForm = (): OrderBookForm => ({
   partyId: "",
   itemId: "",
   qty: "",
-  dispatchQty: "0",
   orderDate: todayIso(),
   status: "pending",
   remarks: "",
@@ -72,6 +71,7 @@ export default function OrderBook() {
   const [error, setError] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<OrderBookForm>(emptyForm())
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof OrderBookForm, string>>>({})
+  const [dispatchOrder, setDispatchOrder] = useState<OrderBookMaster | null>(null)
 
   const handleRefresh = () => {
     fetchOrders()
@@ -87,7 +87,6 @@ export default function OrderBook() {
       partyId: order.partyId?.toString() || "",
       itemId: order.itemId?.toString() || "",
       qty: order.qty?.toString() || "",
-      dispatchQty: order.dispatchQty != null ? String(order.dispatchQty) : "0",
       orderDate: order.orderDate ? order.orderDate.slice(0, 10) : "",
       status: order.status === "closed" ? "closed" : "pending",
       remarks: order.remarks || "",
@@ -135,12 +134,6 @@ export default function OrderBook() {
         errors.qty = "Quantity must be a positive number"
       }
     }
-    if (editFormData.dispatchQty.trim()) {
-      const dispatchQty = parseFloat(editFormData.dispatchQty)
-      if (isNaN(dispatchQty) || dispatchQty < 0) {
-        errors.dispatchQty = "Dispatch quantity cannot be negative"
-      }
-    }
     setEditErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -161,7 +154,6 @@ export default function OrderBook() {
       repeatLength: parseOptionalNumber(editFormData.repeatLength),
       noOfPanel: parseOptionalInt(editFormData.noOfPanel),
       status: editFormData.status,
-      dispatchQty: parseOptionalNumber(editFormData.dispatchQty) ?? 0,
       remarks: editFormData.remarks.trim() || null,
     })
       .then((updated) => {
@@ -337,6 +329,7 @@ export default function OrderBook() {
           <DataTable
             columns={getOrderBookColumns({
               onEdit: handleEditOrderOpen,
+              onDispatch: setDispatchOrder,
               onDelete: handleDeleteOrder,
             })}
             data={orders.filter((order) => {
@@ -361,6 +354,17 @@ export default function OrderBook() {
         onOpenChange={setIsAddOrderOpen}
         onCreated={(newOrder) => {
           setOrders((prev) => [newOrder, ...prev])
+        }}
+      />
+
+      <OrderBookDispatchDialog
+        open={dispatchOrder != null}
+        order={dispatchOrder}
+        onOpenChange={(open) => {
+          if (!open) setDispatchOrder(null)
+        }}
+        onDispatched={(updated) => {
+          setOrders((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
         }}
       />
 
@@ -460,23 +464,6 @@ export default function OrderBook() {
                       className={editErrors.qty ? "border-red-500" : ""}
                     />
                     {editErrors.qty && <p className="text-sm text-red-500">{editErrors.qty}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-dispatchQty">Dispatch quantity</Label>
-                    <Input
-                      id="edit-dispatchQty"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editFormData.dispatchQty}
-                      onChange={(e) => handleEditInputChange("dispatchQty", e.target.value)}
-                      placeholder="0"
-                      className={editErrors.dispatchQty ? "border-red-500" : ""}
-                    />
-                    {editErrors.dispatchQty && (
-                      <p className="text-sm text-red-500">{editErrors.dispatchQty}</p>
-                    )}
                   </div>
                 </div>
 

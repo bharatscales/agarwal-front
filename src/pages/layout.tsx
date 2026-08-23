@@ -8,6 +8,7 @@ import Party from "./party"
 import Template from "./template"
 import Machine from "./machine"
 import Operator from "./operator"
+import EnumMaster from "./enum-master"
 import Warehouse from "./warehouse"
 import Operation from "./operation"
 import WorkOrder from "./work-order"
@@ -194,6 +195,8 @@ export default function Layout() {
         return <Machine />;
       case "/masters/operator":
         return <Operator />;
+      case "/masters/enum":
+        return <EnumMaster />;
       case "/masters/warehouse":
         return <Warehouse />;
       case "/masters/operation":

@@ -18,6 +18,7 @@ import { CreatableCombobox } from "@/components/ui/creatable-combobox"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getAllOperators } from "@/lib/operator-api"
 import { getWastageReasons } from "@/lib/rolls-stock-api"
+import { createEnumMasterValue } from "@/lib/enum-master-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -157,6 +158,17 @@ export function InspectionPanel(props: InspectionPanelProps) {
     setCreatedWastageReasons((prev) =>
       prev.some((r) => r.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
     )
+    createEnumMasterValue("reason_of_wastage", trimmed)
+      .then((created) => {
+        setSavedWastageReasons((prev) =>
+          prev.some((r) => r.toLowerCase() === created.value.toLowerCase())
+            ? prev
+            : [...prev, created.value]
+        )
+      })
+      .catch(() => {
+        /* keep the local option if the master create is not permitted */
+      })
   }
 
   const floorWorkOrderColumns = useMemo(

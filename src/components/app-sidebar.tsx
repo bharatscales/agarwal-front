@@ -120,6 +120,11 @@ const masterItems: MenuItem[] = [
     icon: Building2,
     path: "/masters/operator",
   },
+  {
+    title: "Enum Master",
+    icon: Building2,
+    path: "/masters/enum",
+  },
 ];
 
 
@@ -229,6 +234,12 @@ export function AppSidebar() {
       setIsRmChemicalStockOpen(false);
     }
   }, [state]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/masters/")) {
+      setIsMastersOpen(true);
+    }
+  }, [location.pathname]);
 
   // Auto-expand Reports when on a report subpage
   useEffect(() => {

@@ -29,7 +29,6 @@ type OrderBookForm = {
   partyId: string
   itemId: string
   qty: string
-  dispatchQty: string
   orderDate: string
   status: OrderBookStatus
   remarks: string
@@ -47,7 +46,6 @@ const emptyForm = (): OrderBookForm => ({
   partyId: "",
   itemId: "",
   qty: "",
-  dispatchQty: "0",
   orderDate: todayIso(),
   status: "pending",
   remarks: "",
@@ -177,12 +175,6 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
         errors.qty = "Quantity must be a positive number"
       }
     }
-    if (formData.dispatchQty.trim()) {
-      const dispatchQty = parseFloat(formData.dispatchQty)
-      if (isNaN(dispatchQty) || dispatchQty < 0) {
-        errors.dispatchQty = "Dispatch quantity cannot be negative"
-      }
-    }
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -209,7 +201,6 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
       repeatLength: parseOptionalNumber(formData.repeatLength),
       noOfPanel: parseOptionalInt(formData.noOfPanel),
       status: formData.status,
-      dispatchQty: parseOptionalNumber(formData.dispatchQty) ?? 0,
       remarks: formData.remarks.trim() || null,
     })
       .then((newOrder) => {
@@ -338,27 +329,6 @@ export function OrderBookCreateDialog({ open, onOpenChange, onCreated }: Props) 
                   className={formErrors.qty ? "border-red-500" : ""}
                 />
                 {formErrors.qty && <p className="text-sm text-red-500">{formErrors.qty}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dispatchQty">Dispatch quantity</Label>
-                <Input
-                  id="dispatchQty"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  ref={(el) => {
-                    addFieldRefs.current[10] = el
-                  }}
-                  value={formData.dispatchQty}
-                  onChange={(e) => handleInputChange("dispatchQty", e.target.value)}
-                  onKeyDown={(e) => handleEnterKey(e, 10)}
-                  placeholder="0"
-                  className={formErrors.dispatchQty ? "border-red-500" : ""}
-                />
-                {formErrors.dispatchQty && (
-                  <p className="text-sm text-red-500">{formErrors.dispatchQty}</p>
-                )}
               </div>
             </div>
 

@@ -1,5 +1,5 @@
 import { type ColumnDef } from "@tanstack/react-table"
-import { MoreVertical, Edit, Trash2 } from "lucide-react"
+import { MoreVertical, Edit, Trash2, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ColumnHeader } from "@/components/column-header"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
@@ -37,6 +37,7 @@ export type OrderBookMaster = {
 
 type OrderBookColumnHandlers = {
   onEdit?: (order: OrderBookMaster) => void
+  onDispatch?: (order: OrderBookMaster) => void
   onDelete?: (order: OrderBookMaster) => void
 }
 
@@ -52,9 +53,10 @@ const getStatusColor = (status: string) => {
 
 export const getOrderBookColumns = ({
   onEdit,
+  onDispatch,
   onDelete,
 }: OrderBookColumnHandlers): ColumnDef<OrderBookMaster>[] => {
-  const hasActions = onEdit != null || onDelete != null
+  const hasActions = onEdit != null || onDispatch != null || onDelete != null
   const columns: ColumnDef<OrderBookMaster>[] = [
     {
       accessorKey: "orderNumber",
@@ -115,7 +117,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "totalGsm",
       header: ({ column }) => (
-        <ColumnHeader title="TOTAL GSM" column={column} placeholder="Filter total GSM..." />
+        <ColumnHeader title="TOTAL GSM" column={column} placeholder="Filter total GSM..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("totalGsm") as number | null
@@ -157,7 +159,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "coilWidth",
       header: ({ column }) => (
-        <ColumnHeader title="COIL WIDTH" column={column} placeholder="Filter coil width..." />
+        <ColumnHeader title="COIL WIDTH" column={column} placeholder="Filter coil width..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("coilWidth") as number | null
@@ -171,7 +173,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "repeatLength",
       header: ({ column }) => (
-        <ColumnHeader title="REPEAT LENGTH" column={column} placeholder="Filter repeat length..." />
+        <ColumnHeader title="REPEAT LENGTH" column={column} placeholder="Filter repeat length..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("repeatLength") as number | null
@@ -185,7 +187,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "noOfPanel",
       header: ({ column }) => (
-        <ColumnHeader title="NO OF PANEL" column={column} placeholder="Filter no of panel..." />
+        <ColumnHeader title="NO OF PANEL" column={column} placeholder="Filter no of panel..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("noOfPanel") as number | null
@@ -213,7 +215,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "qty",
       header: ({ column }) => (
-        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." />
+        <ColumnHeader title="QTY (KG)" column={column} placeholder="Filter qty..." wrap />
       ),
       cell: ({ row }) => {
         const qty = row.getValue("qty") as number
@@ -224,7 +226,7 @@ export const getOrderBookColumns = ({
     {
       accessorKey: "dispatchQty",
       header: ({ column }) => (
-        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." />
+        <ColumnHeader title="DISPATCH QTY" column={column} placeholder="Filter dispatch qty..." wrap />
       ),
       cell: ({ row }) => {
         const value = row.getValue("dispatchQty") as number | null
@@ -252,6 +254,12 @@ export const getOrderBookColumns = ({
                       <DropdownMenuItem onClick={() => onEdit(order)}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit order
+                      </DropdownMenuItem>
+                    )}
+                    {onDispatch != null && (
+                      <DropdownMenuItem onClick={() => onDispatch(order)}>
+                        <Truck className="mr-2 h-4 w-4" />
+                        Dispatch
                       </DropdownMenuItem>
                     )}
                     {onDelete != null && (

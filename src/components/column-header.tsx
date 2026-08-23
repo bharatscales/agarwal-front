@@ -12,12 +12,27 @@ interface ColumnHeaderProps {
   title: string;
   column: any;
   placeholder?: string;
+  /** Split the title onto two lines (last word on line 2) so numeric columns can be narrower. */
+  wrap?: boolean;
 }
 
-export function ColumnHeader({ title, column, placeholder }: ColumnHeaderProps) {
+function twoLineTitle(title: string) {
+  const parts = title.trim().split(/\s+/);
+  if (parts.length < 2) return title;
+  const last = parts.pop()!;
+  return `${parts.join(" ")}\n${last}`;
+}
+
+export function ColumnHeader({ title, column, placeholder, wrap }: ColumnHeaderProps) {
+  const label = wrap ? twoLineTitle(title) : title;
   return (
-    <div className="flex items-center justify-between w-full">
-             <span className="text-black dark:text-zinc-300 text-sm font-bold">{title}</span>
+    <div className={`flex justify-between gap-1 ${wrap ? "items-start w-min" : "items-center w-full"}`}>
+             <span
+               data-wrap-header={wrap ? "" : undefined}
+               className={`text-black dark:text-zinc-300 text-sm font-bold ${wrap ? "whitespace-pre-line leading-tight" : ""}`}
+             >
+               {label}
+             </span>
              <div className="flex flex-col gap-1 -mr-2">
         <Button
           variant="ghost"

@@ -54,6 +54,11 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/masters/enum" element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/masters/warehouse" element={
               <ProtectedRoute>
                 <Layout />
