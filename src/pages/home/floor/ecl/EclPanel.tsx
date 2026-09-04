@@ -52,7 +52,6 @@ export function EclPanel(props: EclPanelProps) {
     eclCreateChildLoading,
     setEclCreateChildLoading,
     setEclCreateChildMessage,
-    scaleWeight,
     setEclAddRollForm,
     eclChildRollsLoading,
     eclChildRollsFromDb,
