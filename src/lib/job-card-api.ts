@@ -191,7 +191,7 @@ export const getLoadedRolls = async (jobCardId: number): Promise<CurrentRoll[]> 
   return response.data.rolls ?? []
 }
 
-/** Unload a mistakenly loaded roll (blocked if it is already a parent of any child roll). */
+/** Unload a mistakenly loaded roll. If it already produced children, it is closed as consumed. */
 export const unloadRoll = async (jobCardId: number, rollId: number): Promise<void> => {
   await api.post(`/job-card/${jobCardId}/unload-roll`, { roll_id: rollId })
 }
