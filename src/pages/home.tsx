@@ -1652,19 +1652,22 @@ export default function Home() {
   }
 
   const openFloorLaminationWipPicker = async () => {
+    const wo = laminationSelectedWo
+    if (!wo) {
+      setFloorLaminationBarcodeError("Open a work order first, then select Input 1.")
+      return
+    }
     setFloorLaminationWipPickerOpen(true)
     setFloorLaminationWipRollsLoading(true)
     setFloorLaminationWipRollsError(null)
     setFloorLaminationWipRolls([])
     try {
-      const stages = laminationSelectedWo
-        ? allowedWipStagesForDept("Lamination", laminationSelectedWo.skippedOperations)
-        : ["wip_ecl", "wip_inspection", "wip_printed"]
-      const filtered = await fetchAvailableWipRolls(stages)
+      const stages = allowedWipStagesForDept("Lamination", wo.skippedOperations)
+      const filtered = await fetchAvailableWipRollsForWorkOrder(wo.id, stages)
       setFloorLaminationWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorLaminationWipRollsError(
-          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
+          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found for this work order. Try scanning a barcode instead.`
         )
       }
     } catch {
