@@ -257,6 +257,7 @@ export default function Home() {
     operatorName: string
     shift: string
     remark: string
+    balanceweight: string
   } | null>(null)
   const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -1676,7 +1677,21 @@ export default function Home() {
     setFloorInspectionWipRolls([])
     try {
       const rolls = await getRollsStockByWorkOrder(wo.id, "wip_printed")
-      const filtered = rolls.filter((r) => !r.consumed && !r.issued)
+      const byId = new Map<number, RollsStockRow>()
+      for (const roll of rolls as RollsStockRow[]) byId.set(roll.id, roll)
+      let frontier = rolls.map((r) => r.id)
+      while (frontier.length > 0) {
+        const children = (await getRollsStockByParentIds(frontier, "wip_printed")) as RollsStockRow[]
+        const next: number[] = []
+        for (const child of children) {
+          if (!byId.has(child.id)) {
+            byId.set(child.id, child)
+            next.push(child.id)
+          }
+        }
+        frontier = next
+      }
+      const filtered = [...byId.values()].filter((r) => !r.consumed && !r.issued)
       setFloorInspectionWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorInspectionWipRollsError(
@@ -2240,10 +2255,28 @@ export default function Home() {
               outputFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : "")
             const inputWeight = Number(first.roll.netweight || 0)
             const parsedOutput = parseFloat(outputWeight)
+            const parentBalance =
+              first.roll.balanceWeight != null
+                ? String(first.roll.balanceWeight)
+                : first.roll.balance_weight != null
+                  ? String(first.roll.balance_weight)
+                  : ""
+            const parsedBalance = parseFloat(parentBalance)
             const wastage =
               Number.isNaN(parsedOutput)
                 ? "0"
-                : String(Math.max(0, Number((inputWeight - parsedOutput).toFixed(2))))
+                : String(
+                    Math.max(
+                      0,
+                      Number(
+                        (
+                          inputWeight -
+                          parsedOutput -
+                          (Number.isNaN(parsedBalance) ? 0 : parsedBalance)
+                        ).toFixed(2)
+                      )
+                    )
+                  )
             setInspectionAddRollForm((prev) => {
               if (prev?.roll.id === first.roll.id) return prev
               return {
@@ -2261,6 +2294,7 @@ export default function Home() {
                 operatorName: firstCard?.operatorName ?? "",
                 shift: firstCard?.shift ?? "A",
                 remark: "",
+                balanceweight: parentBalance,
               }
             })
             try {
@@ -2272,6 +2306,13 @@ export default function Home() {
                   return {
                     ...prev,
                     parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    balanceweight:
+                      parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
+                    roll: {
+                      ...prev.roll,
+                      balanceWeight: parent.balanceWeight ?? prev.roll.balanceWeight ?? prev.roll.balance_weight,
+                      balance_weight: parent.balanceWeight ?? prev.roll.balanceWeight ?? prev.roll.balance_weight,
+                    },
                   }
                 })
               }
@@ -2752,7 +2793,10 @@ export default function Home() {
       setInspectionAddRollForm((prev) => {
         if (!prev) return null
         const inputWeight = Number(prev.roll.netweight || 0)
-        const wastage = String(Math.max(0, Number((inputWeight - scaleWeight).toFixed(2))))
+        const balance = Number(prev.balanceweight || 0)
+        const wastage = String(
+          Math.max(0, Number((inputWeight - scaleWeight - (Number.isNaN(balance) ? 0 : balance)).toFixed(2)))
+        )
         return { ...prev, netweight: String(scaleWeight), wastage }
       })
     }
@@ -2933,6 +2977,7 @@ export default function Home() {
                     inspectionSelectedWo={inspectionSelectedWo}
                     inspectionRollsLoading={inspectionRollsLoading}
                     inspectionLoadedRolls={inspectionLoadedRolls}
+                    setInspectionLoadedRolls={setInspectionLoadedRolls}
                     inspectionAddRollForm={inspectionAddRollForm}
                     inspectionCreateChildLoading={inspectionCreateChildLoading}
                     setInspectionCreateChildLoading={setInspectionCreateChildLoading}
@@ -2952,6 +2997,8 @@ export default function Home() {
                     addInspectionRoll={addInspectionRoll}
                     setInspectionFormCommittedForRollId={setInspectionFormCommittedForRollId}
                     setInspectionChildRollsFromDb={setInspectionChildRollsFromDb}
+                    updateRollsStock={updateRollsStock}
+                    setInspectionRollsRefreshKey={setInspectionRollsRefreshKey}
                     inspectionCreateChildMessage={inspectionCreateChildMessage}
                     floorInspectionBarcode={floorInspectionBarcode}
                     setFloorInspectionBarcode={setFloorInspectionBarcode}

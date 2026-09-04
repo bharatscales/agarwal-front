@@ -299,6 +299,7 @@ export const addInspectionRoll = async (
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
+      balance_weight: payload.balanceWeight,
     }
   )
   return response.data

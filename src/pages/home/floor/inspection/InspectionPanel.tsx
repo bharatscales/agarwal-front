@@ -1,4 +1,4 @@
-import { Plus, Printer, ScanBarcode, X } from "lucide-react"
+import { Printer, ScanBarcode, X } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
@@ -39,10 +39,25 @@ function parseOptionalInt(raw: string): number | undefined {
   return Number.isNaN(n) ? undefined : n
 }
 
-function wastageFromWeights(inputKg: number | null | undefined, outputRaw: string): string {
+function parseBalanceWeight(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed === "") return null
+  const parsed = parseFloat(trimmed)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight?: number | null } | null | undefined): number | null {
+  const value = roll?.balanceWeight ?? roll?.balance_weight
+  if (value == null || Number.isNaN(Number(value))) return null
+  return Number(value)
+}
+
+function wastageFromWeights(inputKg: number | null | undefined, outputRaw: string, balanceRaw = "0"): string {
   const output = parseFloat(outputRaw)
   if (Number.isNaN(output)) return "0"
-  return String(Math.max(0, Number(((Number(inputKg) || 0) - output).toFixed(2))))
+  const balance = parseFloat(balanceRaw)
+  const balanceKg = Number.isNaN(balance) ? 0 : balance
+  return String(Math.max(0, Number(((Number(inputKg) || 0) - output - balanceKg).toFixed(2))))
 }
 
 function displayValue(value: unknown) {
@@ -55,6 +70,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
     inspectionSelectedWo,
     inspectionRollsLoading,
     inspectionLoadedRolls,
+    setInspectionLoadedRolls,
     inspectionAddRollForm,
     inspectionCreateChildLoading,
     setInspectionCreateChildLoading,
@@ -72,6 +88,8 @@ export function InspectionPanel(props: InspectionPanelProps) {
     addInspectionRoll,
     setInspectionFormCommittedForRollId,
     setInspectionChildRollsFromDb,
+    updateRollsStock,
+    setInspectionRollsRefreshKey,
     inspectionCreateChildMessage,
     floorInspectionBarcode,
     setFloorInspectionBarcode,
@@ -268,16 +286,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
         cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
       },
       {
-        accessorKey: "barcode",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Barcode" column={column} placeholder="Filter barcode..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm font-mono">{row.original.barcode || "-"}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
         accessorKey: "size",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
@@ -294,6 +302,18 @@ export function InspectionPanel(props: InspectionPanelProps) {
         ),
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "parentNetweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Input weight (kg)" column={column} placeholder="Filter input weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {formatWeightWithMeter(row.original.parentNetweight, row.original.parentMeter)}
+          </div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -319,6 +339,21 @@ export function InspectionPanel(props: InspectionPanelProps) {
             {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
           </div>
         ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "balanceWeight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
+        ),
+        cell: ({ row }: { row: any }) => {
+          const value = row.original.parentBalanceWeight ?? row.original.balanceWeight
+          return (
+            <div className="text-sm">
+              {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
+            </div>
+          )
+        },
         filterFn: includesStringFilterFn,
       },
       {
@@ -413,6 +448,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
     const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
     const outputWeight =
       outputFromScale || (roll.netweight != null ? String(roll.netweight) : "")
+    const parentBalance = loadedRollBalance(roll)
     setInspectionAddRollForm({
       jobCardNumber,
       jobCardId,
@@ -421,13 +457,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
       size: roll.size != null ? String(roll.size) : "",
       micron: roll.micron != null ? String(roll.micron) : "",
       netweight: outputWeight,
-      wastage: wastageFromWeights(roll.netweight, outputWeight),
+      wastage: wastageFromWeights(roll.netweight, outputWeight, parentBalance != null ? String(parentBalance) : "0"),
       wastageReason: "",
       noOfTag: "",
       noOfCuts: "",
       operatorName: extras?.operatorName ?? "",
       shift: extras?.shift ?? "A",
       remark: "",
+      balanceweight: parentBalance != null ? String(parentBalance) : "",
     })
     try {
       const parent = await getRollsStockById(roll.id)
@@ -436,6 +473,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
         return {
           ...prev,
           parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+          balanceweight:
+            parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
+          roll: {
+            ...prev.roll,
+            balanceWeight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
+            balance_weight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
+          },
         }
       })
     } catch {
@@ -581,6 +625,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Reason of wastage</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of tag</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of cuts</th>
@@ -629,7 +674,11 @@ export function InspectionPanel(props: InspectionPanelProps) {
                                     ? {
                                         ...prev,
                                         netweight,
-                                        wastage: wastageFromWeights(roll.netweight, netweight),
+                                        wastage: wastageFromWeights(
+                                          roll.netweight,
+                                          netweight,
+                                          prev.balanceweight
+                                        ),
                                       }
                                     : prev
                                 )
@@ -648,6 +697,69 @@ export function InspectionPanel(props: InspectionPanelProps) {
                                   prev && prev.roll.id === roll.id ? { ...prev, wastage: e.target.value } : prev
                                 )
                               }
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              type="number"
+                              step="any"
+                              className="h-7 w-20 px-1.5 text-xs"
+                              disabled={!isSelected}
+                              value={
+                                form
+                                  ? form.balanceweight
+                                  : loadedRollBalance(roll) != null
+                                    ? String(loadedRollBalance(roll))
+                                    : ""
+                              }
+                              onChange={(e) => {
+                                const nextValue = e.target.value
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id
+                                    ? {
+                                        ...prev,
+                                        balanceweight: nextValue,
+                                        wastage: wastageFromWeights(
+                                          roll.netweight,
+                                          prev.netweight,
+                                          nextValue
+                                        ),
+                                      }
+                                    : prev
+                                )
+                                const parsed = parseBalanceWeight(nextValue)
+                                setInspectionChildRollsFromDb((prev: any[]) =>
+                                  prev.map((row) => {
+                                    const parentIds =
+                                      row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
+                                    if (parentIds.length > 0 && !parentIds.includes(roll.id)) return row
+                                    return { ...row, parentBalanceWeight: parsed }
+                                  })
+                                )
+                              }}
+                              onBlur={async (e) => {
+                                if (!isSelected) return
+                                const parsed = parseBalanceWeight(e.currentTarget.value)
+                                try {
+                                  await updateRollsStock(roll.id, { balanceWeight: parsed })
+                                  setInspectionLoadedRolls((prev: any[]) =>
+                                    prev.map((loaded) =>
+                                      loaded.roll.id === roll.id
+                                        ? {
+                                            ...loaded,
+                                            roll: {
+                                              ...loaded.roll,
+                                              balanceWeight: parsed,
+                                              balance_weight: parsed,
+                                            },
+                                          }
+                                        : loaded
+                                    )
+                                  )
+                                } catch {
+                                  setInspectionCreateChildMessage("Failed to save balance weight.")
+                                }
+                              }}
                             />
                           </td>
                           <td className="py-1.5 px-2 min-w-[10rem]" onClick={(e) => e.stopPropagation()}>
@@ -907,6 +1019,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       pollPrintJob(job.id)
                     }
                     const outputWeight = form.netweight ? parseFloat(form.netweight) : undefined
+                    const balanceValue = parseBalanceWeight(form.balanceweight || "")
                     await addInspectionRoll(form.jobCardId, {
                       itemId: wo.itemId,
                       rollno: "",
@@ -922,11 +1035,13 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       shift: form.shift.trim() || undefined,
                       remark: form.remark.trim() || undefined,
                       gradeId: form.parent.gradeId,
-                      parentRollIds: parentIds.length > 0 ? parentIds : undefined,
+                      parentRollIds: parentIds,
                       weightAtTime: outputWeight,
+                      balanceWeight: balanceValue ?? undefined,
                     })
                     setInspectionFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_inspection").then(setInspectionChildRollsFromDb)
+                    setInspectionRollsRefreshKey((key: number) => key + 1)
                     setInspectionCreateChildMessage(
                       wipPrintingTemplate
                         ? "Roll added and label sent to printer."
@@ -947,38 +1062,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            {inspectionAddRollForm && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => {
-                  setInspectionFormCommittedForRollId(null)
-                  setInspectionAddRollForm((prev: any) =>
-                    prev
-                      ? {
-                          ...prev,
-                          size: prev.roll.size != null ? String(prev.roll.size) : "",
-                          micron: prev.roll.micron != null ? String(prev.roll.micron) : "",
-                          netweight: prev.roll.netweight != null ? String(prev.roll.netweight) : "",
-                          wastage: wastageFromWeights(
-                            prev.roll.netweight,
-                            prev.roll.netweight != null ? String(prev.roll.netweight) : ""
-                          ),
-                          wastageReason: "",
-                          noOfTag: "",
-                          noOfCuts: "",
-                          remark: "",
-                        }
-                      : null
-                  )
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Add new roll
-              </Button>
-            )}
           </div>
         )}
         {inspectionCreateChildMessage && (
