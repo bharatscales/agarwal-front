@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, type MouseEvent } from "react";
 
 import {
   type ColumnDef,
+  type Header,
   type Row,
   type SortingState,
   type ColumnFiltersState,
@@ -116,6 +117,25 @@ export function DataTable<TData, TValue>({
   const showPagination = !scrollable;
   const hasSelectColumn = columns.some((col) => col.id === "select");
   const rowIsClickable = Boolean(onRowClick) || hasSelectColumn;
+  const leafColumnCount = table.getVisibleLeafColumns().length;
+
+  const headerRowCount = table.getHeaderGroups().length;
+
+  const renderHeaderCell = (header: Header<TData, unknown>) => {
+    if (header.colSpan === 0 || header.isPlaceholder) return null;
+    const hasRealSubHeaders = header.subHeaders.some((sub) => !sub.isPlaceholder);
+    const rowSpan = hasRealSubHeaders ? 1 : headerRowCount - header.depth;
+    return (
+      <TableHead
+        key={header.id}
+        colSpan={header.colSpan}
+        rowSpan={rowSpan > 1 ? rowSpan : undefined}
+        className={`bg-sidebar ${textSize} font-bold border-r border-b border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 align-middle ${compact ? "py-1" : ""} ${hasRealSubHeaders ? "text-center" : ""}`}
+      >
+        {flexRender(header.column.columnDef.header, header.getContext())}
+      </TableHead>
+    );
+  };
 
   const handleBodyRowClick = (e: MouseEvent, row: Row<TData>) => {
     const target = e.target as HTMLElement;
@@ -146,22 +166,10 @@ export function DataTable<TData, TValue>({
             style={{ maxHeight: scrollHeight }}
           >
             <table className={`w-full caption-bottom border-collapse ${textSize}`}>
-              <TableHeader className="[&_tr]:border-b-0">
+              <TableHeader className="sticky top-0 z-20 bg-sidebar [&_tr]:border-b-0">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        className={`sticky top-0 z-20 bg-sidebar ${textSize} font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 shadow-[0_2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)] ${compact ? "py-1" : ""}`}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
+                    {headerGroup.headers.map((header) => renderHeaderCell(header))}
                   </TableRow>
                 ))}
               </TableHeader>
@@ -190,7 +198,7 @@ export function DataTable<TData, TValue>({
                 ) : (
                   <TableRow className="border-b border-zinc-600">
                     <TableCell
-                      colSpan={columns.length}
+                      colSpan={leafColumnCount}
                       className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
                     >
                       No results.
@@ -212,21 +220,7 @@ export function DataTable<TData, TValue>({
             <TableHeader className="[&_tr]:border-b-0">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className={`bg-sidebar ${textSize} font-bold border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${compact ? "py-1" : ""}`}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    );
-                  })}
+                  {headerGroup.headers.map((header) => renderHeaderCell(header))}
                 </TableRow>
               ))}
             </TableHeader>
@@ -255,7 +249,7 @@ export function DataTable<TData, TValue>({
               ) : (
                 <TableRow className="border-b border-zinc-600">
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={leafColumnCount}
                     className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
                   >
                     No results.

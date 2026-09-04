@@ -79,52 +79,66 @@ function pickEclProducedParents(
   return { input1, input2 }
 }
 
-function EclInputNestedTable({ parent }: { parent: EclParentRollSummary | null }) {
-  if (!parent) {
-    return <div className="text-sm text-gray-400">-</div>
+function eclInputGroupColumns(
+  id: "input1" | "input2",
+  label: string,
+  pick: (row: any) => EclParentRollSummary | null
+) {
+  return {
+    id,
+    header: () => <div className="text-center w-full">{label}</div>,
+    columns: [
+      {
+        id: `${id}Structure`,
+        header: () => <div>Structure</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(pick(row.original)?.itemName)}</div>
+        ),
+      },
+      {
+        id: `${id}Size`,
+        header: () => <div>Size</div>,
+        cell: ({ row }: { row: any }) => {
+          const size = pick(row.original)?.size
+          return <div className="text-sm">{size != null ? String(size) : "-"}</div>
+        },
+      },
+      {
+        id: `${id}Micron`,
+        header: () => <div>Micron</div>,
+        cell: ({ row }: { row: any }) => {
+          const micron = pick(row.original)?.micron
+          return <div className="text-sm">{micron != null ? String(micron) : "-"}</div>
+        },
+      },
+      {
+        id: `${id}InputWeight`,
+        header: () => <div>Input weight</div>,
+        cell: ({ row }: { row: any }) => {
+          const parent = pick(row.original)
+          return (
+            <div className="text-sm">
+              {parent ? formatWeightWithMeter(parent.netweight, parent.meter) : "-"}
+            </div>
+          )
+        },
+      },
+      {
+        id: `${id}Wastage`,
+        header: () => <div>Wastage</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayKg(pick(row.original)?.wastage)}</div>
+        ),
+      },
+      {
+        id: `${id}BalanceWeight`,
+        header: () => <div>Balance weight</div>,
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayKg(pick(row.original)?.balanceWeight)}</div>
+        ),
+      },
+    ],
   }
-  return (
-    <table className="min-w-[22rem] text-xs border-collapse">
-      <thead>
-        <tr className="border-b border-gray-200 dark:border-gray-700">
-          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Structure
-          </th>
-          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Size
-          </th>
-          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Micron
-          </th>
-          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Input weight
-          </th>
-          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Wastage
-          </th>
-          <th className="text-left py-1 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            Balance weight
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">{displayValue(parent.itemName)}</td>
-          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
-            {parent.size != null ? String(parent.size) : "-"}
-          </td>
-          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
-            {parent.micron != null ? String(parent.micron) : "-"}
-          </td>
-          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
-            {formatWeightWithMeter(parent.netweight, parent.meter)}
-          </td>
-          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">{displayKg(parent.wastage)}</td>
-          <td className="py-1 text-gray-900 dark:text-gray-100">{displayKg(parent.balanceWeight)}</td>
-        </tr>
-      </tbody>
-    </table>
-  )
 }
 
 export function EclPanel(props: EclPanelProps) {
@@ -341,22 +355,12 @@ export function EclPanel(props: EclPanelProps) {
         header: () => <div>S. no.</div>,
         cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
       },
-      {
-        id: "input1",
-        header: () => <div className="text-left">{input1Label}</div>,
-        cell: ({ row }: { row: any }) => {
-          const { input1 } = pickEclProducedParents(row.original.parentRolls, getEclParentRole)
-          return <EclInputNestedTable parent={input1} />
-        },
-      },
-      {
-        id: "input2",
-        header: () => <div className="text-left">{input2Label}</div>,
-        cell: ({ row }: { row: any }) => {
-          const { input2 } = pickEclProducedParents(row.original.parentRolls, getEclParentRole)
-          return <EclInputNestedTable parent={input2} />
-        },
-      },
+      eclInputGroupColumns("input1", input1Label, (row) =>
+        pickEclProducedParents(row.parentRolls, getEclParentRole).input1
+      ),
+      eclInputGroupColumns("input2", input2Label, (row) =>
+        pickEclProducedParents(row.parentRolls, getEclParentRole).input2
+      ),
       {
         accessorKey: "inkGsm",
         header: ({ column }: { column: any }) => (
