@@ -755,9 +755,6 @@ export function EclPanel(props: EclPanelProps) {
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
-                          S. no.
-                        </th>
-                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
                           Job card
                         </th>
                         <th
@@ -797,14 +794,13 @@ export function EclPanel(props: EclPanelProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {eclLoadedFilmRows.map((row, index) => {
+                      {eclLoadedFilmRows.map((row) => {
                         const canEditRow = canProduce && Boolean(eclAddRollForm)
                         return (
                           <tr
                             key={row.jobCardId}
                             className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
                           >
-                            <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{index + 1}</td>
                             <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">
                               {row.jobCardNumber}
                             </td>
@@ -851,10 +847,10 @@ export function EclPanel(props: EclPanelProps) {
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Output weight (kg)
+                          Extrusion coating (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Extrusion coating (kg)
+                          Output weight (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
                           Operator name
@@ -870,10 +866,10 @@ export function EclPanel(props: EclPanelProps) {
                             type="number"
                             step="any"
                             className="h-7 w-24 px-1.5 text-xs"
-                            value={eclAddRollForm.netweight}
+                            value={eclAddRollForm.extrusionKg}
                             onChange={(e) =>
                               setEclAddRollForm((prev: any) =>
-                                prev ? { ...prev, netweight: e.target.value } : prev
+                                prev ? { ...prev, extrusionKg: e.target.value } : prev
                               )
                             }
                           />
@@ -883,10 +879,10 @@ export function EclPanel(props: EclPanelProps) {
                             type="number"
                             step="any"
                             className="h-7 w-24 px-1.5 text-xs"
-                            value={eclAddRollForm.extrusionKg}
+                            value={eclAddRollForm.netweight}
                             onChange={(e) =>
                               setEclAddRollForm((prev: any) =>
-                                prev ? { ...prev, extrusionKg: e.target.value } : prev
+                                prev ? { ...prev, netweight: e.target.value } : prev
                               )
                             }
                           />
