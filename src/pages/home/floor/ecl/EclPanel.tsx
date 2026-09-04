@@ -144,6 +144,8 @@ export function EclPanel(props: EclPanelProps) {
   const wipFilmLabel = wipStageLabel(
     allowedWipStagesForDept("ECL", eclSelectedWo?.skippedOperations)[0]
   )
+  const input1Label = `Input 1 (${wipFilmLabel})`
+  const input2Label = "Input 2 (RM Film)"
 
   const eclProducedTotals = useMemo(() => {
     return eclChildRollsFromDb.reduce(
@@ -386,9 +388,9 @@ export function EclPanel(props: EclPanelProps) {
     onSelectStock: () => void,
     stockLoading: boolean
   ) => {
-    const title = role === "wip" ? `Input 1 — ${wipFilmLabel} film` : "Input 2 — Extrusion layer film"
+    const title = role === "wip" ? input1Label : input2Label
     const placeholder =
-      role === "wip" ? `Scan ${wipFilmLabel} barcode` : "Scan extrusion-layer RM Film barcode"
+      role === "wip" ? `Scan ${input1Label} barcode` : `Scan ${input2Label} barcode`
     return (
       <div className="space-y-2">
         <p className="text-sm text-gray-500 dark:text-gray-400">{title}: not loaded yet.</p>
@@ -435,11 +437,11 @@ export function EclPanel(props: EclPanelProps) {
           <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Select {wipFilmLabel} film</CardTitle>
+                <CardTitle>Select {input1Label}</CardTitle>
                 <CardDescription>
                   {isOperationSkipped(eclSelectedWo?.skippedOperations, "Inspection")
-                    ? "Inspection is skipped on this work order, so load a WIP Printing roll."
-                    : "Load a WIP Inspection roll as input film 1."}
+                    ? "Inspection is skipped on this work order, so load a WIP Printing roll as Input 1."
+                    : "Load a WIP Inspection roll as Input 1."}
                 </CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={closeFloorEclWipPicker} className="h-8 w-8 p-0">
@@ -498,9 +500,9 @@ export function EclPanel(props: EclPanelProps) {
           <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Select extrusion layer film</CardTitle>
+                <CardTitle>Select {input2Label}</CardTitle>
                 <CardDescription>
-                  Pick a virgin RM or RM Balance film as the extrusion-layer input.
+                  Pick a virgin RM or RM Balance film as Input 2.
                 </CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={closeFloorEclRmPicker} className="h-8 w-8 p-0">
@@ -563,7 +565,7 @@ export function EclPanel(props: EclPanelProps) {
         <div>
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded films</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            ECL needs two films on the same job card: one {wipFilmLabel} roll and one extrusion-layer RM Film.
+            ECL needs two films on the same job card: {input1Label} and {input2Label}.
             Extrusion coating weight is entered when producing.
           </p>
           {eclRollsLoading ? (
@@ -617,7 +619,7 @@ export function EclPanel(props: EclPanelProps) {
                             className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
                           >
                             <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">
-                              {isWip ? `1. ${wipFilmLabel}` : "2. Extrusion layer"}
+                              {isWip ? input1Label : input2Label}
                             </td>
                             <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{jobCardNumber}</td>
                             <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
@@ -969,10 +971,10 @@ export function EclPanel(props: EclPanelProps) {
     <>
       <div className="mb-4 space-y-1">
         <Label htmlFor="floor-ecl-barcode" className="text-xs text-gray-600 dark:text-gray-400">
-          Barcode ({wipFilmLabel})
+          Barcode ({input1Label})
         </Label>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Load the {wipFilmLabel} film first to open the work order, then load the extrusion-layer film.
+          Load {input1Label} first to open the work order, then load {input2Label}.
         </p>
         <div className="flex flex-wrap items-center gap-2 max-w-2xl">
           <div className="relative min-w-[min(100%,18rem)] flex-1">
@@ -980,7 +982,7 @@ export function EclPanel(props: EclPanelProps) {
             <Input
               id="floor-ecl-barcode"
               type="text"
-              placeholder={`Scan or enter ${wipFilmLabel} barcode`}
+              placeholder={`Scan or enter ${input1Label} barcode`}
               value={floorEclBarcode}
               onChange={(e) => {
                 setFloorEclBarcode(e.target.value)

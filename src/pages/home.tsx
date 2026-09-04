@@ -1059,15 +1059,15 @@ export default function Home() {
       const role = getEclParentRole(roll.stage)
       if (!role) {
         setFloorEclBarcodeError(
-          `Roll must be WIP Printing/Inspection or an extrusion-layer RM Film. Current stage: ${roll.stage || "—"}`
+          `Roll must be Input 1 (WIP Printing/Inspection) or Input 2 (RM Film). Current stage: ${roll.stage || "—"}`
         )
         return
       }
       if (options?.slot && options.slot !== role) {
         setFloorEclBarcodeError(
           options.slot === "wip"
-            ? "This slot needs a WIP film roll."
-            : "This slot needs an extrusion-layer (RM Film) roll."
+            ? "This slot needs Input 1 (WIP Printing/Inspection)."
+            : "This slot needs Input 2 (RM Film)."
         )
         return
       }
@@ -1110,7 +1110,7 @@ export default function Home() {
         wo = eclSelectedWo ?? undefined
         if (!wo) {
           setFloorEclBarcodeError(
-            "Load the WIP film first (or open a work order), then load the extrusion-layer film."
+            "Load Input 1 (WIP film) first (or open a work order), then load Input 2 (RM Film)."
           )
           return
         }
@@ -1387,7 +1387,7 @@ export default function Home() {
 
   const openFloorEclRmPicker = async () => {
     if (!eclSelectedWo) {
-      setFloorEclBarcodeError("Open a work order or load the WIP film first, then select the extrusion layer.")
+      setFloorEclBarcodeError("Open a work order or load Input 1 first, then select Input 2 (RM Film).")
       return
     }
     setFloorEclRmPickerOpen(true)
