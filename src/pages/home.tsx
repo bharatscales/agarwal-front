@@ -550,8 +550,9 @@ export default function Home() {
     size: string
     micron: string
     netweight: string
-    wastage: string
     extrusionKg: string
+    wipWastage: string
+    rmWastage: string
     wipBalance: string
     rmBalance: string
     operatorName: string
@@ -2384,8 +2385,9 @@ export default function Home() {
                   size: formSource.roll.size != null ? String(formSource.roll.size) : "",
                   micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
                   netweight: outputFromScale,
-                  wastage: "0",
                   extrusionKg: "",
+                  wipWastage: "0",
+                  rmWastage: "0",
                   wipBalance: "0",
                   rmBalance: "0",
                   operatorName: "",

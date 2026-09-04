@@ -314,18 +314,6 @@ export function EclPanel(props: EclPanelProps) {
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "wastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Wastage (kg)" column={column} placeholder="Filter wastage..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
-            {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
-          </div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
         accessorKey: "balanceWeight",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
@@ -605,6 +593,7 @@ export function EclPanel(props: EclPanelProps) {
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Size</th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Micron</th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Input weight (kg)</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
                         <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
                       </tr>
@@ -633,6 +622,31 @@ export function EclPanel(props: EclPanelProps) {
                             </td>
                             <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
                               {formatWeightWithMeter(roll.netweight, roll.meter)}
+                            </td>
+                            <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                              <Input
+                                type="number"
+                                step="any"
+                                className="h-7 w-20 px-1.5 text-xs"
+                                disabled={!canProduce || !eclAddRollForm}
+                                value={
+                                  eclAddRollForm
+                                    ? isWip
+                                      ? eclAddRollForm.wipWastage
+                                      : eclAddRollForm.rmWastage
+                                    : "0"
+                                }
+                                onChange={(e) => {
+                                  const nextValue = e.target.value
+                                  setEclAddRollForm((prev: any) =>
+                                    prev
+                                      ? isWip
+                                        ? { ...prev, wipWastage: nextValue }
+                                        : { ...prev, rmWastage: nextValue }
+                                      : prev
+                                  )
+                                }}
+                              />
                             </td>
                             <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                               <Input
@@ -688,9 +702,6 @@ export function EclPanel(props: EclPanelProps) {
                           Output weight (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Wastage (kg)
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
                           Extrusion coating (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
@@ -711,19 +722,6 @@ export function EclPanel(props: EclPanelProps) {
                             onChange={(e) =>
                               setEclAddRollForm((prev: any) =>
                                 prev ? { ...prev, netweight: e.target.value } : prev
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <Input
-                            type="number"
-                            step="any"
-                            className="h-7 w-20 px-1.5 text-xs"
-                            value={eclAddRollForm.wastage}
-                            onChange={(e) =>
-                              setEclAddRollForm((prev: any) =>
-                                prev ? { ...prev, wastage: e.target.value } : prev
                               )
                             }
                           />
@@ -879,6 +877,9 @@ export function EclPanel(props: EclPanelProps) {
                 const parentIds = [wipParent.roll.id, rmParent.roll.id]
                 const outputWeight = form.netweight ? parseFloat(form.netweight) : undefined
                 const extrusionKg = parseOptionalNumber(form.extrusionKg)
+                const wipWastage = parseOptionalNumber(form.wipWastage) ?? 0
+                const rmWastage = parseOptionalNumber(form.rmWastage) ?? 0
+                const totalWastage = wipWastage + rmWastage
                 if (wipPrintingTemplate) {
                   const printData = {
                     workOrder: {
@@ -902,7 +903,7 @@ export function EclPanel(props: EclPanelProps) {
                       micron: form.micron ? parseFloat(form.micron) : undefined,
                       netweight: outputWeight,
                       grossweight: outputWeight,
-                      wastage: parseOptionalNumber(form.wastage),
+                      wastage: totalWastage,
                       inkGsm: extrusionKg,
                       operatorName: form.operatorName || undefined,
                       shift: form.shift || undefined,
@@ -925,7 +926,7 @@ export function EclPanel(props: EclPanelProps) {
                   micron: form.micron ? parseFloat(form.micron) : undefined,
                   netweight: outputWeight,
                   grossweight: outputWeight,
-                  wastage: parseOptionalNumber(form.wastage),
+                  wastage: totalWastage,
                   operatorName: form.operatorName.trim() || undefined,
                   shift: form.shift.trim() || undefined,
                   remark: form.remark.trim() || undefined,
@@ -936,6 +937,7 @@ export function EclPanel(props: EclPanelProps) {
                     parseBalanceWeight(form.wipBalance || "") ?? 0,
                     parseBalanceWeight(form.rmBalance || "") ?? 0,
                   ],
+                  parentWastages: [wipWastage, rmWastage],
                   weightAtTime: outputWeight,
                 })
                 setEclFormCommittedForRollId(form.roll.id)

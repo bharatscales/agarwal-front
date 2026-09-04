@@ -232,6 +232,7 @@ export type AddPrintedRollPayload = {
   gradeId?: number
   parentRollIds?: number[]
   parentBalanceWeights?: Array<number | null>
+  parentWastages?: Array<number | null>
   weightAtTime?: number
 }
 
@@ -328,6 +329,7 @@ export const addEclRoll = async (
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,
+      parent_wastages: payload.parentWastages,
       weight_at_time: payload.weightAtTime ?? undefined,
     }
   )
