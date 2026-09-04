@@ -550,7 +550,13 @@ export default function Home() {
     size: string
     micron: string
     netweight: string
-    grossweight: string
+    wastage: string
+    extrusionKg: string
+    wipBalance: string
+    rmBalance: string
+    operatorName: string
+    shift: string
+    remark: string
   } | null>(null)
   const [eclFormCommittedForRollId, setEclFormCommittedForRollId] = useState<number | null>(null)
   const [eclRollsRefreshKey, setEclRollsRefreshKey] = useState(0)
@@ -1019,8 +1025,7 @@ export default function Home() {
       throw new Error("No machine configured for ECL operation.")
     }
     const eclOperators = operatorsList.filter((op) => (op.operation ?? "").toLowerCase() === "ecl")
-    const operatorName =
-      eclOperators[0]?.operatorName?.trim() || user?.username?.trim() || "Floor"
+    const operatorName = eclOperators[0]?.operatorName?.trim() || ""
     const newJobCard = await createJobCard({
       jobCardNumber: "",
       workOrderId: woId,
@@ -1054,15 +1059,15 @@ export default function Home() {
       const role = getEclParentRole(roll.stage)
       if (!role) {
         setFloorEclBarcodeError(
-          `Roll must be WIP Printing/Inspection or RM Film (virgin RM / RM Balance). Current stage: ${roll.stage || "—"}`
+          `Roll must be WIP Printing/Inspection or an extrusion-layer RM Film. Current stage: ${roll.stage || "—"}`
         )
         return
       }
       if (options?.slot && options.slot !== role) {
         setFloorEclBarcodeError(
           options.slot === "wip"
-            ? "This slot needs a WIP parent roll."
-            : "This slot needs an RM Film (virgin RM or RM Balance) roll."
+            ? "This slot needs a WIP film roll."
+            : "This slot needs an extrusion-layer (RM Film) roll."
         )
         return
       }
@@ -1105,7 +1110,7 @@ export default function Home() {
         wo = eclSelectedWo ?? undefined
         if (!wo) {
           setFloorEclBarcodeError(
-            "Load the WIP Printing/Inspection parent first (or open a work order), then load RM Film."
+            "Load the WIP film first (or open a work order), then load the extrusion-layer film."
           )
           return
         }
@@ -1382,7 +1387,7 @@ export default function Home() {
 
   const openFloorEclRmPicker = async () => {
     if (!eclSelectedWo) {
-      setFloorEclBarcodeError("Open a work order or load the WIP parent first, then select RM Film.")
+      setFloorEclBarcodeError("Open a work order or load the WIP film first, then select the extrusion layer.")
       return
     }
     setFloorEclRmPickerOpen(true)
@@ -2366,22 +2371,27 @@ export default function Home() {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
               setEclAddRollEditingField(null)
-              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-              setEclAddRollForm({
-                jobCardNumber: formSource.jobCardNumber,
-                jobCardId: formSource.jobCardId,
-                roll: formSource.roll,
-                parent: { gradeId: parent.gradeId },
-                size: formSource.roll.size != null ? String(formSource.roll.size) : "",
-                micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
-                netweight: formSource.roll.netweight != null ? String(formSource.roll.netweight) : "",
-                grossweight:
-                  grossFromScale ||
-                  (parent.grossweight != null
-                    ? String(parent.grossweight)
-                    : formSource.roll.netweight != null
-                      ? String(formSource.roll.netweight)
-                      : ""),
+              const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
+              setEclAddRollForm((prev) => {
+                if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
+                  return prev
+                }
+                return {
+                  jobCardNumber: formSource.jobCardNumber,
+                  jobCardId: formSource.jobCardId,
+                  roll: formSource.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: formSource.roll.size != null ? String(formSource.roll.size) : "",
+                  micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
+                  netweight: outputFromScale,
+                  wastage: "0",
+                  extrusionKg: "",
+                  wipBalance: "0",
+                  rmBalance: "0",
+                  operatorName: "",
+                  shift: "A",
+                  remark: "",
+                }
               })
             }
           } catch {
@@ -2663,16 +2673,15 @@ export default function Home() {
     }
   }, [inspectionSelectedWo?.id])
 
-  // Fetch child rolls (WIP ECL) for loaded rolls in ECL section
+  // Fetch produced rolls (WIP ECL) for selected work order from DB.
   useEffect(() => {
-    if (eclLoadedRolls.length === 0) {
+    if (!eclSelectedWo) {
       setEclChildRollsFromDb([])
       return
     }
-    const parentIds = eclLoadedRolls.map((r) => r.roll.id)
     let cancelled = false
     setEclChildRollsLoading(true)
-    getRollsStockByParentIds(parentIds, "wip_ecl")
+    getRollsStockByWorkOrder(eclSelectedWo.id, "wip_ecl")
       .then((rows) => {
         if (!cancelled) setEclChildRollsFromDb(rows)
       })
@@ -2685,7 +2694,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [eclLoadedRolls])
+  }, [eclSelectedWo?.id])
 
   // Fetch child rolls (WIP lamination) for loaded rolls in Lamination section
   useEffect(() => {
@@ -2776,9 +2785,7 @@ export default function Home() {
       })
     }
     if (eclAddRollForm && scaleWeight != null) {
-      setEclAddRollForm((prev) =>
-        prev ? { ...prev, grossweight: String(scaleWeight) } : null
-      )
+      setEclAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
     }
     if (laminationAddRollForm && scaleWeight != null) {
       setLaminationAddRollForm((prev) =>
@@ -3021,6 +3028,8 @@ export default function Home() {
                     addEclRoll={addEclRoll}
                     setEclFormCommittedForRollId={setEclFormCommittedForRollId}
                     setEclChildRollsFromDb={setEclChildRollsFromDb}
+                    getRollsStockByWorkOrder={getRollsStockByWorkOrder}
+                    setEclRollsRefreshKey={setEclRollsRefreshKey}
                     eclCreateChildMessage={eclCreateChildMessage}
                     floorEclBarcode={floorEclBarcode}
                     setFloorEclBarcode={setFloorEclBarcode}
