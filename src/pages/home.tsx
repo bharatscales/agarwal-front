@@ -695,7 +695,13 @@ export default function Home() {
     size: string
     micron: string
     netweight: string
-    grossweight: string
+    wipWastage: string
+    rmWastage: string
+    wipBalance: string
+    rmBalance: string
+    operatorName: string
+    shift: string
+    remark: string
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
   const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
@@ -1675,7 +1681,7 @@ export default function Home() {
   const openFloorLaminationRmPicker = async () => {
     if (!laminationSelectedWo) {
       setFloorLaminationBarcodeError(
-        "Open a work order or load the WIP ECL parent first, then select RM Film."
+        "Open a work order or load the WIP parent first, then select RM Film."
       )
       return
     }
@@ -2501,22 +2507,27 @@ export default function Home() {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
               setLaminationAddRollEditingField(null)
-              const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
-              setLaminationAddRollForm({
-                jobCardNumber: formSource.jobCardNumber,
-                jobCardId: formSource.jobCardId,
-                roll: formSource.roll,
-                parent: { gradeId: parent.gradeId },
-                size: formSource.roll.size != null ? String(formSource.roll.size) : "",
-                micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
-                netweight: formSource.roll.netweight != null ? String(formSource.roll.netweight) : "",
-                grossweight:
-                  grossFromScale ||
-                  (parent.grossweight != null
-                    ? String(parent.grossweight)
-                    : formSource.roll.netweight != null
-                      ? String(formSource.roll.netweight)
-                      : ""),
+              const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
+              setLaminationAddRollForm((prev) => {
+                if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
+                  return prev
+                }
+                return {
+                  jobCardNumber: formSource.jobCardNumber,
+                  jobCardId: formSource.jobCardId,
+                  roll: formSource.roll,
+                  parent: { gradeId: parent.gradeId },
+                  size: formSource.roll.size != null ? String(formSource.roll.size) : "",
+                  micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
+                  netweight: outputFromScale,
+                  wipWastage: "0",
+                  rmWastage: "0",
+                  wipBalance: "0",
+                  rmBalance: "0",
+                  operatorName: "",
+                  shift: "A",
+                  remark: "",
+                }
               })
             }
           } catch {
@@ -2726,16 +2737,15 @@ export default function Home() {
     }
   }, [eclSelectedWo?.id])
 
-  // Fetch child rolls (WIP lamination) for loaded rolls in Lamination section
+  // Fetch produced rolls (WIP lamination) for selected work order from DB.
   useEffect(() => {
-    if (laminationLoadedRolls.length === 0) {
+    if (!laminationSelectedWo) {
       setLaminationChildRollsFromDb([])
       return
     }
-    const parentIds = laminationLoadedRolls.map((r) => r.roll.id)
     let cancelled = false
     setLaminationChildRollsLoading(true)
-    getRollsStockByParentIds(parentIds, "wip_lamination")
+    getRollsStockByWorkOrder(laminationSelectedWo.id, "wip_lamination")
       .then((rows) => {
         if (!cancelled) setLaminationChildRollsFromDb(rows)
       })
@@ -2748,7 +2758,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [laminationLoadedRolls])
+  }, [laminationSelectedWo?.id])
 
   // Fetch child rolls (finished goods) for loaded parent in Slitting section
   useEffect(() => {
@@ -2818,9 +2828,7 @@ export default function Home() {
       setEclAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
     }
     if (laminationAddRollForm && scaleWeight != null) {
-      setLaminationAddRollForm((prev) =>
-        prev ? { ...prev, grossweight: String(scaleWeight) } : null
-      )
+      setLaminationAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
     }
     if (slittingAddRollForm && scaleWeight != null) {
       setSlittingAddRollForm((prev) =>
@@ -3104,9 +3112,6 @@ export default function Home() {
                     laminationCreateChildLoading={laminationCreateChildLoading}
                     setLaminationCreateChildLoading={setLaminationCreateChildLoading}
                     setLaminationCreateChildMessage={setLaminationCreateChildMessage}
-                    getRollsStockById={getRollsStockById}
-                    setLaminationAddRollEditingField={setLaminationAddRollEditingField}
-                    scaleWeight={scaleWeight}
                     setLaminationAddRollForm={setLaminationAddRollForm}
                     laminationChildRollsLoading={laminationChildRollsLoading}
                     laminationChildRollsFromDb={laminationChildRollsFromDb}
@@ -3115,10 +3120,11 @@ export default function Home() {
                     getPrintJob={getPrintJob}
                     setPrintingPrintStatus={setPrintingPrintStatus}
                     laminationFormCommittedForRollId={laminationFormCommittedForRollId}
-                    laminationAddRollEditingField={laminationAddRollEditingField}
                     addLaminationRoll={addLaminationRoll}
                     setLaminationFormCommittedForRollId={setLaminationFormCommittedForRollId}
                     setLaminationChildRollsFromDb={setLaminationChildRollsFromDb}
+                    getRollsStockByWorkOrder={getRollsStockByWorkOrder}
+                    setLaminationRollsRefreshKey={setLaminationRollsRefreshKey}
                     laminationCreateChildMessage={laminationCreateChildMessage}
                     floorLaminationBarcode={floorLaminationBarcode}
                     setFloorLaminationBarcode={setFloorLaminationBarcode}

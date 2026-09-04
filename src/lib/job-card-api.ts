@@ -351,8 +351,13 @@ export const addLaminationRoll = async (
       netweight: payload.netweight,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
+      operator_name: payload.operatorName || undefined,
+      shift: payload.shift || undefined,
+      remark: payload.remark || undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
+      parent_balance_weights: payload.parentBalanceWeights,
+      parent_wastages: payload.parentWastages,
       weight_at_time: payload.weightAtTime ?? undefined,
     }
   )
