@@ -38,6 +38,11 @@ function parseBalanceWeight(raw: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function displayValue(value: unknown) {
+  if (value == null || value === "") return "-"
+  return String(value)
+}
+
 function displayKg(value: unknown) {
   if (value == null || value === "") return "-"
   const n = Number(value)
