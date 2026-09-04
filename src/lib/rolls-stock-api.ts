@@ -72,6 +72,17 @@ type RollsStockResponse = {
   consumed?: boolean
   consumed_at?: string | null
   job_card_number?: string | null
+  parent_rolls?: Array<{
+    id: number
+    item_name?: string | null
+    size?: number | null
+    micron?: number | null
+    netweight?: number | null
+    meter?: number | null
+    wastage?: number | null
+    balance_weight?: number | null
+    stage?: string | null
+  }> | null
 }
 
 const mapRollsStock = (rollsStock: RollsStockResponse) => ({
@@ -116,6 +127,17 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   consumed: rollsStock.consumed ?? false,
   consumedAt: rollsStock.consumed_at ?? null,
   jobCardNumber: rollsStock.job_card_number ?? null,
+  parentRolls: (rollsStock.parent_rolls ?? []).map((parent) => ({
+    id: parent.id,
+    itemName: parent.item_name ?? "",
+    size: parent.size ?? null,
+    micron: parent.micron ?? null,
+    netweight: parent.netweight ?? null,
+    meter: parent.meter != null ? Math.round(parent.meter) : null,
+    wastage: parent.wastage ?? null,
+    balanceWeight: parent.balance_weight ?? null,
+    stage: parent.stage ?? null,
+  })),
 })
 
 export const getRollsStockByVoucher = async (voucherId: number) => {

@@ -38,9 +38,88 @@ function parseBalanceWeight(raw: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-function displayValue(value: unknown) {
+function displayKg(value: unknown) {
   if (value == null || value === "") return "-"
-  return String(value)
+  const n = Number(value)
+  return Number.isNaN(n) ? "-" : `${n.toFixed(2)} kg`
+}
+
+type EclParentRollSummary = {
+  id: number
+  itemName?: string | null
+  size?: number | null
+  micron?: number | null
+  netweight?: number | null
+  meter?: number | null
+  wastage?: number | null
+  balanceWeight?: number | null
+  stage?: string | null
+}
+
+function pickEclProducedParents(
+  parentRolls: EclParentRollSummary[] | undefined,
+  getRole: (stage: string | null | undefined) => "wip" | "rm" | null
+) {
+  const parents = parentRolls ?? []
+  let input1 = parents.find((p) => getRole(p.stage) === "wip") ?? null
+  let input2 = parents.find((p) => getRole(p.stage) === "rm") ?? null
+  if (!input1 && !input2 && parents.length >= 1) {
+    input1 = parents[0] ?? null
+    input2 = parents[1] ?? null
+  } else if (!input1 && parents.length > 0) {
+    input1 = parents.find((p) => p.id !== input2?.id) ?? null
+  } else if (!input2 && parents.length > 0) {
+    input2 = parents.find((p) => p.id !== input1?.id) ?? null
+  }
+  return { input1, input2 }
+}
+
+function EclInputNestedTable({ parent }: { parent: EclParentRollSummary | null }) {
+  if (!parent) {
+    return <div className="text-sm text-gray-400">-</div>
+  }
+  return (
+    <table className="min-w-[22rem] text-xs border-collapse">
+      <thead>
+        <tr className="border-b border-gray-200 dark:border-gray-700">
+          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Structure
+          </th>
+          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Size
+          </th>
+          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Micron
+          </th>
+          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Input weight
+          </th>
+          <th className="text-left py-1 pr-2 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Wastage
+          </th>
+          <th className="text-left py-1 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
+            Balance weight
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">{displayValue(parent.itemName)}</td>
+          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
+            {parent.size != null ? String(parent.size) : "-"}
+          </td>
+          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
+            {parent.micron != null ? String(parent.micron) : "-"}
+          </td>
+          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">
+            {formatWeightWithMeter(parent.netweight, parent.meter)}
+          </td>
+          <td className="py-1 pr-2 text-gray-900 dark:text-gray-100">{displayKg(parent.wastage)}</td>
+          <td className="py-1 text-gray-900 dark:text-gray-100">{displayKg(parent.balanceWeight)}</td>
+        </tr>
+      </tbody>
+    </table>
+  )
 }
 
 export function EclPanel(props: EclPanelProps) {
@@ -258,36 +337,20 @@ export function EclPanel(props: EclPanelProps) {
         cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
       },
       {
-        accessorKey: "size",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
-        ),
-        filterFn: includesStringFilterFn,
+        id: "input1",
+        header: () => <div className="text-left">{input1Label}</div>,
+        cell: ({ row }: { row: any }) => {
+          const { input1 } = pickEclProducedParents(row.original.parentRolls, getEclParentRole)
+          return <EclInputNestedTable parent={input1} />
+        },
       },
       {
-        accessorKey: "micron",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "parentNetweight",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Input weight (kg)" column={column} placeholder="Filter input weight..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
-            {formatWeightWithMeter(row.original.parentNetweight, row.original.parentMeter)}
-          </div>
-        ),
-        filterFn: includesStringFilterFn,
+        id: "input2",
+        header: () => <div className="text-left">{input2Label}</div>,
+        cell: ({ row }: { row: any }) => {
+          const { input2 } = pickEclProducedParents(row.original.parentRolls, getEclParentRole)
+          return <EclInputNestedTable parent={input2} />
+        },
       },
       {
         accessorKey: "inkGsm",
@@ -311,21 +374,6 @@ export function EclPanel(props: EclPanelProps) {
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
         ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "balanceWeight",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Balance weight (kg)" column={column} placeholder="Filter balance weight..." />
-        ),
-        cell: ({ row }: { row: any }) => {
-          const value = row.original.parentBalanceWeight ?? row.original.balanceWeight
-          return (
-            <div className="text-sm">
-              {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
-            </div>
-          )
-        },
         filterFn: includesStringFilterFn,
       },
       {
@@ -366,7 +414,7 @@ export function EclPanel(props: EclPanelProps) {
         ),
       },
     ],
-    [wipPrintingTemplate, eclCreateChildLoading, eclSelectedWo]
+    [wipPrintingTemplate, eclCreateChildLoading, eclSelectedWo, input1Label, input2Label, getEclParentRole]
   )
 
   const renderLoadSlot = (
