@@ -926,10 +926,7 @@ export default function Home() {
         const inspectionOperators = operatorsList.filter(
           (op) => (op.operation ?? "").toLowerCase() === "inspection"
         )
-        const operatorName =
-          inspectionOperators[0]?.operatorName?.trim() ||
-          user?.username?.trim() ||
-          "Floor"
+        const operatorName = inspectionOperators[0]?.operatorName?.trim() || ""
         const newJobCard = await createJobCard({
           jobCardNumber: "",
           workOrderId: wo.id,
@@ -2255,28 +2252,10 @@ export default function Home() {
               outputFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : "")
             const inputWeight = Number(first.roll.netweight || 0)
             const parsedOutput = parseFloat(outputWeight)
-            const parentBalance =
-              first.roll.balanceWeight != null
-                ? String(first.roll.balanceWeight)
-                : first.roll.balance_weight != null
-                  ? String(first.roll.balance_weight)
-                  : ""
-            const parsedBalance = parseFloat(parentBalance)
-            const wastage =
-              Number.isNaN(parsedOutput)
-                ? "0"
-                : String(
-                    Math.max(
-                      0,
-                      Number(
-                        (
-                          inputWeight -
-                          parsedOutput -
-                          (Number.isNaN(parsedBalance) ? 0 : parsedBalance)
-                        ).toFixed(2)
-                      )
-                    )
-                  )
+            const wastage = "0"
+            const balanceweight = Number.isNaN(parsedOutput)
+              ? ""
+              : String(Math.max(0, Number((inputWeight - parsedOutput).toFixed(2))))
             setInspectionAddRollForm((prev) => {
               if (prev?.roll.id === first.roll.id) return prev
               return {
@@ -2291,10 +2270,10 @@ export default function Home() {
                 wastageReason: "",
                 noOfTag: "",
                 noOfCuts: "",
-                operatorName: firstCard?.operatorName ?? "",
+                operatorName: "",
                 shift: firstCard?.shift ?? "A",
                 remark: "",
-                balanceweight: parentBalance,
+                balanceweight,
               }
             })
             try {
@@ -2306,13 +2285,6 @@ export default function Home() {
                   return {
                     ...prev,
                     parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
-                    balanceweight:
-                      parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
-                    roll: {
-                      ...prev.roll,
-                      balanceWeight: parent.balanceWeight ?? prev.roll.balanceWeight ?? prev.roll.balance_weight,
-                      balance_weight: parent.balanceWeight ?? prev.roll.balanceWeight ?? prev.roll.balance_weight,
-                    },
                   }
                 })
               }
@@ -2793,11 +2765,14 @@ export default function Home() {
       setInspectionAddRollForm((prev) => {
         if (!prev) return null
         const inputWeight = Number(prev.roll.netweight || 0)
-        const balance = Number(prev.balanceweight || 0)
-        const wastage = String(
-          Math.max(0, Number((inputWeight - scaleWeight - (Number.isNaN(balance) ? 0 : balance)).toFixed(2)))
+        const wastageKg = Number(prev.wastage || 0)
+        const balanceweight = String(
+          Math.max(
+            0,
+            Number((inputWeight - scaleWeight - (Number.isNaN(wastageKg) ? 0 : wastageKg)).toFixed(2))
+          )
         )
-        return { ...prev, netweight: String(scaleWeight), wastage }
+        return { ...prev, netweight: String(scaleWeight), balanceweight }
       })
     }
     if (eclAddRollForm && scaleWeight != null) {

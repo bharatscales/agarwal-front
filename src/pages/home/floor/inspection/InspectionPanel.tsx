@@ -46,18 +46,12 @@ function parseBalanceWeight(raw: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight?: number | null } | null | undefined): number | null {
-  const value = roll?.balanceWeight ?? roll?.balance_weight
-  if (value == null || Number.isNaN(Number(value))) return null
-  return Number(value)
-}
-
-function wastageFromWeights(inputKg: number | null | undefined, outputRaw: string, balanceRaw = "0"): string {
+function remainingBalance(inputKg: number | null | undefined, outputRaw: string, wastageRaw = "0"): string {
   const output = parseFloat(outputRaw)
-  if (Number.isNaN(output)) return "0"
-  const balance = parseFloat(balanceRaw)
-  const balanceKg = Number.isNaN(balance) ? 0 : balance
-  return String(Math.max(0, Number(((Number(inputKg) || 0) - output - balanceKg).toFixed(2))))
+  if (Number.isNaN(output)) return ""
+  const wastage = parseFloat(wastageRaw)
+  const wastageKg = Number.isNaN(wastage) ? 0 : wastage
+  return String(Math.max(0, Number(((Number(inputKg) || 0) - output - wastageKg).toFixed(2))))
 }
 
 function displayValue(value: unknown) {
@@ -70,7 +64,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
     inspectionSelectedWo,
     inspectionRollsLoading,
     inspectionLoadedRolls,
-    setInspectionLoadedRolls,
     inspectionAddRollForm,
     inspectionCreateChildLoading,
     setInspectionCreateChildLoading,
@@ -88,7 +81,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
     addInspectionRoll,
     setInspectionFormCommittedForRollId,
     setInspectionChildRollsFromDb,
-    updateRollsStock,
     setInspectionRollsRefreshKey,
     inspectionCreateChildMessage,
     floorInspectionBarcode,
@@ -143,12 +135,16 @@ export function InspectionPanel(props: InspectionPanelProps) {
     }
   }, [])
 
-  const operatorOptions = useMemo(() => {
-    const names = [...inspectionOperators]
-    const current = inspectionAddRollForm?.operatorName?.trim()
-    if (current && !names.includes(current)) names.push(current)
-    return names
-  }, [inspectionOperators, inspectionAddRollForm?.operatorName])
+  const operatorOptions = useMemo(() => inspectionOperators, [inspectionOperators])
+
+  useEffect(() => {
+    if (!inspectionAddRollForm) return
+    const current = inspectionAddRollForm.operatorName?.trim() ?? ""
+    if (current && operatorOptions.includes(current)) return
+    const next = operatorOptions[0] ?? ""
+    if (current === next) return
+    setInspectionAddRollForm((prev: any) => (prev ? { ...prev, operatorName: next } : prev))
+  }, [operatorOptions, inspectionAddRollForm?.roll?.id])
 
   const wastageReasonOptions = useMemo(() => {
     const reasons = [...savedWastageReasons]
@@ -448,7 +444,8 @@ export function InspectionPanel(props: InspectionPanelProps) {
     const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
     const outputWeight =
       outputFromScale || (roll.netweight != null ? String(roll.netweight) : "")
-    const parentBalance = loadedRollBalance(roll)
+    const wastage = "0"
+    const jobOperator = extras?.operatorName?.trim() ?? ""
     setInspectionAddRollForm({
       jobCardNumber,
       jobCardId,
@@ -457,14 +454,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
       size: roll.size != null ? String(roll.size) : "",
       micron: roll.micron != null ? String(roll.micron) : "",
       netweight: outputWeight,
-      wastage: wastageFromWeights(roll.netweight, outputWeight, parentBalance != null ? String(parentBalance) : "0"),
+      wastage,
       wastageReason: "",
       noOfTag: "",
       noOfCuts: "",
-      operatorName: extras?.operatorName ?? "",
+      operatorName: operatorOptions.includes(jobOperator) ? jobOperator : operatorOptions[0] ?? "",
       shift: extras?.shift ?? "A",
       remark: "",
-      balanceweight: parentBalance != null ? String(parentBalance) : "",
+      balanceweight: remainingBalance(roll.netweight, outputWeight, wastage),
     })
     try {
       const parent = await getRollsStockById(roll.id)
@@ -473,13 +470,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
         return {
           ...prev,
           parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
-          balanceweight:
-            parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
-          roll: {
-            ...prev.roll,
-            balanceWeight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
-            balance_weight: parent.balanceWeight ?? loadedRollBalance(prev.roll),
-          },
         }
       })
     } catch {
@@ -669,19 +659,18 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               value={form ? form.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
                               onChange={(e) => {
                                 const netweight = e.target.value
-                                setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id
-                                    ? {
-                                        ...prev,
-                                        netweight,
-                                        wastage: wastageFromWeights(
-                                          roll.netweight,
-                                          netweight,
-                                          prev.balanceweight
-                                        ),
-                                      }
-                                    : prev
-                                )
+                                setInspectionAddRollForm((prev: any) => {
+                                  if (!prev || prev.roll.id !== roll.id) return prev
+                                  return {
+                                    ...prev,
+                                    netweight,
+                                    balanceweight: remainingBalance(
+                                      roll.netweight,
+                                      netweight,
+                                      prev.wastage
+                                    ),
+                                  }
+                                })
                               }}
                             />
                           </td>
@@ -692,11 +681,21 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               className="h-7 w-20 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={form ? form.wastage : ""}
-                              onChange={(e) =>
-                                setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, wastage: e.target.value } : prev
-                                )
-                              }
+                              onChange={(e) => {
+                                const wastage = e.target.value
+                                setInspectionAddRollForm((prev: any) => {
+                                  if (!prev || prev.roll.id !== roll.id) return prev
+                                  return {
+                                    ...prev,
+                                    wastage,
+                                    balanceweight: remainingBalance(
+                                      roll.netweight,
+                                      prev.netweight,
+                                      wastage
+                                    ),
+                                  }
+                                })
+                              }}
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
@@ -704,62 +703,17 @@ export function InspectionPanel(props: InspectionPanelProps) {
                               type="number"
                               step="any"
                               className="h-7 w-20 px-1.5 text-xs"
-                              disabled={!isSelected}
+                              disabled
+                              readOnly
                               value={
                                 form
                                   ? form.balanceweight
-                                  : loadedRollBalance(roll) != null
-                                    ? String(loadedRollBalance(roll))
-                                    : ""
-                              }
-                              onChange={(e) => {
-                                const nextValue = e.target.value
-                                setInspectionAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id
-                                    ? {
-                                        ...prev,
-                                        balanceweight: nextValue,
-                                        wastage: wastageFromWeights(
-                                          roll.netweight,
-                                          prev.netweight,
-                                          nextValue
-                                        ),
-                                      }
-                                    : prev
-                                )
-                                const parsed = parseBalanceWeight(nextValue)
-                                setInspectionChildRollsFromDb((prev: any[]) =>
-                                  prev.map((row) => {
-                                    const parentIds =
-                                      row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
-                                    if (parentIds.length > 0 && !parentIds.includes(roll.id)) return row
-                                    return { ...row, parentBalanceWeight: parsed }
-                                  })
-                                )
-                              }}
-                              onBlur={async (e) => {
-                                if (!isSelected) return
-                                const parsed = parseBalanceWeight(e.currentTarget.value)
-                                try {
-                                  await updateRollsStock(roll.id, { balanceWeight: parsed })
-                                  setInspectionLoadedRolls((prev: any[]) =>
-                                    prev.map((loaded) =>
-                                      loaded.roll.id === roll.id
-                                        ? {
-                                            ...loaded,
-                                            roll: {
-                                              ...loaded.roll,
-                                              balanceWeight: parsed,
-                                              balance_weight: parsed,
-                                            },
-                                          }
-                                        : loaded
+                                  : remainingBalance(
+                                      roll.netweight,
+                                      roll.netweight != null ? String(roll.netweight) : "",
+                                      "0"
                                     )
-                                  )
-                                } catch {
-                                  setInspectionCreateChildMessage("Failed to save balance weight.")
-                                }
-                              }}
+                              }
                             />
                           </td>
                           <td className="py-1.5 px-2 min-w-[10rem]" onClick={(e) => e.stopPropagation()}>
@@ -812,40 +766,30 @@ export function InspectionPanel(props: InspectionPanelProps) {
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            {operatorOptions.length > 0 ? (
-                              <Select
-                                value={form?.operatorName || undefined}
-                                disabled={!isSelected}
-                                onValueChange={(value) =>
-                                  setInspectionAddRollForm((prev: any) =>
-                                    prev && prev.roll.id === roll.id ? { ...prev, operatorName: value } : prev
-                                  )
-                                }
-                              >
-                                <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
-                                  <SelectValue placeholder="Select" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {operatorOptions.map((name) => (
-                                    <SelectItem key={name} value={name}>
-                                      {name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Input
-                                type="text"
-                                className="h-7 w-28 px-1.5 text-xs"
-                                disabled={!isSelected}
-                                value={form ? form.operatorName : ""}
-                                onChange={(e) =>
-                                  setInspectionAddRollForm((prev: any) =>
-                                    prev && prev.roll.id === roll.id ? { ...prev, operatorName: e.target.value } : prev
-                                  )
-                                }
-                              />
-                            )}
+                            <Select
+                              value={
+                                form?.operatorName && operatorOptions.includes(form.operatorName)
+                                  ? form.operatorName
+                                  : undefined
+                              }
+                              disabled={!isSelected}
+                              onValueChange={(value) =>
+                                setInspectionAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id ? { ...prev, operatorName: value } : prev
+                                )
+                              }
+                            >
+                              <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {operatorOptions.map((name) => (
+                                  <SelectItem key={name} value={name}>
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Select
