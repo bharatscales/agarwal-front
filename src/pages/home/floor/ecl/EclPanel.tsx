@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
 import { DataTable } from "@/components/data-table"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
+import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
 import { getAllOperators } from "@/lib/operator-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
@@ -23,6 +25,7 @@ import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 type EclPanelProps = any
 
 const ECL_SHIFTS = ["A", "B"]
+const RM_FILM_GROUP = "rm film"
 
 function parseOptionalNumber(raw: string): number | undefined {
   const trimmed = raw.trim()
@@ -284,6 +287,9 @@ export function EclPanel(props: EclPanelProps) {
   } = props
 
   const [eclOperators, setEclOperators] = useState<string[]>([])
+  const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
+  const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
+  const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -312,6 +318,52 @@ export function EclPanel(props: EclPanelProps) {
     if (current === next) return
     setEclAddRollForm((prev: any) => (prev ? { ...prev, operatorName: next } : prev))
   }, [eclOperators, eclAddRollForm?.roll?.id])
+
+  useEffect(() => {
+    if (!floorEclRmPickerOpen) {
+      setRmFilmItemFilter("all")
+      setRmFilmWarehouseFilter("all")
+      return
+    }
+    let cancelled = false
+    getItemsByGroupForMenu(RM_FILM_GROUP)
+      .then((items) => {
+        if (!cancelled) setRmFilmItems(items)
+      })
+      .catch(() => {
+        if (!cancelled) setRmFilmItems([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [floorEclRmPickerOpen])
+
+  const rmFilmItemBadges = useMemo(() => {
+    const fromMaster = rmFilmItems
+      .map((item) => (item.item_code || item.name || "").trim())
+      .filter(Boolean)
+    if (fromMaster.length > 0) return fromMaster
+    const unique = new Map<string, string>()
+    for (const roll of floorEclRmRolls) {
+      const code = (roll.itemCode || "").trim()
+      if (code && !unique.has(code.toLowerCase())) unique.set(code.toLowerCase(), code)
+    }
+    return [...unique.values()]
+  }, [rmFilmItems, floorEclRmRolls])
+
+  const filteredFloorEclRmRolls = useMemo(() => {
+    return floorEclRmRolls.filter((roll: { itemCode?: string | null; stage?: string | null }) => {
+      if (rmFilmItemFilter !== "all") {
+        const selected = rmFilmItemFilter.toLowerCase()
+        if ((roll.itemCode || "").trim().toLowerCase() !== selected) return false
+      }
+      if (rmFilmWarehouseFilter !== "all") {
+        const stage = (roll.stage ?? "").toLowerCase().replace(/-/g, "_")
+        if (stage !== rmFilmWarehouseFilter) return false
+      }
+      return true
+    })
+  }, [floorEclRmRolls, rmFilmItemFilter, rmFilmWarehouseFilter])
 
   const floorWorkOrderColumns = useMemo(
     () => getFloorWorkOrderColumns(onSkipWorkOrder ? { onSkip: onSkipWorkOrder } : undefined),
@@ -675,10 +727,55 @@ export function EclPanel(props: EclPanelProps) {
               ) : (
                 <>
                   {floorEclRmRollsError && <p className="text-sm text-red-500 mb-3">{floorEclRmRollsError}</p>}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        asChild
+                        variant={rmFilmItemFilter === "all" ? "default" : "outline"}
+                        className="cursor-pointer"
+                      >
+                        <button type="button" onClick={() => setRmFilmItemFilter("all")}>
+                          All
+                        </button>
+                      </Badge>
+                      {rmFilmItemBadges.map((itemCode) => (
+                        <Badge
+                          key={itemCode}
+                          asChild
+                          variant={rmFilmItemFilter.toLowerCase() === itemCode.toLowerCase() ? "default" : "outline"}
+                          className="cursor-pointer"
+                        >
+                          <button type="button" onClick={() => setRmFilmItemFilter(itemCode)}>
+                            {itemCode}
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2 ml-auto">
+                      {(
+                        [
+                          { value: "all", label: "ALL" },
+                          { value: "virgin_rm", label: "RM Virgin" },
+                          { value: "rm_balance", label: "RM Balance" },
+                        ] as const
+                      ).map((warehouse) => (
+                        <Badge
+                          key={warehouse.value}
+                          asChild
+                          variant={rmFilmWarehouseFilter === warehouse.value ? "default" : "outline"}
+                          className="cursor-pointer"
+                        >
+                          <button type="button" onClick={() => setRmFilmWarehouseFilter(warehouse.value)}>
+                            {warehouse.label}
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                   <DataTable
-                    key="floor-ecl-rm-picker"
+                    key={`floor-ecl-rm-picker-${rmFilmItemFilter}-${rmFilmWarehouseFilter}`}
                     columns={floorEclRmStockColumns}
-                    data={floorEclRmRolls}
+                    data={filteredFloorEclRmRolls}
                     getRowId={(row: any) => String(row.id)}
                     singleRowSelection
                     scrollable
