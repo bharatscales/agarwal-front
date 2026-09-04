@@ -92,6 +92,27 @@ async function fetchAvailableWipRolls(stages: string[]) {
   return rolls.filter((r) => !r.consumed && !r.issued)
 }
 
+async function fetchAvailableWipRollsForWorkOrder(workOrderId: number, stages: string[]) {
+  const byId = new Map<number, RollsStockRow>()
+  for (const stage of [...new Set(stages)]) {
+    const produced = (await getRollsStockByWorkOrder(workOrderId, stage)) as RollsStockRow[]
+    for (const roll of produced) byId.set(roll.id, roll)
+    let frontier = produced.map((r) => r.id)
+    while (frontier.length > 0) {
+      const children = (await getRollsStockByParentIds(frontier, stage)) as RollsStockRow[]
+      const next: number[] = []
+      for (const child of children) {
+        if (!byId.has(child.id)) {
+          byId.set(child.id, child)
+          next.push(child.id)
+        }
+      }
+      frontier = next
+    }
+  }
+  return [...byId.values()].filter((r) => !r.consumed && !r.issued)
+}
+
 async function workOrderStagesFromAvailableRolls(
   stages: string[],
   isCancelled: () => boolean
@@ -1096,6 +1117,10 @@ export default function Home() {
           setFloorEclBarcodeError("Work order not found for this roll.")
           return
         }
+        if (eclSelectedWo && wo.id !== eclSelectedWo.id) {
+          setFloorEclBarcodeError("This roll belongs to a different work order.")
+          return
+        }
         if (isOperationSkipped(wo.skippedOperations, "ECL")) {
           setFloorEclBarcodeError("ECL was skipped for this work order.")
           return
@@ -1363,19 +1388,22 @@ export default function Home() {
   const skipSlittingWorkOrder = (wo: WorkOrderMaster) => handleSkipWorkOrder(wo, "Slitting")
 
   const openFloorEclWipPicker = async () => {
+    const wo = eclSelectedWo
+    if (!wo) {
+      setFloorEclBarcodeError("Open a work order first, then select Input 1.")
+      return
+    }
     setFloorEclWipPickerOpen(true)
     setFloorEclWipRollsLoading(true)
     setFloorEclWipRollsError(null)
     setFloorEclWipRolls([])
     try {
-      const stages = eclSelectedWo
-        ? allowedWipStagesForDept("ECL", eclSelectedWo.skippedOperations)
-        : ["wip_inspection", "wip_printed"]
-      const filtered = await fetchAvailableWipRolls(stages)
+      const stages = allowedWipStagesForDept("ECL", wo.skippedOperations)
+      const filtered = await fetchAvailableWipRollsForWorkOrder(wo.id, stages)
       setFloorEclWipRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorEclWipRollsError(
-          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
+          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found for this work order. Try scanning a barcode instead.`
         )
       }
     } catch {
