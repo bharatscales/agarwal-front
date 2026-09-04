@@ -149,141 +149,81 @@ function asSingleColumnGroup(id: string, column: Record<string, unknown>) {
   }
 }
 
-function loadedRollDisplay(entry: { roll: any } | null | undefined) {
+function loadedFilmCells(
+  entry: { jobCardId: number; roll: any } | null,
+  opts: {
+    canEdit: boolean
+    wastage: string
+    balance: string
+    onWastage: (value: string) => void
+    onBalance: (value: string) => void
+    onUnload: (jobCardId: number, rollId: number) => void
+    unloadDisabled: boolean
+  }
+) {
   const roll = entry?.roll
-  if (!roll) return null
-  return {
-    itemName: roll.item_name ?? roll.itemName ?? "",
-    size: roll.size ?? null,
-    micron: roll.micron ?? null,
-    netweight: roll.netweight ?? null,
-    meter: roll.meter ?? null,
-    id: roll.id as number,
+  if (!roll) {
+    return (
+      <>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+        <td className="py-1.5 px-2" />
+      </>
+    )
   }
-}
-
-function eclLoadedInputGroupColumns({
-  id,
-  label,
-  pickEntry,
-  wastageValue,
-  balanceValue,
-  onWastageChange,
-  onBalanceChange,
-  canEdit,
-  onUnload,
-  unloadDisabled,
-}: {
-  id: "input1" | "input2"
-  label: string
-  pickEntry: (row: any) => { jobCardId: number; roll: any } | null
-  wastageValue: string
-  balanceValue: string
-  onWastageChange: (value: string) => void
-  onBalanceChange: (value: string) => void
-  canEdit: boolean
-  onUnload: (jobCardId: number, rollId: number) => void
-  unloadDisabled: boolean
-}) {
-  const pick = (row: any) => loadedRollDisplay(pickEntry(row))
-  return {
-    id,
-    header: () => <div className="text-center w-full">{label}</div>,
-    columns: [
-      {
-        id: `${id}Structure`,
-        header: () => <div>Structure</div>,
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(pick(row.original)?.itemName)}</div>
-        ),
-      },
-      {
-        id: `${id}Size`,
-        header: () => <div>Size</div>,
-        cell: ({ row }: { row: any }) => {
-          const size = pick(row.original)?.size
-          return <div className="text-sm">{size != null ? String(size) : "-"}</div>
-        },
-      },
-      {
-        id: `${id}Micron`,
-        header: () => <div>Micron</div>,
-        cell: ({ row }: { row: any }) => {
-          const micron = pick(row.original)?.micron
-          return <div className="text-sm">{micron != null ? String(micron) : "-"}</div>
-        },
-      },
-      {
-        id: `${id}InputWeight`,
-        header: () => <div>Input weight</div>,
-        cell: ({ row }: { row: any }) => {
-          const parent = pick(row.original)
-          return (
-            <div className="text-sm">
-              {parent ? formatWeightWithMeter(parent.netweight, parent.meter) : "-"}
-            </div>
-          )
-        },
-      },
-      {
-        id: `${id}Wastage`,
-        header: () => <div>Wastage</div>,
-        cell: ({ row }: { row: any }) => {
-          if (!pick(row.original)) return <div className="text-sm">-</div>
-          return (
-            <Input
-              type="number"
-              step="any"
-              className="h-7 w-20 px-1.5 text-xs"
-              disabled={!canEdit}
-              value={wastageValue}
-              onChange={(e) => onWastageChange(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          )
-        },
-      },
-      {
-        id: `${id}BalanceWeight`,
-        header: () => <div>Balance weight</div>,
-        cell: ({ row }: { row: any }) => {
-          if (!pick(row.original)) return <div className="text-sm">-</div>
-          return (
-            <Input
-              type="number"
-              step="any"
-              className="h-7 w-20 px-1.5 text-xs"
-              disabled={!canEdit}
-              value={balanceValue}
-              onChange={(e) => onBalanceChange(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          )
-        },
-      },
-      {
-        id: `${id}Remove`,
-        header: () => <div />,
-        cell: ({ row }: { row: any }) => {
-          const entry = pickEntry(row.original)
-          if (!entry) return null
-          return (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              title="Remove loaded roll"
-              disabled={unloadDisabled}
-              onClick={() => void onUnload(entry.jobCardId, entry.roll.id)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )
-        },
-      },
-    ],
-  }
+  return (
+    <>
+      <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+        {roll.item_name ?? roll.itemName ?? "—"}
+      </td>
+      <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+        {roll.size != null ? String(roll.size) : "—"}
+      </td>
+      <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+        {roll.micron != null ? String(roll.micron) : "—"}
+      </td>
+      <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
+        {formatWeightWithMeter(roll.netweight, roll.meter)}
+      </td>
+      <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+        <Input
+          type="number"
+          step="any"
+          className="h-7 w-20 px-1.5 text-xs"
+          disabled={!opts.canEdit}
+          value={opts.wastage}
+          onChange={(e) => opts.onWastage(e.target.value)}
+        />
+      </td>
+      <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+        <Input
+          type="number"
+          step="any"
+          className="h-7 w-20 px-1.5 text-xs"
+          disabled={!opts.canEdit}
+          value={opts.balance}
+          onChange={(e) => opts.onBalance(e.target.value)}
+        />
+      </td>
+      <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          title="Remove loaded roll"
+          disabled={opts.unloadDisabled}
+          onClick={() => void opts.onUnload(entry.jobCardId, roll.id)}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </td>
+    </>
+  )
 }
 
 export function EclPanel(props: EclPanelProps) {
@@ -596,59 +536,6 @@ export function EclPanel(props: EclPanelProps) {
     return Array.from(byJob.values())
   }, [eclLoadedRolls, getEclParentRole])
 
-  const eclLoadedFilmColumns = useMemo(
-    () => [
-      asSingleColumnGroup("loadedSnoGroup", {
-        id: "sno",
-        header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
-      }),
-      asSingleColumnGroup("loadedJobCardGroup", {
-        id: "jobCard",
-        header: () => <div>Job card</div>,
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.jobCardNumber)}</div>
-        ),
-      }),
-      eclLoadedInputGroupColumns({
-        id: "input1",
-        label: input1Label,
-        pickEntry: (row) => row.input1,
-        wastageValue: eclAddRollForm?.wipWastage ?? "0",
-        balanceValue: eclAddRollForm?.wipBalance ?? "0",
-        onWastageChange: (value) =>
-          setEclAddRollForm((prev: any) => (prev ? { ...prev, wipWastage: value } : prev)),
-        onBalanceChange: (value) =>
-          setEclAddRollForm((prev: any) => (prev ? { ...prev, wipBalance: value } : prev)),
-        canEdit: canProduce && Boolean(eclAddRollForm),
-        onUnload: (jobCardId, rollId) => void handleUnloadEclRoll(jobCardId, rollId),
-        unloadDisabled: eclCreateChildLoading,
-      }),
-      eclLoadedInputGroupColumns({
-        id: "input2",
-        label: input2Label,
-        pickEntry: (row) => row.input2,
-        wastageValue: eclAddRollForm?.rmWastage ?? "0",
-        balanceValue: eclAddRollForm?.rmBalance ?? "0",
-        onWastageChange: (value) =>
-          setEclAddRollForm((prev: any) => (prev ? { ...prev, rmWastage: value } : prev)),
-        onBalanceChange: (value) =>
-          setEclAddRollForm((prev: any) => (prev ? { ...prev, rmBalance: value } : prev)),
-        canEdit: canProduce && Boolean(eclAddRollForm),
-        onUnload: (jobCardId, rollId) => void handleUnloadEclRoll(jobCardId, rollId),
-        unloadDisabled: eclCreateChildLoading,
-      }),
-    ],
-    [
-      input1Label,
-      input2Label,
-      eclAddRollForm,
-      canProduce,
-      eclCreateChildLoading,
-      setEclAddRollForm,
-    ]
-  )
-
   const renderLoadSlot = (
     role: "wip" | "rm",
     barcode: string,
@@ -863,15 +750,100 @@ export function EclPanel(props: EclPanelProps) {
                 </p>
               )}
               {eclLoadedFilmRows.length > 0 && (
-                <DataTable
-                  columns={eclLoadedFilmColumns}
-                  data={eclLoadedFilmRows}
-                  getRowId={(row: any) => String(row.jobCardId)}
-                  compact
-                  scrollable
-                  scrollHeight="12rem"
-                  showSelectionSummary={false}
-                />
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
+                          S. no.
+                        </th>
+                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
+                          Job card
+                        </th>
+                        <th
+                          colSpan={7}
+                          className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
+                        >
+                          {input1Label}
+                        </th>
+                        <th
+                          colSpan={7}
+                          className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
+                        >
+                          {input2Label}
+                        </th>
+                      </tr>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", ""].map(
+                          (title, i) => (
+                            <th
+                              key={`input1-${title || "remove"}`}
+                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""}`}
+                            >
+                              {title}
+                            </th>
+                          )
+                        )}
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", ""].map(
+                          (title, i) => (
+                            <th
+                              key={`input2-${title || "remove"}`}
+                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""}`}
+                            >
+                              {title}
+                            </th>
+                          )
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eclLoadedFilmRows.map((row, index) => {
+                        const canEditRow = canProduce && Boolean(eclAddRollForm)
+                        return (
+                          <tr
+                            key={row.jobCardId}
+                            className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+                          >
+                            <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">{index + 1}</td>
+                            <td className="py-1.5 px-2 text-gray-900 dark:text-gray-100">
+                              {row.jobCardNumber}
+                            </td>
+                            {loadedFilmCells(row.input1, {
+                              canEdit: canEditRow,
+                              wastage: eclAddRollForm?.wipWastage ?? "0",
+                              balance: eclAddRollForm?.wipBalance ?? "0",
+                              onWastage: (value) =>
+                                setEclAddRollForm((prev: any) =>
+                                  prev ? { ...prev, wipWastage: value } : prev
+                                ),
+                              onBalance: (value) =>
+                                setEclAddRollForm((prev: any) =>
+                                  prev ? { ...prev, wipBalance: value } : prev
+                                ),
+                              onUnload: handleUnloadEclRoll,
+                              unloadDisabled: eclCreateChildLoading,
+                            })}
+                            {loadedFilmCells(row.input2, {
+                              canEdit: canEditRow,
+                              wastage: eclAddRollForm?.rmWastage ?? "0",
+                              balance: eclAddRollForm?.rmBalance ?? "0",
+                              onWastage: (value) =>
+                                setEclAddRollForm((prev: any) =>
+                                  prev ? { ...prev, rmWastage: value } : prev
+                                ),
+                              onBalance: (value) =>
+                                setEclAddRollForm((prev: any) =>
+                                  prev ? { ...prev, rmBalance: value } : prev
+                                ),
+                              onUnload: handleUnloadEclRoll,
+                              unloadDisabled: eclCreateChildLoading,
+                            })}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {canProduce && eclAddRollForm && (
                 <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
