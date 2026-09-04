@@ -705,9 +705,6 @@ export default function Home() {
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
   const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
-  const [laminationAddRollEditingField, setLaminationAddRollEditingField] = useState<
-    null | "netweight" | "grossweight"
-  >(null)
   const [laminationChildRollsFromDb, setLaminationChildRollsFromDb] = useState<
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
@@ -2459,7 +2456,6 @@ export default function Home() {
     if (!laminationSelectedWo) {
       setLaminationLoadedRolls([])
       setLaminationAddRollForm(null)
-      setLaminationAddRollEditingField(null)
       return
     }
     let cancelled = false
@@ -2506,7 +2502,6 @@ export default function Home() {
           try {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
-              setLaminationAddRollEditingField(null)
               const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
               setLaminationAddRollForm((prev) => {
                 if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
@@ -2533,18 +2528,15 @@ export default function Home() {
           } catch {
             if (!cancelled) {
               setLaminationAddRollForm(null)
-              setLaminationAddRollEditingField(null)
             }
           }
         } else {
           setLaminationAddRollForm(null)
-          setLaminationAddRollEditingField(null)
         }
       } catch {
         if (!cancelled) {
           setLaminationLoadedRolls([])
           setLaminationAddRollForm(null)
-          setLaminationAddRollEditingField(null)
         }
       } finally {
         if (!cancelled) setLaminationRollsLoading(false)
