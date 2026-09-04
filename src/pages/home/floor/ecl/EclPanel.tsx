@@ -141,6 +141,14 @@ function eclInputGroupColumns(
   }
 }
 
+function asSingleColumnGroup(id: string, column: Record<string, unknown>) {
+  return {
+    id,
+    header: () => null,
+    columns: [column],
+  }
+}
+
 export function EclPanel(props: EclPanelProps) {
   const {
     eclSelectedWo,
@@ -350,18 +358,18 @@ export function EclPanel(props: EclPanelProps) {
 
   const eclProducedRollColumns = useMemo(
     () => [
-      {
+      asSingleColumnGroup("snoGroup", {
         id: "sno",
         header: () => <div>S. no.</div>,
         cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
-      },
+      }),
       eclInputGroupColumns("input1", input1Label, (row) =>
         pickEclProducedParents(row.parentRolls, getEclParentRole).input1
       ),
       eclInputGroupColumns("input2", input2Label, (row) =>
         pickEclProducedParents(row.parentRolls, getEclParentRole).input2
       ),
-      {
+      asSingleColumnGroup("inkGsmGroup", {
         accessorKey: "inkGsm",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Extrusion coating (kg)" column={column} placeholder="Filter extrusion..." />
@@ -372,8 +380,8 @@ export function EclPanel(props: EclPanelProps) {
           </div>
         ),
         filterFn: includesStringFilterFn,
-      },
-      {
+      }),
+      asSingleColumnGroup("netweightGroup", {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
@@ -384,8 +392,8 @@ export function EclPanel(props: EclPanelProps) {
           </div>
         ),
         filterFn: includesStringFilterFn,
-      },
-      {
+      }),
+      asSingleColumnGroup("operatorNameGroup", {
         accessorKey: "operatorName",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Operator name" column={column} placeholder="Filter operator..." />
@@ -394,8 +402,8 @@ export function EclPanel(props: EclPanelProps) {
           <div className="text-sm">{displayValue(row.original.operatorName)}</div>
         ),
         filterFn: includesStringFilterFn,
-      },
-      {
+      }),
+      asSingleColumnGroup("shiftGroup", {
         accessorKey: "shift",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Shift" column={column} placeholder="Filter shift..." />
@@ -404,8 +412,8 @@ export function EclPanel(props: EclPanelProps) {
           <div className="text-sm">{displayValue(row.original.shift)}</div>
         ),
         filterFn: includesStringFilterFn,
-      },
-      {
+      }),
+      asSingleColumnGroup("reprintGroup", {
         id: "reprint",
         header: () => <div className="text-left">Reprint</div>,
         cell: ({ row }: { row: any }) => (
@@ -421,7 +429,7 @@ export function EclPanel(props: EclPanelProps) {
             </Button>
           </div>
         ),
-      },
+      }),
     ],
     [wipPrintingTemplate, eclCreateChildLoading, eclSelectedWo, input1Label, input2Label, getEclParentRole]
   )
