@@ -5,6 +5,7 @@ import { DataTable } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
@@ -27,6 +28,12 @@ function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight
   const value = roll?.balanceWeight ?? roll?.balance_weight
   if (value == null || Number.isNaN(Number(value))) return null
   return Number(value)
+}
+
+function hasPrintingConsumeChoice(form: { balanceweight?: string; semiConsumed?: boolean } | null | undefined): boolean {
+  if (!form) return false
+  if (form.semiConsumed) return true
+  return parseBalanceWeight(form.balanceweight || "") != null
 }
 
 export function PrintingPanel(props: PrintingPanelProps) {
@@ -347,6 +354,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm (by ink wt)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Semi consumed</th>
                       <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
@@ -383,6 +391,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 printedWastage: "0",
                                 inkGsm: "",
                                 balanceweight: loadedRollBalance(roll) != null ? String(loadedRollBalance(roll)) : "",
+                                semiConsumed: false,
                               })
                               setPrintingAddRollEditingField(null)
                               const parent = await getRollsStockById(roll.id)
@@ -504,20 +513,28 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               type="number"
                               step="any"
                               className="h-7 w-20 px-1.5 text-xs"
-                              disabled={!isSelected}
+                              disabled={!isSelected || Boolean(isSelected && printingAddRollForm.semiConsumed)}
                               value={
                                 isSelected
-                                  ? printingAddRollForm.balanceweight
+                                  ? printingAddRollForm.semiConsumed
+                                    ? ""
+                                    : printingAddRollForm.balanceweight
                                   : loadedRollBalance(roll) != null
                                     ? String(loadedRollBalance(roll))
                                     : ""
                               }
                               onChange={(e) => {
                                 const nextValue = e.target.value
-                                setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, balanceweight: nextValue } : prev
-                                )
                                 const parsed = parseBalanceWeight(nextValue)
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id
+                                    ? {
+                                        ...prev,
+                                        balanceweight: nextValue,
+                                        semiConsumed: parsed != null ? false : prev.semiConsumed,
+                                      }
+                                    : prev
+                                )
                                 setPrintingChildRollsFromDb((prev: any[]) =>
                                   prev.map((row) => {
                                     const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
@@ -528,6 +545,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }}
                               onBlur={async (e) => {
                                 if (!isSelected) return
+                                if (printingAddRollForm.semiConsumed) return
                                 const parsed = parseBalanceWeight(e.currentTarget.value)
                                 try {
                                   await updateRollsStock(roll.id, { balanceWeight: parsed })
@@ -547,6 +565,55 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                   )
                                 } catch {
                                   setPrintingCreateChildMessage("Failed to save balance weight.")
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={Boolean(isSelected && printingAddRollForm.semiConsumed)}
+                              disabled={!isSelected || printingCreateChildLoading}
+                              aria-label="Semi consumed"
+                              title="Keep this roll loaded; do not create a balance roll"
+                              onCheckedChange={(checked) => {
+                                const isChecked = checked === true
+                                setPrintingAddRollForm((prev: any) =>
+                                  prev && prev.roll.id === roll.id
+                                    ? {
+                                        ...prev,
+                                        semiConsumed: isChecked,
+                                        balanceweight: isChecked ? "" : prev.balanceweight,
+                                      }
+                                    : prev
+                                )
+                                if (isChecked) {
+                                  setPrintingChildRollsFromDb((prev: any[]) =>
+                                    prev.map((row) => {
+                                      const parentIds = row.parentRollIds || (row.parentRollId != null ? [row.parentRollId] : [])
+                                      if (parentIds.length > 0 && !parentIds.includes(roll.id)) return row
+                                      return { ...row, parentBalanceWeight: null }
+                                    })
+                                  )
+                                  void updateRollsStock(roll.id, { balanceWeight: null })
+                                    .then(() => {
+                                      setPrintingLoadedRolls((prev: any[]) =>
+                                        prev.map((loaded) =>
+                                          loaded.roll.id === roll.id
+                                            ? {
+                                                ...loaded,
+                                                roll: {
+                                                  ...loaded.roll,
+                                                  balanceWeight: null,
+                                                  balance_weight: null,
+                                                },
+                                              }
+                                            : loaded
+                                        )
+                                      )
+                                    })
+                                    .catch(() => {
+                                      setPrintingCreateChildMessage("Failed to clear balance weight.")
+                                    })
                                 }
                               }}
                             />
@@ -620,7 +687,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
               variant="default"
               size="sm"
               className="gap-2"
-              disabled={printingCreateChildLoading || (printingAddRollForm != null && printingFormCommittedForRollId === printingAddRollForm.roll.id)}
+              disabled={
+                printingCreateChildLoading ||
+                !hasPrintingConsumeChoice(printingAddRollForm) ||
+                (printingAddRollForm != null && printingFormCommittedForRollId === printingAddRollForm.roll.id)
+              }
               onClick={async () => {
                 const form = printingAddRollForm
                 const wo = printingSelectedWo
@@ -631,6 +702,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const parentIds = printingLoadedRolls.map((r: any) => r.roll.id)
                     if (parentIds.length === 0) {
                       setPrintingCreateChildMessage("Load an RM roll before printing.")
+                      return
+                    }
+                    const semiConsumed = Boolean(form.semiConsumed)
+                    const balanceValue = semiConsumed ? null : parseBalanceWeight(form.balanceweight || "")
+                    if (!semiConsumed && balanceValue == null) {
+                      setPrintingCreateChildMessage("Enter balance weight or tick Semi consumed.")
                       return
                     }
                     const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
@@ -645,7 +722,6 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       plainWastageValue != null || printedWastageValue != null
                         ? (plainWastageValue || 0) + (printedWastageValue || 0)
                         : undefined
-                    const balanceValue = parseBalanceWeight(form.balanceweight || "")
                     if (wipPrintingTemplate) {
                       const printData = {
                         workOrder: {
@@ -721,10 +797,31 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds,
                       weightAtTime: netweightValue,
-                      balanceWeight: balanceValue ?? undefined,
+                      balanceWeight: semiConsumed ? undefined : (balanceValue ?? undefined),
+                      semiConsumed,
                     })
-                    setPrintingFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_printed").then(setPrintingChildRollsFromDb)
+                    if (semiConsumed) {
+                      setPrintingFormCommittedForRollId(null)
+                      setPrintingAddRollForm((prev: any) =>
+                        prev && prev.roll.id === form.roll.id
+                          ? {
+                              ...prev,
+                              netweight: "",
+                              meter: "",
+                              wastage: "0",
+                              plainWastage: "0",
+                              printedWastage: "0",
+                              inkGsm: "",
+                              balanceweight: "",
+                              semiConsumed: false,
+                            }
+                          : prev
+                      )
+                      setPrintingCreateChildMessage("Printed roll created. Loaded roll kept on the machine.")
+                    } else {
+                      setPrintingFormCommittedForRollId(form.roll.id)
+                    }
                     setPrintingRollsRefreshKey((key: number) => key + 1)
                   } catch {
                     setPrintingCreateChildMessage(

@@ -206,6 +206,7 @@ export default function Home() {
     printedWastage: string
     inkGsm: string
     balanceweight: string
+    semiConsumed: boolean
   } | null>(null)
   const [, setPrintingAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -2206,6 +2207,7 @@ export default function Home() {
                     : first.roll.balance_weight != null
                       ? String(first.roll.balance_weight)
                       : "",
+                semiConsumed: false,
               }
             })
             try {
