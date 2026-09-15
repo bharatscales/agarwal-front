@@ -6,6 +6,7 @@ import { DataTable } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -17,6 +18,11 @@ import {
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
+import {
+  hasSemiConsumeChoice,
+  NonNegativeDecimalInput,
+  parseNonNegativeDecimal,
+} from "@/lib/non-negative-decimal-input"
 import { getAllOperators } from "@/lib/operator-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
@@ -26,20 +32,6 @@ type LaminationPanelProps = any
 
 const LAMINATION_SHIFTS = ["A", "B"]
 const RM_FILM_GROUP = "rm film"
-
-function parseOptionalNumber(raw: string): number | undefined {
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
-  const n = Number(trimmed)
-  return Number.isNaN(n) ? undefined : n
-}
-
-function parseBalanceWeight(raw: string): number | null {
-  const trimmed = raw.trim()
-  if (trimmed === "") return null
-  const parsed = parseFloat(trimmed)
-  return Number.isNaN(parsed) ? null : parsed
-}
 
 function displayValue(value: unknown) {
   if (value == null || value === "") return "-"
@@ -158,8 +150,10 @@ function loadedFilmCells(
     canEdit: boolean
     wastage: string
     balance: string
+    semiConsumed: boolean
     onWastage: (value: string) => void
     onBalance: (value: string) => void
+    onSemiConsumed: (checked: boolean) => void
     onUnload: (jobCardId: number, rollId: number) => void
     unloadDisabled: boolean
   }
@@ -168,6 +162,7 @@ function loadedFilmCells(
   if (!roll) {
     return (
       <>
+        <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
         <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
         <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
         <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
@@ -193,23 +188,26 @@ function loadedFilmCells(
         {formatWeightWithMeter(roll.netweight, roll.meter)}
       </td>
       <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-        <Input
-          type="number"
-          step="any"
-          className="h-7 w-20 px-1.5 text-xs"
+        <NonNegativeDecimalInput
           disabled={!opts.canEdit}
           value={opts.wastage}
-          onChange={(e) => opts.onWastage(e.target.value)}
+          onValueChange={opts.onWastage}
         />
       </td>
       <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-        <Input
-          type="number"
-          step="any"
-          className="h-7 w-20 px-1.5 text-xs"
-          disabled={!opts.canEdit}
-          value={opts.balance}
-          onChange={(e) => opts.onBalance(e.target.value)}
+        <NonNegativeDecimalInput
+          disabled={!opts.canEdit || opts.semiConsumed}
+          value={opts.semiConsumed ? "" : opts.balance}
+                          onValueChange={opts.onBalance}
+        />
+      </td>
+      <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={opts.semiConsumed}
+          disabled={!opts.canEdit || opts.unloadDisabled}
+          aria-label="Semi consumed"
+          title="Keep this roll loaded; do not create a balance roll"
+          onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
       </td>
       <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
@@ -843,20 +841,20 @@ export function LaminationPanel(props: LaminationPanelProps) {
                           Job card
                         </th>
                         <th
-                          colSpan={7}
+                          colSpan={8}
                           className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
                         >
                           {input1Label}
                         </th>
                         <th
-                          colSpan={7}
+                          colSpan={8}
                           className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
                         >
                           {input2Label}
                         </th>
                       </tr>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
                           (title, i) => (
                             <th
                               key={`input1-${title || "remove"}`}
@@ -866,7 +864,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                             </th>
                           )
                         )}
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
                           (title, i) => (
                             <th
                               key={`input2-${title || "remove"}`}
@@ -892,14 +890,32 @@ export function LaminationPanel(props: LaminationPanelProps) {
                             {loadedFilmCells(row.input1, {
                               canEdit: canEditRow,
                               wastage: laminationAddRollForm?.wipWastage ?? "0",
-                              balance: laminationAddRollForm?.wipBalance ?? "0",
+                              balance: laminationAddRollForm?.wipBalance ?? "",
+                              semiConsumed: Boolean(laminationAddRollForm?.wipSemiConsumed),
                               onWastage: (value) =>
                                 setLaminationAddRollForm((prev: any) =>
                                   prev ? { ...prev, wipWastage: value } : prev
                                 ),
                               onBalance: (value) =>
                                 setLaminationAddRollForm((prev: any) =>
-                                  prev ? { ...prev, wipBalance: value } : prev
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        wipBalance: value,
+                                        wipSemiConsumed:
+                                          parseNonNegativeDecimal(value) != null ? false : prev.wipSemiConsumed,
+                                      }
+                                    : prev
+                                ),
+                              onSemiConsumed: (checked) =>
+                                setLaminationAddRollForm((prev: any) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        wipSemiConsumed: checked,
+                                        wipBalance: checked ? "" : prev.wipBalance,
+                                      }
+                                    : prev
                                 ),
                               onUnload: handleUnloadLaminationRoll,
                               unloadDisabled: laminationCreateChildLoading,
@@ -907,14 +923,32 @@ export function LaminationPanel(props: LaminationPanelProps) {
                             {loadedFilmCells(row.input2, {
                               canEdit: canEditRow,
                               wastage: laminationAddRollForm?.rmWastage ?? "0",
-                              balance: laminationAddRollForm?.rmBalance ?? "0",
+                              balance: laminationAddRollForm?.rmBalance ?? "",
+                              semiConsumed: Boolean(laminationAddRollForm?.rmSemiConsumed),
                               onWastage: (value) =>
                                 setLaminationAddRollForm((prev: any) =>
                                   prev ? { ...prev, rmWastage: value } : prev
                                 ),
                               onBalance: (value) =>
                                 setLaminationAddRollForm((prev: any) =>
-                                  prev ? { ...prev, rmBalance: value } : prev
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        rmBalance: value,
+                                        rmSemiConsumed:
+                                          parseNonNegativeDecimal(value) != null ? false : prev.rmSemiConsumed,
+                                      }
+                                    : prev
+                                ),
+                              onSemiConsumed: (checked) =>
+                                setLaminationAddRollForm((prev: any) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        rmSemiConsumed: checked,
+                                        rmBalance: checked ? "" : prev.rmBalance,
+                                      }
+                                    : prev
                                 ),
                               onUnload: handleUnloadLaminationRoll,
                               unloadDisabled: laminationCreateChildLoading,
@@ -944,14 +978,12 @@ export function LaminationPanel(props: LaminationPanelProps) {
                     <tbody>
                       <tr>
                         <td className="py-1.5 px-2">
-                          <Input
-                            type="number"
-                            step="any"
+                          <NonNegativeDecimalInput
                             className="h-7 w-24 px-1.5 text-xs"
                             value={laminationAddRollForm.netweight}
-                            onChange={(e) =>
+                            onValueChange={(value) =>
                               setLaminationAddRollForm((prev: any) =>
-                                prev ? { ...prev, netweight: e.target.value } : prev
+                                prev ? { ...prev, netweight: value } : prev
                               )
                             }
                           />
@@ -1078,7 +1110,10 @@ export function LaminationPanel(props: LaminationPanelProps) {
             size="sm"
             className="gap-2"
             disabled={
-              laminationCreateChildLoading || laminationFormCommittedForRollId === laminationAddRollForm.roll.id
+              laminationCreateChildLoading ||
+              !hasSemiConsumeChoice(laminationAddRollForm.wipBalance, laminationAddRollForm.wipSemiConsumed) ||
+              !hasSemiConsumeChoice(laminationAddRollForm.rmBalance, laminationAddRollForm.rmSemiConsumed) ||
+              laminationFormCommittedForRollId === laminationAddRollForm.roll.id
             }
             onClick={async () => {
               const form = laminationAddRollForm
@@ -1092,9 +1127,17 @@ export function LaminationPanel(props: LaminationPanelProps) {
                 setLaminationCreateChildLoading(true)
                 setLaminationCreateChildMessage(null)
                 const parentIds = [wipParent.roll.id, rmParent.roll.id]
-                const outputWeight = form.netweight ? parseFloat(form.netweight) : undefined
-                const wipWastage = parseOptionalNumber(form.wipWastage) ?? 0
-                const rmWastage = parseOptionalNumber(form.rmWastage) ?? 0
+                const wipSemiConsumed = Boolean(form.wipSemiConsumed)
+                const rmSemiConsumed = Boolean(form.rmSemiConsumed)
+                const wipBalanceValue = wipSemiConsumed ? null : parseNonNegativeDecimal(form.wipBalance || "")
+                const rmBalanceValue = rmSemiConsumed ? null : parseNonNegativeDecimal(form.rmBalance || "")
+                if ((!wipSemiConsumed && wipBalanceValue == null) || (!rmSemiConsumed && rmBalanceValue == null)) {
+                  setLaminationCreateChildMessage("Enter balance weight or tick Semi consumed for both films.")
+                  return
+                }
+                const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
+                const wipWastage = parseNonNegativeDecimal(form.wipWastage || "") ?? 0
+                const rmWastage = parseNonNegativeDecimal(form.rmWastage || "") ?? 0
                 const totalWastage = wipWastage + rmWastage
                 if (wipPrintingTemplate) {
                   const printData = {
@@ -1147,21 +1190,39 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   remark: form.remark.trim() || undefined,
                   gradeId: form.parent.gradeId,
                   parentRollIds: parentIds,
-                  parentBalanceWeights: [
-                    parseBalanceWeight(form.wipBalance || "") ?? 0,
-                    parseBalanceWeight(form.rmBalance || "") ?? 0,
-                  ],
+                  parentBalanceWeights: [wipBalanceValue, rmBalanceValue],
                   parentWastages: [wipWastage, rmWastage],
+                  parentSemiConsumed: [wipSemiConsumed, rmSemiConsumed],
                   weightAtTime: outputWeight,
                 })
-                setLaminationFormCommittedForRollId(form.roll.id)
                 getRollsStockByWorkOrder(wo.id, "wip_lamination").then(setLaminationChildRollsFromDb)
+                if (wipSemiConsumed || rmSemiConsumed) {
+                  setLaminationFormCommittedForRollId(null)
+                  setLaminationAddRollForm((prev: any) =>
+                    prev
+                      ? {
+                          ...prev,
+                          netweight: "",
+                          wipWastage: "0",
+                          rmWastage: "0",
+                          wipBalance: wipSemiConsumed ? "" : prev.wipBalance,
+                          rmBalance: rmSemiConsumed ? "" : prev.rmBalance,
+                          wipSemiConsumed: false,
+                          rmSemiConsumed: false,
+                          remark: "",
+                        }
+                      : prev
+                  )
+                  setLaminationCreateChildMessage("Lamination roll created. Semi-consumed films kept on the machine.")
+                } else {
+                  setLaminationFormCommittedForRollId(form.roll.id)
+                  setLaminationCreateChildMessage(
+                    wipPrintingTemplate
+                      ? "Roll added and label sent to printer."
+                      : "Roll added and movement recorded. No WIP printing template configured."
+                  )
+                }
                 setLaminationRollsRefreshKey((key: number) => key + 1)
-                setLaminationCreateChildMessage(
-                  wipPrintingTemplate
-                    ? "Roll added and label sent to printer."
-                    : "Roll added and movement recorded. No WIP printing template configured."
-                )
               } catch {
                 setLaminationCreateChildMessage(
                   wipPrintingTemplate

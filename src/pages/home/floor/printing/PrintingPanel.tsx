@@ -11,29 +11,22 @@ import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { formatWeightWithMeter, inkGsmByInkWt } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
+import {
+  hasSemiConsumeChoice,
+  NonNegativeDecimalInput,
+  parseNonNegativeDecimal,
+  parseOptionalNumber,
+} from "@/lib/non-negative-decimal-input"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 const RM_FILM_GROUP = "rm film"
 
 type PrintingPanelProps = any
 
-function parseBalanceWeight(raw: string): number | null {
-  const trimmed = raw.trim()
-  if (trimmed === "") return null
-  const parsed = parseFloat(trimmed)
-  return Number.isNaN(parsed) ? null : parsed
-}
-
 function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight?: number | null } | null | undefined): number | null {
   const value = roll?.balanceWeight ?? roll?.balance_weight
-  if (value == null || Number.isNaN(Number(value))) return null
+  if (value == null || Number.isNaN(Number(value)) || Number(value) < 0) return null
   return Number(value)
-}
-
-function hasPrintingConsumeChoice(form: { balanceweight?: string; semiConsumed?: boolean } | null | undefined): boolean {
-  if (!form) return false
-  if (form.semiConsumed) return true
-  return parseBalanceWeight(form.balanceweight || "") != null
 }
 
 export function PrintingPanel(props: PrintingPanelProps) {
@@ -145,12 +138,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
     const roll = printingAddRollForm.roll
     return inkGsmByInkWt({
       inputKg: roll.netweight,
-      outputKg: parseBalanceWeight(printingAddRollForm.netweight || ""),
-      plainWastageKg: parseBalanceWeight(printingAddRollForm.plainWastage || "") ?? 0,
-      printedWastageKg: parseBalanceWeight(printingAddRollForm.printedWastage || "") ?? 0,
-      balanceKg: parseBalanceWeight(printingAddRollForm.balanceweight || "") ?? 0,
+      outputKg: parseNonNegativeDecimal(printingAddRollForm.netweight || ""),
+      plainWastageKg: parseNonNegativeDecimal(printingAddRollForm.plainWastage || "") ?? 0,
+      printedWastageKg: parseNonNegativeDecimal(printingAddRollForm.printedWastage || "") ?? 0,
+      balanceKg: parseNonNegativeDecimal(printingAddRollForm.balanceweight || "") ?? 0,
       density: printingAddRollForm.parent?.density,
-      micron: roll.micron ?? parseBalanceWeight(printingAddRollForm.micron || ""),
+      micron: roll.micron ?? parseOptionalNumber(printingAddRollForm.micron || ""),
     })
   }, [printingAddRollForm])
 
@@ -425,15 +418,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{roll.micron != null ? String(roll.micron) : "—"}</td>
                           <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{formatWeightWithMeter(roll.netweight, roll.meter)}</td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected}
-                              value={isSelected ? printingAddRollForm.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
-                              onChange={(e) =>
+                              value={isSelected ? printingAddRollForm.netweight : (roll.netweight != null && Number(roll.netweight) >= 0 ? String(roll.netweight) : "")}
+                              onValueChange={(nextValue) =>
                                 setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, netweight: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, netweight: nextValue } : prev
                                 )
                               }
                             />
@@ -453,66 +443,56 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.plainWastage : ""}
-                              onChange={(e) =>
+                              onValueChange={(nextValue) =>
                                 setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, plainWastage: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, plainWastage: nextValue } : prev
                                 )
                               }
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.printedWastage : ""}
-                              onChange={(e) =>
+                              onValueChange={(nextValue) =>
                                 setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, printedWastage: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, printedWastage: nextValue } : prev
                                 )
                               }
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
+                            <NonNegativeDecimalInput
                               className="h-7 w-16 px-1.5 text-xs"
                               disabled={!isSelected}
                               value={isSelected ? printingAddRollForm.inkGsm : ""}
-                              onChange={(e) =>
+                              onValueChange={(nextValue) =>
                                 setPrintingAddRollForm((prev: any) =>
-                                  prev && prev.roll.id === roll.id ? { ...prev, inkGsm: e.target.value } : prev
+                                  prev && prev.roll.id === roll.id ? { ...prev, inkGsm: nextValue } : prev
                                 )
                               }
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Input
-                              type="number"
-                              step="any"
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
                               className="h-7 w-20 px-1.5 text-xs"
                               disabled
                               readOnly
                               value={
-                                isSelected && calculatedInkGsmByInkWt != null
+                                isSelected && calculatedInkGsmByInkWt != null && calculatedInkGsmByInkWt >= 0
                                   ? String(calculatedInkGsmByInkWt)
                                   : ""
                               }
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected || Boolean(isSelected && printingAddRollForm.semiConsumed)}
                               value={
                                 isSelected
@@ -523,9 +503,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                     ? String(loadedRollBalance(roll))
                                     : ""
                               }
-                              onChange={(e) => {
-                                const nextValue = e.target.value
-                                const parsed = parseBalanceWeight(nextValue)
+                              onValueChange={(nextValue) => {
+                                const parsed = parseNonNegativeDecimal(nextValue)
                                 setPrintingAddRollForm((prev: any) =>
                                   prev && prev.roll.id === roll.id
                                     ? {
@@ -543,10 +522,15 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                   })
                                 )
                               }}
-                              onBlur={async (e) => {
+                              onValueBlur={async (nextValue) => {
                                 if (!isSelected) return
                                 if (printingAddRollForm.semiConsumed) return
-                                const parsed = parseBalanceWeight(e.currentTarget.value)
+                                const parsed = nextValue === "" ? null : parseNonNegativeDecimal(nextValue)
+                                if (nextValue !== printingAddRollForm.balanceweight) {
+                                  setPrintingAddRollForm((prev: any) =>
+                                    prev && prev.roll.id === roll.id ? { ...prev, balanceweight: nextValue } : prev
+                                  )
+                                }
                                 try {
                                   await updateRollsStock(roll.id, { balanceWeight: parsed })
                                   setPrintingLoadedRolls((prev: any[]) =>
@@ -689,7 +673,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
               className="gap-2"
               disabled={
                 printingCreateChildLoading ||
-                !hasPrintingConsumeChoice(printingAddRollForm) ||
+                !hasSemiConsumeChoice(printingAddRollForm?.balanceweight, printingAddRollForm?.semiConsumed) ||
                 (printingAddRollForm != null && printingFormCommittedForRollId === printingAddRollForm.roll.id)
               }
               onClick={async () => {
@@ -705,19 +689,22 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       return
                     }
                     const semiConsumed = Boolean(form.semiConsumed)
-                    const balanceValue = semiConsumed ? null : parseBalanceWeight(form.balanceweight || "")
+                    const balanceValue = semiConsumed ? null : parseNonNegativeDecimal(form.balanceweight || "")
                     if (!semiConsumed && balanceValue == null) {
                       setPrintingCreateChildMessage("Enter balance weight or tick Semi consumed.")
                       return
                     }
-                    const netweightValue = form.netweight ? parseFloat(form.netweight) : undefined
-                    const meterValue = parseBalanceWeight(form.meter || "")
+                    const netweightValue = parseNonNegativeDecimal(form.netweight || "") ?? undefined
+                    const meterValue = parseOptionalNumber(form.meter || "")
                     const roundedMeterValue =
                       meterValue != null ? Math.round(meterValue) : undefined
-                    const plainWastageValue = parseBalanceWeight(form.plainWastage || "")
-                    const printedWastageValue = parseBalanceWeight(form.printedWastage || "")
-                    const inkGsmValue = parseBalanceWeight(form.inkGsm || "")
-                    const inkGsmByInkWtValue = calculatedInkGsmByInkWt
+                    const plainWastageValue = parseNonNegativeDecimal(form.plainWastage || "")
+                    const printedWastageValue = parseNonNegativeDecimal(form.printedWastage || "")
+                    const inkGsmValue = parseNonNegativeDecimal(form.inkGsm || "")
+                    const inkGsmByInkWtValue =
+                      calculatedInkGsmByInkWt != null && calculatedInkGsmByInkWt >= 0
+                        ? calculatedInkGsmByInkWt
+                        : null
                     const wastageValue =
                       plainWastageValue != null || printedWastageValue != null
                         ? (plainWastageValue || 0) + (printedWastageValue || 0)

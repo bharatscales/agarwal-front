@@ -280,6 +280,7 @@ export default function Home() {
     shift: string
     remark: string
     balanceweight: string
+    semiConsumed: boolean
   } | null>(null)
   const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
@@ -577,6 +578,8 @@ export default function Home() {
     rmWastage: string
     wipBalance: string
     rmBalance: string
+    wipSemiConsumed: boolean
+    rmSemiConsumed: boolean
     operatorName: string
     shift: string
     remark: string
@@ -700,6 +703,8 @@ export default function Home() {
     rmWastage: string
     wipBalance: string
     rmBalance: string
+    wipSemiConsumed: boolean
+    rmSemiConsumed: boolean
     operatorName: string
     shift: string
     remark: string
@@ -2316,6 +2321,7 @@ export default function Home() {
                 shift: firstCard?.shift ?? "A",
                 remark: "",
                 balanceweight,
+                semiConsumed: false,
               }
             })
             try {
@@ -2424,8 +2430,10 @@ export default function Home() {
                   extrusionKg: "",
                   wipWastage: "0",
                   rmWastage: "0",
-                  wipBalance: "0",
-                  rmBalance: "0",
+                  wipBalance: "",
+                  rmBalance: "",
+                  wipSemiConsumed: false,
+                  rmSemiConsumed: false,
                   operatorName: "",
                   shift: "A",
                   remark: "",
@@ -2522,8 +2530,10 @@ export default function Home() {
                   netweight: outputFromScale,
                   wipWastage: "0",
                   rmWastage: "0",
-                  wipBalance: "0",
-                  rmBalance: "0",
+                  wipBalance: "",
+                  rmBalance: "",
+                  wipSemiConsumed: false,
+                  rmSemiConsumed: false,
                   operatorName: "",
                   shift: "A",
                   remark: "",
@@ -2810,6 +2820,9 @@ export default function Home() {
     if (inspectionAddRollForm && scaleWeight != null) {
       setInspectionAddRollForm((prev) => {
         if (!prev) return null
+        if (prev.semiConsumed) {
+          return { ...prev, netweight: String(scaleWeight) }
+        }
         const inputWeight = Number(prev.roll.netweight || 0)
         const wastageKg = Number(prev.wastage || 0)
         const balanceweight = String(
@@ -2818,7 +2831,7 @@ export default function Home() {
             Number((inputWeight - scaleWeight - (Number.isNaN(wastageKg) ? 0 : wastageKg)).toFixed(2))
           )
         )
-        return { ...prev, netweight: String(scaleWeight), balanceweight }
+        return { ...prev, netweight: String(scaleWeight), balanceweight, semiConsumed: false }
       })
     }
     if (eclAddRollForm && scaleWeight != null) {

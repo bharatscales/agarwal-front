@@ -15,7 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CreatableCombobox } from "@/components/ui/creatable-combobox"
+import { Checkbox } from "@/components/ui/checkbox"
 import { formatWeightWithMeter } from "@/lib/film-calc"
+import {
+  hasSemiConsumeChoice,
+  NonNegativeDecimalInput,
+  parseNonNegativeDecimal,
+} from "@/lib/non-negative-decimal-input"
 import { getAllOperators } from "@/lib/operator-api"
 import { getWastageReasons } from "@/lib/rolls-stock-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
@@ -25,13 +31,6 @@ type InspectionPanelProps = any
 
 const INSPECTION_SHIFTS = ["A", "B"]
 
-function parseOptionalNumber(raw: string): number | undefined {
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
-  const n = Number(trimmed)
-  return Number.isNaN(n) ? undefined : n
-}
-
 function parseOptionalInt(raw: string): number | undefined {
   const trimmed = raw.trim()
   if (!trimmed) return undefined
@@ -39,18 +38,10 @@ function parseOptionalInt(raw: string): number | undefined {
   return Number.isNaN(n) ? undefined : n
 }
 
-function parseBalanceWeight(raw: string): number | null {
-  const trimmed = raw.trim()
-  if (trimmed === "") return null
-  const parsed = parseFloat(trimmed)
-  return Number.isNaN(parsed) ? null : parsed
-}
-
 function remainingBalance(inputKg: number | null | undefined, outputRaw: string, wastageRaw = "0"): string {
-  const output = parseFloat(outputRaw)
-  if (Number.isNaN(output)) return ""
-  const wastage = parseFloat(wastageRaw)
-  const wastageKg = Number.isNaN(wastage) ? 0 : wastage
+  const output = parseNonNegativeDecimal(outputRaw)
+  if (output == null) return ""
+  const wastageKg = parseNonNegativeDecimal(wastageRaw) ?? 0
   return String(Math.max(0, Number(((Number(inputKg) || 0) - output - wastageKg).toFixed(2))))
 }
 
@@ -462,6 +453,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
       shift: extras?.shift ?? "A",
       remark: "",
       balanceweight: remainingBalance(roll.netweight, outputWeight, wastage),
+      semiConsumed: false,
     })
     try {
       const parent = await getRollsStockById(roll.id)
@@ -616,6 +608,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Semi consumed</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Reason of wastage</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of tag</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of cuts</th>
@@ -651,69 +644,85 @@ export function InspectionPanel(props: InspectionPanelProps) {
                             {formatWeightWithMeter(roll.netweight, roll.meter)}
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected}
-                              value={form ? form.netweight : (roll.netweight != null ? String(roll.netweight) : "")}
-                              onChange={(e) => {
-                                const netweight = e.target.value
+                              value={form ? form.netweight : (roll.netweight != null && Number(roll.netweight) >= 0 ? String(roll.netweight) : "")}
+                              onValueChange={(netweight) => {
                                 setInspectionAddRollForm((prev: any) => {
                                   if (!prev || prev.roll.id !== roll.id) return prev
+                                  if (prev.semiConsumed) return { ...prev, netweight }
                                   return {
                                     ...prev,
                                     netweight,
-                                    balanceweight: remainingBalance(
-                                      roll.netweight,
-                                      netweight,
-                                      prev.wastage
-                                    ),
+                                    balanceweight: remainingBalance(roll.netweight, netweight, prev.wastage),
+                                    semiConsumed: false,
                                   }
                                 })
                               }}
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
+                            <NonNegativeDecimalInput
                               disabled={!isSelected}
                               value={form ? form.wastage : ""}
-                              onChange={(e) => {
-                                const wastage = e.target.value
+                              onValueChange={(wastage) => {
                                 setInspectionAddRollForm((prev: any) => {
                                   if (!prev || prev.roll.id !== roll.id) return prev
+                                  if (prev.semiConsumed) return { ...prev, wastage }
                                   return {
                                     ...prev,
                                     wastage,
-                                    balanceweight: remainingBalance(
-                                      roll.netweight,
-                                      prev.netweight,
-                                      wastage
-                                    ),
+                                    balanceweight: remainingBalance(roll.netweight, prev.netweight, wastage),
+                                    semiConsumed: false,
                                   }
                                 })
                               }}
                             />
                           </td>
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              type="number"
-                              step="any"
-                              className="h-7 w-20 px-1.5 text-xs"
-                              disabled
-                              readOnly
+                            <NonNegativeDecimalInput
+                              disabled={!isSelected || Boolean(form?.semiConsumed)}
                               value={
                                 form
-                                  ? form.balanceweight
+                                  ? form.semiConsumed
+                                    ? ""
+                                    : form.balanceweight
                                   : remainingBalance(
                                       roll.netweight,
                                       roll.netweight != null ? String(roll.netweight) : "",
                                       "0"
                                     )
                               }
+                              onValueChange={(nextValue) => {
+                                const parsed = parseNonNegativeDecimal(nextValue)
+                                setInspectionAddRollForm((prev: any) => {
+                                  if (!prev || prev.roll.id !== roll.id) return prev
+                                  return {
+                                    ...prev,
+                                    balanceweight: nextValue,
+                                    semiConsumed: parsed != null ? false : prev.semiConsumed,
+                                  }
+                                })
+                              }}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={Boolean(form?.semiConsumed)}
+                              disabled={!isSelected || inspectionCreateChildLoading}
+                              aria-label="Semi consumed"
+                              title="Keep this roll loaded; do not create a balance roll"
+                              onCheckedChange={(checked) => {
+                                const isChecked = checked === true
+                                setInspectionAddRollForm((prev: any) => {
+                                  if (!prev || prev.roll.id !== roll.id) return prev
+                                  return {
+                                    ...prev,
+                                    semiConsumed: isChecked,
+                                    balanceweight: isChecked ? "" : prev.balanceweight,
+                                  }
+                                })
+                              }}
                             />
                           </td>
                           <td className="py-1.5 px-2 min-w-[10rem]" onClick={(e) => e.stopPropagation()}>
@@ -907,6 +916,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
               className="gap-2"
               disabled={
                 inspectionCreateChildLoading ||
+                !hasSemiConsumeChoice(inspectionAddRollForm?.balanceweight, inspectionAddRollForm?.semiConsumed) ||
                 (inspectionAddRollForm != null && inspectionFormCommittedForRollId === inspectionAddRollForm.roll.id)
               }
               onClick={async () => {
@@ -921,6 +931,14 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       setInspectionCreateChildMessage("Load a roll before printing.")
                       return
                     }
+                    const semiConsumed = Boolean(form.semiConsumed)
+                    const balanceValue = semiConsumed ? null : parseNonNegativeDecimal(form.balanceweight || "")
+                    if (!semiConsumed && balanceValue == null) {
+                      setInspectionCreateChildMessage("Enter balance weight or tick Semi consumed.")
+                      return
+                    }
+                    const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
+                    const wastageValue = parseNonNegativeDecimal(form.wastage || "") ?? undefined
                     if (wipPrintingTemplate) {
                       const printData = {
                         workOrder: {
@@ -942,9 +960,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
                         roll: {
                           size: form.size ? parseFloat(form.size) : undefined,
                           micron: form.micron ? parseFloat(form.micron) : undefined,
-                          netweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                          grossweight: form.netweight ? parseFloat(form.netweight) : undefined,
-                          wastage: parseOptionalNumber(form.wastage),
+                          netweight: outputWeight,
+                          grossweight: outputWeight,
+                          wastage: wastageValue,
                           wastageReason: form.wastageReason || undefined,
                           noOfTag: parseOptionalInt(form.noOfTag),
                           noOfCuts: parseOptionalInt(form.noOfCuts),
@@ -962,8 +980,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       })
                       pollPrintJob(job.id)
                     }
-                    const outputWeight = form.netweight ? parseFloat(form.netweight) : undefined
-                    const balanceValue = parseBalanceWeight(form.balanceweight || "")
                     await addInspectionRoll(form.jobCardId, {
                       itemId: wo.itemId,
                       rollno: "",
@@ -971,7 +987,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       micron: form.micron ? parseFloat(form.micron) : undefined,
                       netweight: outputWeight,
                       grossweight: outputWeight,
-                      wastage: parseOptionalNumber(form.wastage),
+                      wastage: wastageValue,
                       wastageReason: form.wastageReason.trim() || undefined,
                       noOfTag: parseOptionalInt(form.noOfTag),
                       noOfCuts: parseOptionalInt(form.noOfCuts),
@@ -981,16 +997,37 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds,
                       weightAtTime: outputWeight,
-                      balanceWeight: balanceValue ?? undefined,
+                      balanceWeight: semiConsumed ? undefined : (balanceValue ?? undefined),
+                      semiConsumed,
                     })
-                    setInspectionFormCommittedForRollId(form.roll.id)
                     getRollsStockByWorkOrder(wo.id, "wip_inspection").then(setInspectionChildRollsFromDb)
+                    if (semiConsumed) {
+                      setInspectionFormCommittedForRollId(null)
+                      setInspectionAddRollForm((prev: any) =>
+                        prev && prev.roll.id === form.roll.id
+                          ? {
+                              ...prev,
+                              netweight: "",
+                              wastage: "0",
+                              wastageReason: "",
+                              noOfTag: "",
+                              noOfCuts: "",
+                              remark: "",
+                              balanceweight: "",
+                              semiConsumed: false,
+                            }
+                          : prev
+                      )
+                      setInspectionCreateChildMessage("Inspection roll created. Loaded roll kept on the machine.")
+                    } else {
+                      setInspectionFormCommittedForRollId(form.roll.id)
+                      setInspectionCreateChildMessage(
+                        wipPrintingTemplate
+                          ? "Roll added and label sent to printer."
+                          : "Roll added and movement recorded. No WIP printing template configured."
+                      )
+                    }
                     setInspectionRollsRefreshKey((key: number) => key + 1)
-                    setInspectionCreateChildMessage(
-                      wipPrintingTemplate
-                        ? "Roll added and label sent to printer."
-                        : "Roll added and movement recorded. No WIP printing template configured."
-                    )
                   } catch {
                     setInspectionCreateChildMessage(
                       wipPrintingTemplate

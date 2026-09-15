@@ -234,6 +234,7 @@ export type AddPrintedRollPayload = {
   parentRollIds?: number[]
   parentBalanceWeights?: Array<number | null>
   parentWastages?: Array<number | null>
+  parentSemiConsumed?: boolean[]
   weightAtTime?: number
 }
 
@@ -303,7 +304,8 @@ export const addInspectionRoll = async (
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
-      balance_weight: payload.balanceWeight,
+      balance_weight: payload.semiConsumed ? undefined : payload.balanceWeight,
+      semi_consumed: payload.semiConsumed === true,
     }
   )
   return response.data
@@ -332,6 +334,7 @@ export const addEclRoll = async (
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,
       parent_wastages: payload.parentWastages,
+      parent_semi_consumed: payload.parentSemiConsumed,
       weight_at_time: payload.weightAtTime ?? undefined,
     }
   )
@@ -360,6 +363,7 @@ export const addLaminationRoll = async (
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,
       parent_wastages: payload.parentWastages,
+      parent_semi_consumed: payload.parentSemiConsumed,
       weight_at_time: payload.weightAtTime ?? undefined,
     }
   )
