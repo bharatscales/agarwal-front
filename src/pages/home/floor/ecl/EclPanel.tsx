@@ -24,7 +24,7 @@ import {
   parseNonNegativeDecimal,
 } from "@/lib/non-negative-decimal-input"
 import { getAllOperators } from "@/lib/operator-api"
-import { includesStringFilterFn } from "@/lib/table-filter-utils"
+import { createDualInputGroupPathGetter, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
@@ -79,6 +79,10 @@ function eclInputGroupColumns(
   label: string,
   pick: (row: any) => EclParentRollSummary | null
 ) {
+  const mergeByParent = {
+    mergeRows: true,
+    getMergeKey: (row: any) => pick(row)?.id ?? null,
+  }
   return {
     id,
     header: () => <div className="text-center w-full">{label}</div>,
@@ -89,6 +93,7 @@ function eclInputGroupColumns(
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{displayValue(pick(row.original)?.itemName)}</div>
         ),
+        meta: mergeByParent,
       },
       {
         id: `${id}Size`,
@@ -97,6 +102,7 @@ function eclInputGroupColumns(
           const size = pick(row.original)?.size
           return <div className="text-sm">{size != null ? String(size) : "-"}</div>
         },
+        meta: mergeByParent,
       },
       {
         id: `${id}Micron`,
@@ -105,6 +111,7 @@ function eclInputGroupColumns(
           const micron = pick(row.original)?.micron
           return <div className="text-sm">{micron != null ? String(micron) : "-"}</div>
         },
+        meta: mergeByParent,
       },
       {
         id: `${id}InputWeight`,
@@ -117,6 +124,7 @@ function eclInputGroupColumns(
             </div>
           )
         },
+        meta: mergeByParent,
       },
       {
         id: `${id}Wastage`,
@@ -124,6 +132,7 @@ function eclInputGroupColumns(
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{displayKg(pick(row.original)?.wastage)}</div>
         ),
+        meta: mergeByParent,
       },
       {
         id: `${id}BalanceWeight`,
@@ -131,6 +140,7 @@ function eclInputGroupColumns(
         cell: ({ row }: { row: any }) => (
           <div className="text-sm">{displayKg(pick(row.original)?.balanceWeight)}</div>
         ),
+        meta: mergeByParent,
       },
     ],
   }
@@ -559,6 +569,15 @@ export function EclPanel(props: EclPanelProps) {
       }),
     ],
     [wipPrintingTemplate, eclCreateChildLoading, eclSelectedWo, input1Label, input2Label, getEclParentRole]
+  )
+
+  const getEclProducedRowGroupPath = useMemo(
+    () =>
+      createDualInputGroupPathGetter(eclChildRollsFromDb, (row: any) => {
+        const { input1, input2 } = pickEclProducedParents(row.parentRolls, getEclParentRole)
+        return { input1Id: input1?.id ?? null, input2Id: input2?.id ?? null }
+      }),
+    [eclChildRollsFromDb, getEclParentRole]
   )
 
   const eclLoadedFilmRows = useMemo(() => {
@@ -1119,6 +1138,7 @@ export function EclPanel(props: EclPanelProps) {
             <DataTable
               columns={eclProducedRollColumns}
               data={eclChildRollsFromDb}
+              getRowGroupPath={getEclProducedRowGroupPath}
               scrollable
               scrollHeight="45vh"
               compact

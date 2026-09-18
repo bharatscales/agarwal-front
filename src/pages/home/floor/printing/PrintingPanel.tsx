@@ -17,6 +17,7 @@ import {
   parseNonNegativeDecimal,
   parseOptionalNumber,
 } from "@/lib/non-negative-decimal-input"
+import { getProducedRollParentGroupKey } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 const RM_FILM_GROUP = "rm film"
@@ -654,6 +655,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
               <DataTable
                 columns={printingProducedRollColumns}
                 data={printingChildRollsFromDb}
+                getRowSpanGroupKey={getProducedRollParentGroupKey}
                 scrollable
                 scrollHeight="45vh"
                 compact

@@ -24,7 +24,7 @@ import {
 } from "@/lib/non-negative-decimal-input"
 import { getAllOperators } from "@/lib/operator-api"
 import { getWastageReasons } from "@/lib/rolls-stock-api"
-import { includesStringFilterFn } from "@/lib/table-filter-utils"
+import { getProducedRollParentGroupKey, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 
 type InspectionPanelProps = any
@@ -303,6 +303,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           </div>
         ),
         filterFn: includesStringFilterFn,
+        meta: { mergeRows: true },
       },
       {
         accessorKey: "netweight",
@@ -897,6 +898,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
               <DataTable
                 columns={inspectionProducedRollColumns}
                 data={inspectionChildRollsFromDb}
+                getRowSpanGroupKey={getProducedRollParentGroupKey}
                 scrollable
                 scrollHeight="45vh"
                 compact

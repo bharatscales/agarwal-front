@@ -228,6 +228,8 @@ export type AddPrintedRollPayload = {
   printedWastage?: number
   inkGsm?: number
   inkGsmByInkWt?: number
+  adhesiveItemId?: number | null
+  adhesiveGsm?: number | null
   balanceWeight?: number
   semiConsumed?: boolean
   gradeId?: number
@@ -359,6 +361,8 @@ export const addLaminationRoll = async (
       operator_name: payload.operatorName || undefined,
       shift: payload.shift || undefined,
       remark: payload.remark || undefined,
+      adhesive_item_id: payload.adhesiveItemId ?? undefined,
+      adhesive_gsm: payload.adhesiveGsm ?? undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,

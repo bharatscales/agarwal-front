@@ -432,6 +432,7 @@ export default function Home() {
           </div>
         ),
         filterFn: includesStringFilterFn,
+        meta: { mergeRows: true },
       },
       {
         accessorKey: "netweight",
@@ -708,6 +709,8 @@ export default function Home() {
     operatorName: string
     shift: string
     remark: string
+    adhesiveItemId: string
+    adhesiveGsm: string
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
   const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
@@ -2537,6 +2540,8 @@ export default function Home() {
                   operatorName: "",
                   shift: "A",
                   remark: "",
+                  adhesiveItemId: "",
+                  adhesiveGsm: "",
                 }
               })
             }

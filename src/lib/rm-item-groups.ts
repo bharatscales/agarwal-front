@@ -31,8 +31,13 @@ export function canonicalItemGroup(g: string | null | undefined): string {
   ) {
     return "rm ink/adhesive/chemicals"
   }
+  if (raw === "rm_adhesive" || spaced === "rm adhesive") return "adhesive"
   if (RM_ITEM_GROUP_SET.has(spaced)) return spaced
   return raw
+}
+
+export function isRmAdhesiveGroup(g: string | null | undefined): boolean {
+  return canonicalItemGroup(g) === "adhesive"
 }
 
 export function isRmItemGroup(g: string | null | undefined): boolean {

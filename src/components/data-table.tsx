@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useCallback, type MouseEvent } from "react";
+import { useState, useRef, useCallback, type MouseEvent, type ReactNode } from "react";
 
 import {
   type ColumnDef,
   type Header,
   type Row,
+  type RowData,
   type SortingState,
   type ColumnFiltersState,
   type VisibilityState,
@@ -24,6 +25,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Merge this column across consecutive rows that share the merge key. */
+    mergeRows?: boolean
+    /** Per-column merge key. Falls back to table `getRowSpanGroupKey` when omitted. */
+    getMergeKey?: (row: TData) => string | number | null | undefined
+  }
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -49,9 +60,103 @@ interface DataTableProps<TData, TValue> {
   size?: "sm" | "xs";
   /** Show selected-row summary text in footer. */
   showSelectionSummary?: boolean;
+  /** Group sibling rows together and rowspan columns marked `meta.mergeRows`. */
+  getRowSpanGroupKey?: (row: TData) => string | number | null | undefined;
+  /** Hierarchical grouping path, e.g. [fatherId, motherId], so each input can span independently. */
+  getRowGroupPath?: (row: TData) => Array<string | number | null | undefined>;
 }
 
 const LOAD_MORE_THRESHOLD_PX = 120;
+
+function normalizeMergeKey(raw: string | number | null | undefined): string | null {
+  return raw != null && String(raw) !== "" ? String(raw) : null;
+}
+
+function clusterRowsByGroupKey<TData>(
+  rows: Row<TData>[],
+  getKey: (row: TData) => string | number | null | undefined
+): Row<TData>[] {
+  const groups = new Map<string, Row<TData>[]>();
+  const order: string[] = [];
+  rows.forEach((row, index) => {
+    const key = normalizeMergeKey(getKey(row.original)) ?? `u:${index}:${row.id}`;
+    const groupedKey = key.startsWith("u:") ? key : `g:${key}`;
+    if (!groups.has(groupedKey)) {
+      groups.set(groupedKey, []);
+      order.push(groupedKey);
+    }
+    groups.get(groupedKey)!.push(row);
+  });
+  return order.flatMap((key) => groups.get(key) ?? []).map((row, index) => ({
+    ...row,
+    index,
+  }));
+}
+
+function clusterRowsByGroupPath<TData>(
+  rows: Row<TData>[],
+  getPath: (row: TData) => Array<string | number | null | undefined>
+): Row<TData>[] {
+  const nest = (items: Row<TData>[], depth: number): Row<TData>[] => {
+    if (items.length <= 1) return items;
+    const maxDepth = Math.max(0, ...items.map((row) => getPath(row.original).length));
+    if (depth >= maxDepth) return items;
+
+    const groups = new Map<string, Row<TData>[]>();
+    const order: string[] = [];
+    items.forEach((row, index) => {
+      const raw = getPath(row.original)[depth];
+      const key = normalizeMergeKey(raw) ?? `u:${index}:${row.id}`;
+      const groupedKey = key.startsWith("u:") ? key : `g:${key}`;
+      if (!groups.has(groupedKey)) {
+        groups.set(groupedKey, []);
+        order.push(groupedKey);
+      }
+      groups.get(groupedKey)!.push(row);
+    });
+    return order.flatMap((key) => nest(groups.get(key) ?? [], depth + 1));
+  };
+
+  return nest(rows, 0).map((row, index) => ({
+    ...row,
+    index,
+  }));
+}
+
+function buildMergeSpanMap<TData>(
+  rows: Row<TData>[],
+  mergeColumns: Array<{
+    id: string
+    getKey: (row: TData) => string | number | null | undefined
+  }>
+): Map<string, { rowSpan?: number; skip?: boolean }> {
+  const map = new Map<string, { rowSpan?: number; skip?: boolean }>();
+  if (mergeColumns.length === 0) return map;
+
+  for (const column of mergeColumns) {
+    const keys = rows.map((row) => normalizeMergeKey(column.getKey(row.original)));
+    let i = 0;
+    while (i < rows.length) {
+      const key = keys[i];
+      if (!key) {
+        i += 1;
+        continue;
+      }
+      let span = 1;
+      while (i + span < rows.length && keys[i + span] === key) {
+        span += 1;
+      }
+      if (span > 1) {
+        map.set(`${rows[i].id}:${column.id}`, { rowSpan: span });
+        for (let offset = 1; offset < span; offset += 1) {
+          map.set(`${rows[i + offset].id}:${column.id}`, { skip: true });
+        }
+      }
+      i += span;
+    }
+  }
+  return map;
+}
 
 export function DataTable<TData, TValue>({
   columns,
@@ -68,6 +173,8 @@ export function DataTable<TData, TValue>({
   compact = false,
   size = "sm",
   showSelectionSummary = true,
+  getRowSpanGroupKey,
+  getRowGroupPath,
 }: DataTableProps<TData, TValue>) {
   const textSize = size === "xs" ? "text-xs" : "text-sm";
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -120,6 +227,29 @@ export function DataTable<TData, TValue>({
   const leafColumnCount = table.getVisibleLeafColumns().length;
 
   const headerRowCount = table.getHeaderGroups().length;
+  const mergeColumns = table
+    .getVisibleLeafColumns()
+    .filter((column) => column.columnDef.meta?.mergeRows)
+    .map((column) => ({
+      id: column.id,
+      getKey: column.columnDef.meta?.getMergeKey ?? getRowSpanGroupKey,
+    }))
+    .filter((column): column is { id: string; getKey: (row: TData) => string | number | null | undefined } =>
+      Boolean(column.getKey)
+    );
+  const canMergeRows = mergeColumns.length > 0 && Boolean(getRowGroupPath || getRowSpanGroupKey);
+
+  const groupedRows = canMergeRows
+    ? getRowGroupPath
+      ? clusterRowsByGroupPath(rows, getRowGroupPath)
+      : getRowSpanGroupKey
+        ? clusterRowsByGroupKey(rows, getRowSpanGroupKey)
+        : rows
+    : rows;
+  const displayRows = groupedRows;
+  const mergeSpans = canMergeRows
+    ? buildMergeSpanMap(groupedRows, mergeColumns)
+    : new Map<string, { rowSpan?: number; skip?: boolean }>();
 
   const renderHeaderCell = (header: Header<TData, unknown>) => {
     if (header.colSpan === 0 || header.isPlaceholder) return null;
@@ -155,6 +285,49 @@ export function DataTable<TData, TValue>({
     onRowClick?.(row.original);
   };
 
+  const renderBodyCells = (row: Row<TData>): ReactNode =>
+    row.getVisibleCells().map((cell) => {
+      const span = mergeSpans.get(`${row.id}:${cell.column.id}`);
+      if (span?.skip) return null;
+      return (
+        <TableCell
+          key={cell.id}
+          rowSpan={span?.rowSpan}
+          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize} ${span?.rowSpan ? "align-middle" : ""}`}
+        >
+          {flexRender(
+            cell.column.columnDef.cell,
+            cell.getContext()
+          )}
+        </TableCell>
+      );
+    });
+
+  const renderBodyRows = (): ReactNode => {
+    if (!displayRows?.length) {
+      return (
+        <TableRow className="border-b border-zinc-600">
+          <TableCell
+            colSpan={leafColumnCount}
+            className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
+          >
+            No results.
+          </TableCell>
+        </TableRow>
+      );
+    }
+    return displayRows.map((row) => (
+      <TableRow
+        key={row.id}
+        data-state={row.getIsSelected() && "selected"}
+        className={`border-b border-zinc-600 ${rowIsClickable ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
+        onClick={(e) => handleBodyRowClick(e, row)}
+      >
+        {renderBodyCells(row)}
+      </TableRow>
+    ));
+  };
+
   return (
     <div>
       <div className="overflow-hidden rounded-sm border border-r border-zinc-600">
@@ -174,37 +347,7 @@ export function DataTable<TData, TValue>({
                 ))}
               </TableHeader>
               <TableBody>
-                {rows?.length ? (
-                  rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
-                      className={`border-b border-zinc-600 ${rowIsClickable ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
-                      onClick={(e) => handleBodyRowClick(e, row)}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize}`}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow className="border-b border-zinc-600">
-                    <TableCell
-                      colSpan={leafColumnCount}
-                      className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
-                    >
-                      No results.
-                    </TableCell>
-                  </TableRow>
-                )}
+                {renderBodyRows()}
               </TableBody>
             </table>
             {scrollable && hasMore && isLoadingMore && (
@@ -225,37 +368,7 @@ export function DataTable<TData, TValue>({
               ))}
             </TableHeader>
             <TableBody>
-              {rows?.length ? (
-                rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className={`border-b border-zinc-600 ${rowIsClickable ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800" : ""}`}
-                    onClick={(e) => handleBodyRowClick(e, row)}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize}`}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow className="border-b border-zinc-600">
-                  <TableCell
-                    colSpan={leafColumnCount}
-                    className={`h-24 text-center border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 ${textSize}`}
-                  >
-                    No results.
-                  </TableCell>
-                </TableRow>
-              )}
+              {renderBodyRows()}
             </TableBody>
           </Table>
         )}
