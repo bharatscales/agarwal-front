@@ -19,8 +19,6 @@ export type RollsStockPayload = {
   printedWastage?: number
   inkGsm?: number
   inkGsmByInkWt?: number
-  adhesiveItemId?: number | null
-  adhesiveGsm?: number | null
   balanceWeight?: number | null
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
@@ -58,9 +56,6 @@ type RollsStockResponse = {
   printed_wastage?: number | null
   ink_gsm?: number | null
   ink_gsm_by_ink_wt?: number | null
-  adhesive_item_id?: number | null
-  adhesive_item_name?: string | null
-  adhesive_gsm?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
   parent_meter?: number | null
@@ -116,9 +111,6 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   printedWastage: rollsStock.printed_wastage ?? null,
   inkGsm: rollsStock.ink_gsm ?? null,
   inkGsmByInkWt: rollsStock.ink_gsm_by_ink_wt ?? null,
-  adhesiveItemId: rollsStock.adhesive_item_id ?? null,
-  adhesiveItemName: rollsStock.adhesive_item_name ?? null,
-  adhesiveGsm: rollsStock.adhesive_gsm ?? null,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
   parentMeter: rollsStock.parent_meter != null ? Math.round(rollsStock.parent_meter) : null,
@@ -193,8 +185,6 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     printed_wastage: payload.printedWastage,
     ink_gsm: payload.inkGsm,
     ink_gsm_by_ink_wt: payload.inkGsmByInkWt,
-    adhesive_item_id: payload.adhesiveItemId,
-    adhesive_gsm: payload.adhesiveGsm,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
@@ -231,8 +221,6 @@ export const updateRollsStock = async (
   if ("printedWastage" in payload) body.printed_wastage = payload.printedWastage
   if ("inkGsm" in payload) body.ink_gsm = payload.inkGsm
   if ("inkGsmByInkWt" in payload) body.ink_gsm_by_ink_wt = payload.inkGsmByInkWt
-  if ("adhesiveItemId" in payload) body.adhesive_item_id = payload.adhesiveItemId
-  if ("adhesiveGsm" in payload) body.adhesive_gsm = payload.adhesiveGsm
   if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
   if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
   if ("noOfCuts" in payload) body.no_of_cuts = payload.noOfCuts

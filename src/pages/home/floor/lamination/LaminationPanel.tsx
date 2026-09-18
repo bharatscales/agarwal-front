@@ -17,14 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
-import { getItemBom, getItemsByGroupForMenu, type BomLine, type MenuItem } from "@/lib/item-api"
+import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
   parseNonNegativeDecimal,
 } from "@/lib/non-negative-decimal-input"
 import { getAllOperators } from "@/lib/operator-api"
-import { isRmAdhesiveGroup } from "@/lib/rm-item-groups"
 import { createDualInputGroupPathGetter, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
@@ -33,20 +32,6 @@ type LaminationPanelProps = any
 
 const LAMINATION_SHIFTS = ["A", "B"]
 const RM_FILM_GROUP = "rm film"
-const RM_ADHESIVE_GROUP = "adhesive"
-
-function adhesiveItemLabel(item: { item_code?: string | null; name?: string | null; itemCode?: string | null; itemName?: string | null }) {
-  return (item.item_code || item.itemCode || item.name || item.itemName || "").trim()
-}
-
-function adhesiveLinesFromBom(lines: BomLine[]) {
-  return lines.filter(
-    (line) =>
-      (line.operation || "").trim().toLowerCase() === "lamination" &&
-      isRmAdhesiveGroup(line.rmItemGroup) &&
-      line.rmItemId != null
-  )
-}
 
 function displayValue(value: unknown) {
   if (value == null || value === "") return "-"
@@ -313,8 +298,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
-  const [adhesiveItems, setAdhesiveItems] = useState<MenuItem[]>([])
-  const [laminationBomLines, setLaminationBomLines] = useState<BomLine[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -343,85 +326,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
     if (current === next) return
     setLaminationAddRollForm((prev: any) => (prev ? { ...prev, operatorName: next } : prev))
   }, [laminationOperators, laminationAddRollForm?.roll?.id])
-
-  useEffect(() => {
-    let cancelled = false
-    getItemsByGroupForMenu(RM_ADHESIVE_GROUP)
-      .then((items) => {
-        if (!cancelled) setAdhesiveItems(items)
-      })
-      .catch(() => {
-        if (!cancelled) setAdhesiveItems([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    const itemId = laminationSelectedWo?.itemId
-    if (itemId == null) {
-      setLaminationBomLines([])
-      return
-    }
-    let cancelled = false
-    getItemBom(itemId)
-      .then((lines) => {
-        if (!cancelled) setLaminationBomLines(lines)
-      })
-      .catch(() => {
-        if (!cancelled) setLaminationBomLines([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [laminationSelectedWo?.itemId])
-
-  const adhesiveOptions = useMemo(() => {
-    const byId = new Map<number, { id: number; label: string; gsm: number | null }>()
-    for (const item of adhesiveItems) {
-      const label = adhesiveItemLabel(item)
-      if (!label) continue
-      byId.set(item.id, { id: item.id, label, gsm: null })
-    }
-    for (const line of adhesiveLinesFromBom(laminationBomLines)) {
-      const id = line.rmItemId as number
-      const existing = byId.get(id)
-      const gsm = line.gsm != null && Number.isFinite(Number(line.gsm)) ? Number(line.gsm) : existing?.gsm ?? null
-      const label =
-        (line.rmItemCode || line.rmItemName || existing?.label || "").trim() || String(id)
-      byId.set(id, { id, label, gsm })
-    }
-    return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label))
-  }, [adhesiveItems, laminationBomLines])
-
-  const defaultAdhesiveOption = useMemo(
-    () => adhesiveOptions.find((option) => option.gsm != null) ?? adhesiveOptions[0] ?? null,
-    [adhesiveOptions]
-  )
-
-  const adhesiveNameById = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const option of adhesiveOptions) map.set(option.id, option.label)
-    return map
-  }, [adhesiveOptions])
-
-  useEffect(() => {
-    if (!laminationAddRollForm) return
-    if (laminationAddRollForm.adhesiveItemId) return
-    if (!defaultAdhesiveOption) return
-    setLaminationAddRollForm((prev: any) =>
-      prev && !prev.adhesiveItemId
-        ? {
-            ...prev,
-            adhesiveItemId: String(defaultAdhesiveOption.id),
-            adhesiveGsm:
-              prev.adhesiveGsm ||
-              (defaultAdhesiveOption.gsm != null ? String(defaultAdhesiveOption.gsm) : ""),
-          }
-        : prev
-    )
-  }, [laminationAddRollForm?.roll?.id, defaultAdhesiveOption])
 
   useEffect(() => {
     if (!floorLaminationRmPickerOpen) {
@@ -570,11 +474,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
           operatorName: r.operatorName,
           shift: r.shift,
           remark: r.remark,
-          adhesive:
-            r.adhesiveItemName ||
-            (r.adhesiveItemId != null ? adhesiveNameById.get(Number(r.adhesiveItemId)) : null) ||
-            null,
-          adhesiveGsm: r.adhesiveGsm ?? null,
           itemName: wo.itemName ?? r.itemName ?? null,
         },
       }
@@ -606,38 +505,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
       eclInputGroupColumns("input2", input2Label, (row) =>
         pickEclProducedParents(row.parentRolls, getLaminationParentRole).input2
       ),
-      asSingleColumnGroup("adhesiveGroup", {
-        id: "adhesive",
-        accessorFn: (row: any) =>
-          row.adhesiveItemName ||
-          (row.adhesiveItemId != null ? adhesiveNameById.get(Number(row.adhesiveItemId)) : null) ||
-          defaultAdhesiveOption?.label ||
-          "",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Adhesive" column={column} placeholder="Filter adhesive..." />
-        ),
-        cell: ({ row }: { row: any }) => {
-          const stored =
-            row.original.adhesiveItemName ||
-            (row.original.adhesiveItemId != null
-              ? adhesiveNameById.get(Number(row.original.adhesiveItemId))
-              : null)
-          return <div className="text-sm">{displayValue(stored || defaultAdhesiveOption?.label)}</div>
-        },
-        filterFn: includesStringFilterFn,
-      }),
-      asSingleColumnGroup("adhesiveGsmGroup", {
-        id: "adhesiveGsm",
-        accessorFn: (row: any) => row.adhesiveGsm ?? defaultAdhesiveOption?.gsm ?? "",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Adhesive GSM" column={column} placeholder="Filter adhesive gsm..." />
-        ),
-        cell: ({ row }: { row: any }) => {
-          const gsm = row.original.adhesiveGsm ?? defaultAdhesiveOption?.gsm ?? null
-          return <div className="text-sm">{gsm != null && gsm !== "" ? String(gsm) : "-"}</div>
-        },
-        filterFn: includesStringFilterFn,
-      }),
       asSingleColumnGroup("netweightGroup", {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
@@ -688,7 +555,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
         ),
       }),
     ],
-    [wipPrintingTemplate, laminationCreateChildLoading, laminationSelectedWo, input1Label, input2Label, getLaminationParentRole, adhesiveNameById, defaultAdhesiveOption]
+    [wipPrintingTemplate, laminationCreateChildLoading, laminationSelectedWo, input1Label, input2Label, getLaminationParentRole]
   )
 
   const getLaminationProducedRowGroupPath = useMemo(
@@ -1118,12 +985,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Adhesive
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Adhesive GSM
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
                           Output weight (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
@@ -1135,46 +996,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="py-1.5 px-2">
-                          <Select
-                            value={laminationAddRollForm.adhesiveItemId || undefined}
-                            onValueChange={(value) => {
-                              const selected = adhesiveOptions.find((option) => String(option.id) === value)
-                              setLaminationAddRollForm((prev: any) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      adhesiveItemId: value,
-                                      adhesiveGsm:
-                                        selected?.gsm != null ? String(selected.gsm) : prev.adhesiveGsm,
-                                    }
-                                  : prev
-                              )
-                            }}
-                          >
-                            <SelectTrigger size="sm" className="h-7 w-44 px-1.5 text-xs">
-                              <SelectValue placeholder="Select adhesive" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {adhesiveOptions.map((option) => (
-                                <SelectItem key={option.id} value={String(option.id)}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <NonNegativeDecimalInput
-                            className="h-7 w-20 px-1.5 text-xs"
-                            value={laminationAddRollForm.adhesiveGsm ?? ""}
-                            onValueChange={(value) =>
-                              setLaminationAddRollForm((prev: any) =>
-                                prev ? { ...prev, adhesiveGsm: value } : prev
-                              )
-                            }
-                          />
-                        </td>
                         <td className="py-1.5 px-2">
                           <NonNegativeDecimalInput
                             className="h-7 w-24 px-1.5 text-xs"
@@ -1338,12 +1159,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                 const wipWastage = parseNonNegativeDecimal(form.wipWastage || "") ?? 0
                 const rmWastage = parseNonNegativeDecimal(form.rmWastage || "") ?? 0
                 const totalWastage = wipWastage + rmWastage
-                const adhesiveItemId = form.adhesiveItemId ? Number(form.adhesiveItemId) : null
-                const adhesiveGsm = parseNonNegativeDecimal(form.adhesiveGsm || "")
-                const adhesiveLabel =
-                  (adhesiveItemId != null ? adhesiveNameById.get(adhesiveItemId) : null) ||
-                  defaultAdhesiveOption?.label ||
-                  undefined
                 if (wipPrintingTemplate) {
                   const printData = {
                     workOrder: {
@@ -1371,8 +1186,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                       operatorName: form.operatorName || undefined,
                       shift: form.shift || undefined,
                       remark: form.remark || undefined,
-                      adhesive: adhesiveLabel,
-                      adhesiveGsm: adhesiveGsm ?? undefined,
                       itemName: wo.itemName ?? null,
                     },
                   }
@@ -1395,8 +1208,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   operatorName: form.operatorName.trim() || undefined,
                   shift: form.shift.trim() || undefined,
                   remark: form.remark.trim() || undefined,
-                  adhesiveItemId: adhesiveItemId != null && Number.isFinite(adhesiveItemId) ? adhesiveItemId : undefined,
-                  adhesiveGsm: adhesiveGsm ?? undefined,
                   gradeId: form.parent.gradeId,
                   parentRollIds: parentIds,
                   parentBalanceWeights: [wipBalanceValue, rmBalanceValue],
