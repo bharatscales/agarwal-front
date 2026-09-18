@@ -710,8 +710,8 @@ export default function Home() {
     shift: string
     remark: string
     meter: string
-    adhesiveOhItemId: string
-    adhesiveNcoItemId: string
+    adhesiveOh: string
+    adhesiveNco: string
     ohPercent: string
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
@@ -2549,8 +2549,8 @@ export default function Home() {
                   shift: "A",
                   remark: "",
                   meter: outputMeter,
-                  adhesiveOhItemId: "",
-                  adhesiveNcoItemId: "",
+                  adhesiveOh: "",
+                  adhesiveNco: "",
                   ohPercent: "",
                 }
               })

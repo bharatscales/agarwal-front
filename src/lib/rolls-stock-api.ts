@@ -19,8 +19,8 @@ export type RollsStockPayload = {
   printedWastage?: number
   inkGsm?: number
   inkGsmByInkWt?: number
-  adhesiveOhItemId?: number | null
-  adhesiveNcoItemId?: number | null
+  adhesiveOh?: number | null
+  adhesiveNco?: number | null
   ohPercent?: number | null
   balanceWeight?: number | null
   gradeId?: number
@@ -59,10 +59,8 @@ type RollsStockResponse = {
   printed_wastage?: number | null
   ink_gsm?: number | null
   ink_gsm_by_ink_wt?: number | null
-  adhesive_oh_item_id?: number | null
-  adhesive_oh_item_name?: string | null
-  adhesive_nco_item_id?: number | null
-  adhesive_nco_item_name?: string | null
+  adhesive_oh?: number | null
+  adhesive_nco?: number | null
   oh_percent?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
@@ -119,10 +117,8 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   printedWastage: rollsStock.printed_wastage ?? null,
   inkGsm: rollsStock.ink_gsm ?? null,
   inkGsmByInkWt: rollsStock.ink_gsm_by_ink_wt ?? null,
-  adhesiveOhItemId: rollsStock.adhesive_oh_item_id ?? null,
-  adhesiveOhItemName: rollsStock.adhesive_oh_item_name ?? null,
-  adhesiveNcoItemId: rollsStock.adhesive_nco_item_id ?? null,
-  adhesiveNcoItemName: rollsStock.adhesive_nco_item_name ?? null,
+  adhesiveOh: rollsStock.adhesive_oh ?? null,
+  adhesiveNco: rollsStock.adhesive_nco ?? null,
   ohPercent: rollsStock.oh_percent ?? null,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
@@ -198,8 +194,8 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     printed_wastage: payload.printedWastage,
     ink_gsm: payload.inkGsm,
     ink_gsm_by_ink_wt: payload.inkGsmByInkWt,
-    adhesive_oh_item_id: payload.adhesiveOhItemId,
-    adhesive_nco_item_id: payload.adhesiveNcoItemId,
+    adhesive_oh: payload.adhesiveOh,
+    adhesive_nco: payload.adhesiveNco,
     oh_percent: payload.ohPercent,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
@@ -237,8 +233,8 @@ export const updateRollsStock = async (
   if ("printedWastage" in payload) body.printed_wastage = payload.printedWastage
   if ("inkGsm" in payload) body.ink_gsm = payload.inkGsm
   if ("inkGsmByInkWt" in payload) body.ink_gsm_by_ink_wt = payload.inkGsmByInkWt
-  if ("adhesiveOhItemId" in payload) body.adhesive_oh_item_id = payload.adhesiveOhItemId
-  if ("adhesiveNcoItemId" in payload) body.adhesive_nco_item_id = payload.adhesiveNcoItemId
+  if ("adhesiveOh" in payload) body.adhesive_oh = payload.adhesiveOh
+  if ("adhesiveNco" in payload) body.adhesive_nco = payload.adhesiveNco
   if ("ohPercent" in payload) body.oh_percent = payload.ohPercent
   if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
   if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
