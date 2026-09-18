@@ -1028,21 +1028,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
                         >
                           {input2Label}
                         </th>
-                        <th
-                          colSpan={5}
-                          className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
-                        >
-                          Output
-                        </th>
-                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle border-l border-gray-200 dark:border-gray-700">
-                          Operator name
-                        </th>
-                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
-                          Shift
-                        </th>
-                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
-                          Remark
-                        </th>
                       </tr>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
@@ -1065,23 +1050,11 @@ export function LaminationPanel(props: LaminationPanelProps) {
                             </th>
                           )
                         )}
-                        {["Output weight (kg)", "Output meter", "Adhesive OH", "Adhesive NCO", "OH %"].map(
-                          (title, i) => (
-                            <th
-                              key={`output-${title}`}
-                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""}`}
-                            >
-                              {title}
-                            </th>
-                          )
-                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {laminationLoadedFilmRows.map((row) => {
                         const canEditRow = canProduce && Boolean(laminationAddRollForm)
-                        const showProduce =
-                          canEditRow && row.jobCardId === laminationAddRollForm?.jobCardId
                         return (
                           <tr
                             key={row.jobCardId}
@@ -1156,143 +1129,162 @@ export function LaminationPanel(props: LaminationPanelProps) {
                               onUnload: handleUnloadLaminationRoll,
                               unloadDisabled: laminationCreateChildLoading,
                             })}
-                            {showProduce && laminationAddRollForm ? (
-                              <>
-                                <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
-                                  <NonNegativeDecimalInput
-                                    className="h-7 w-24 px-1.5 text-xs"
-                                    value={laminationAddRollForm.netweight}
-                                    onValueChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) => {
-                                        if (!prev) return prev
-                                        const kg = parseNonNegativeDecimal(value)
-                                        return {
-                                          ...prev,
-                                          netweight: value,
-                                          meter: outputMeterFromParent(kg, wipParent?.roll) || prev.meter,
-                                        }
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <NonNegativeDecimalInput
-                                    className="h-7 w-20 px-1.5 text-xs"
-                                    value={laminationAddRollForm.meter}
-                                    onValueChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, meter: value } : prev
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <AdhesiveItemSelect
-                                    value={laminationAddRollForm.adhesiveOhItemId}
-                                    items={adhesiveItems}
-                                    placeholder="OH"
-                                    onChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, adhesiveOhItemId: value } : prev
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <AdhesiveItemSelect
-                                    value={laminationAddRollForm.adhesiveNcoItemId}
-                                    items={adhesiveItems}
-                                    placeholder="NCO"
-                                    onChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, adhesiveNcoItemId: value } : prev
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <NonNegativeDecimalInput
-                                    className="h-7 w-16 px-1.5 text-xs"
-                                    value={laminationAddRollForm.ohPercent}
-                                    onValueChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, ohPercent: value } : prev
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
-                                  <Select
-                                    value={
-                                      laminationAddRollForm.operatorName && laminationOperators.includes(laminationAddRollForm.operatorName)
-                                        ? laminationAddRollForm.operatorName
-                                        : undefined
-                                    }
-                                    onValueChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, operatorName: value } : prev
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
-                                      <SelectValue placeholder="Select" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {laminationOperators.map((name) => (
-                                        <SelectItem key={name} value={name}>
-                                          {name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <Select
-                                    value={laminationAddRollForm.shift || undefined}
-                                    onValueChange={(value) =>
-                                      setLaminationAddRollForm((prev: any) => (prev ? { ...prev, shift: value } : prev))
-                                    }
-                                  >
-                                    <SelectTrigger size="sm" className="h-7 w-16 px-1.5 text-xs">
-                                      <SelectValue placeholder="Shift" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {LAMINATION_SHIFTS.map((shiftOption) => (
-                                        <SelectItem key={shiftOption} value={shiftOption}>
-                                          {shiftOption}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
-                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
-                                  <Input
-                                    type="text"
-                                    className="h-7 w-32 px-1.5 text-xs"
-                                    value={laminationAddRollForm.remark}
-                                    onChange={(e) =>
-                                      setLaminationAddRollForm((prev: any) =>
-                                        prev ? { ...prev, remark: e.target.value } : prev
-                                      )
-                                    }
-                                  />
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
-                              </>
-                            )}
                           </tr>
                         )
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {canProduce && laminationAddRollForm && (
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Output weight (kg)
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Output meter
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Adhesive OH
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Adhesive NCO
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          OH %
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Operator name
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Shift</th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Remark</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-24 px-1.5 text-xs"
+                            value={laminationAddRollForm.netweight}
+                            onValueChange={(value) =>
+                              setLaminationAddRollForm((prev: any) => {
+                                if (!prev) return prev
+                                const kg = parseNonNegativeDecimal(value)
+                                return {
+                                  ...prev,
+                                  netweight: value,
+                                  meter: outputMeterFromParent(kg, wipParent?.roll) || prev.meter,
+                                }
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-20 px-1.5 text-xs"
+                            value={laminationAddRollForm.meter}
+                            onValueChange={(value) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, meter: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <AdhesiveItemSelect
+                            value={laminationAddRollForm.adhesiveOhItemId}
+                            items={adhesiveItems}
+                            placeholder="OH"
+                            onChange={(value) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, adhesiveOhItemId: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <AdhesiveItemSelect
+                            value={laminationAddRollForm.adhesiveNcoItemId}
+                            items={adhesiveItems}
+                            placeholder="NCO"
+                            onChange={(value) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, adhesiveNcoItemId: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-16 px-1.5 text-xs"
+                            value={laminationAddRollForm.ohPercent}
+                            onValueChange={(value) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, ohPercent: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <Select
+                            value={
+                              laminationAddRollForm.operatorName && laminationOperators.includes(laminationAddRollForm.operatorName)
+                                ? laminationAddRollForm.operatorName
+                                : undefined
+                            }
+                            onValueChange={(value) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, operatorName: value } : prev
+                              )
+                            }
+                          >
+                            <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {laminationOperators.map((name) => (
+                                <SelectItem key={name} value={name}>
+                                  {name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <Select
+                            value={laminationAddRollForm.shift || undefined}
+                            onValueChange={(value) =>
+                              setLaminationAddRollForm((prev: any) => (prev ? { ...prev, shift: value } : prev))
+                            }
+                          >
+                            <SelectTrigger size="sm" className="h-7 w-16 px-1.5 text-xs">
+                              <SelectValue placeholder="Shift" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LAMINATION_SHIFTS.map((shiftOption) => (
+                                <SelectItem key={shiftOption} value={shiftOption}>
+                                  {shiftOption}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <Input
+                            type="text"
+                            className="h-7 w-32 px-1.5 text-xs"
+                            value={laminationAddRollForm.remark}
+                            onChange={(e) =>
+                              setLaminationAddRollForm((prev: any) =>
+                                prev ? { ...prev, remark: e.target.value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
