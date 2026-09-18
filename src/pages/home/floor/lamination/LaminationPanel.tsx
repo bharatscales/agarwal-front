@@ -32,10 +32,76 @@ type LaminationPanelProps = any
 
 const LAMINATION_SHIFTS = ["A", "B"]
 const RM_FILM_GROUP = "rm film"
+const RM_ADHESIVE_GROUP = "adhesive"
 
 function displayValue(value: unknown) {
   if (value == null || value === "") return "-"
   return String(value)
+}
+
+function displayStructure(value: unknown) {
+  const text = value == null || value === "" ? "" : String(value)
+  if (!text) return <span>—</span>
+  const shown = text.length > 7 ? `${text.slice(0, 7)}...` : text
+  return (
+    <span className="inline-block max-w-[4.75rem] whitespace-nowrap" title={text}>
+      {shown}
+    </span>
+  )
+}
+
+function adhesiveItemLabel(item: { item_code?: string | null; name?: string | null }) {
+  return (item.item_code || item.name || "").trim()
+}
+
+function pickAdhesiveByHint(items: Array<{ id: number; item_code?: string | null; name?: string | null }>, hint: "oh" | "nco") {
+  return (
+    items.find((item) => {
+      const text = `${item.item_code ?? ""} ${item.name ?? ""}`.toLowerCase()
+      if (hint === "nco") return text.includes("nco")
+      return (text.includes("oh") || text.includes("polyol")) && !text.includes("nco")
+    }) ?? null
+  )
+}
+
+function AdhesiveItemSelect({
+  value,
+  items,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  value: string
+  items: MenuItem[]
+  placeholder: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger size="sm" className="h-7 w-28 px-1.5 text-xs">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => {
+          const label = adhesiveItemLabel(item) || String(item.id)
+          return (
+            <SelectItem key={item.id} value={String(item.id)} title={label}>
+              {label}
+            </SelectItem>
+          )
+        })}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function outputMeterFromParent(outputKg: number | null, parent: { netweight?: number | null; meter?: number | null } | null | undefined) {
+  if (outputKg == null || !(outputKg >= 0) || !parent) return ""
+  const parentKg = Number(parent.netweight)
+  const parentMeter = Number(parent.meter)
+  if (!(parentKg > 0) || !(parentMeter > 0)) return ""
+  return String(Math.round(parentMeter * (outputKg / parentKg)))
 }
 
 function displayKg(value: unknown) {
@@ -90,8 +156,11 @@ function eclInputGroupColumns(
       {
         id: `${id}Structure`,
         header: () => <div>Structure</div>,
+        size: 80,
+        minSize: 72,
+        maxSize: 88,
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(pick(row.original)?.itemName)}</div>
+          <div className="text-sm">{displayStructure(pick(row.original)?.itemName)}</div>
         ),
         meta: mergeByParent,
       },
@@ -154,6 +223,77 @@ function asSingleColumnGroup(id: string, column: Record<string, unknown>) {
   }
 }
 
+function displayMeter(value: unknown) {
+  if (value == null || value === "") return "-"
+  const n = Number(value)
+  return Number.isNaN(n) || n <= 0 ? "-" : `${Math.round(n)} m`
+}
+
+function displayOhPercent(value: unknown) {
+  if (value == null || value === "") return "-"
+  const n = Number(value)
+  return Number.isNaN(n) ? "-" : `${n.toFixed(2)} %`
+}
+
+function laminationOutputGroupColumns() {
+  return {
+    id: "output",
+    header: () => <div className="text-center w-full">Output</div>,
+    columns: [
+      {
+        accessorKey: "netweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">
+            {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "meter",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Output meter" column={column} placeholder="Filter output meter..." />
+        ),
+        cell: ({ row }: { row: any }) => <div className="text-sm">{displayMeter(row.original.meter)}</div>,
+        filterFn: includesStringFilterFn,
+      },
+      {
+        id: "adhesiveOh",
+        accessorFn: (row: any) => row.adhesiveOhItemName ?? "",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Adhesive OH" column={column} placeholder="Filter adhesive OH..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.adhesiveOhItemName)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        id: "adhesiveNco",
+        accessorFn: (row: any) => row.adhesiveNcoItemName ?? "",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Adhesive NCO" column={column} placeholder="Filter adhesive NCO..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayValue(row.original.adhesiveNcoItemName)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "ohPercent",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="OH %" column={column} placeholder="Filter OH %..." />
+        ),
+        cell: ({ row }: { row: any }) => <div className="text-sm">{displayOhPercent(row.original.ohPercent)}</div>,
+        filterFn: includesStringFilterFn,
+      },
+    ],
+  }
+}
+
 function loadedFilmCells(
   entry: { jobCardId: number; roll: any } | null,
   opts: {
@@ -186,7 +326,7 @@ function loadedFilmCells(
   return (
     <>
       <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
-        {roll.item_name ?? roll.itemName ?? "—"}
+        {displayStructure(roll.item_name ?? roll.itemName)}
       </td>
       <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">
         {roll.size != null ? String(roll.size) : "—"}
@@ -298,6 +438,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
+  const [adhesiveItems, setAdhesiveItems] = useState<MenuItem[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -326,6 +467,33 @@ export function LaminationPanel(props: LaminationPanelProps) {
     if (current === next) return
     setLaminationAddRollForm((prev: any) => (prev ? { ...prev, operatorName: next } : prev))
   }, [laminationOperators, laminationAddRollForm?.roll?.id])
+
+  useEffect(() => {
+    let cancelled = false
+    getItemsByGroupForMenu(RM_ADHESIVE_GROUP)
+      .then((items) => {
+        if (!cancelled) setAdhesiveItems(items)
+      })
+      .catch(() => {
+        if (!cancelled) setAdhesiveItems([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!laminationAddRollForm || adhesiveItems.length === 0) return
+    const oh = pickAdhesiveByHint(adhesiveItems, "oh")
+    const nco = pickAdhesiveByHint(adhesiveItems, "nco")
+    setLaminationAddRollForm((prev: any) => {
+      if (!prev) return prev
+      const nextOh = prev.adhesiveOhItemId || (oh ? String(oh.id) : "")
+      const nextNco = prev.adhesiveNcoItemId || (nco ? String(nco.id) : "")
+      if (nextOh === prev.adhesiveOhItemId && nextNco === prev.adhesiveNcoItemId) return prev
+      return { ...prev, adhesiveOhItemId: nextOh, adhesiveNcoItemId: nextNco }
+    })
+  }, [adhesiveItems, laminationAddRollForm?.roll?.id])
 
   useEffect(() => {
     if (!floorLaminationRmPickerOpen) {
@@ -505,18 +673,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
       eclInputGroupColumns("input2", input2Label, (row) =>
         pickEclProducedParents(row.parentRolls, getLaminationParentRole).input2
       ),
-      asSingleColumnGroup("netweightGroup", {
-        accessorKey: "netweight",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
-            {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
-          </div>
-        ),
-        filterFn: includesStringFilterFn,
-      }),
+      laminationOutputGroupColumns(),
       asSingleColumnGroup("operatorNameGroup", {
         accessorKey: "operatorName",
         header: ({ column }: { column: any }) => (
@@ -871,13 +1028,28 @@ export function LaminationPanel(props: LaminationPanelProps) {
                         >
                           {input2Label}
                         </th>
+                        <th
+                          colSpan={5}
+                          className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
+                        >
+                          Output
+                        </th>
+                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle border-l border-gray-200 dark:border-gray-700">
+                          Operator name
+                        </th>
+                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
+                          Shift
+                        </th>
+                        <th rowSpan={2} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 align-middle">
+                          Remark
+                        </th>
                       </tr>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
                           (title, i) => (
                             <th
                               key={`input1-${title || "remove"}`}
-                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""}`}
+                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""} ${title === "Structure" ? "w-16 max-w-[4.75rem]" : ""}`}
                             >
                               {title}
                             </th>
@@ -887,6 +1059,16 @@ export function LaminationPanel(props: LaminationPanelProps) {
                           (title, i) => (
                             <th
                               key={`input2-${title || "remove"}`}
+                              className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""} ${title === "Structure" ? "w-16 max-w-[4.75rem]" : ""}`}
+                            >
+                              {title}
+                            </th>
+                          )
+                        )}
+                        {["Output weight (kg)", "Output meter", "Adhesive OH", "Adhesive NCO", "OH %"].map(
+                          (title, i) => (
+                            <th
+                              key={`output-${title}`}
                               className={`text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 ${i === 0 ? "border-l border-gray-200 dark:border-gray-700" : ""}`}
                             >
                               {title}
@@ -898,6 +1080,8 @@ export function LaminationPanel(props: LaminationPanelProps) {
                     <tbody>
                       {laminationLoadedFilmRows.map((row) => {
                         const canEditRow = canProduce && Boolean(laminationAddRollForm)
+                        const showProduce =
+                          canEditRow && row.jobCardId === laminationAddRollForm?.jobCardId
                         return (
                           <tr
                             key={row.jobCardId}
@@ -972,98 +1156,143 @@ export function LaminationPanel(props: LaminationPanelProps) {
                               onUnload: handleUnloadLaminationRoll,
                               unloadDisabled: laminationCreateChildLoading,
                             })}
+                            {showProduce && laminationAddRollForm ? (
+                              <>
+                                <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+                                  <NonNegativeDecimalInput
+                                    className="h-7 w-24 px-1.5 text-xs"
+                                    value={laminationAddRollForm.netweight}
+                                    onValueChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) => {
+                                        if (!prev) return prev
+                                        const kg = parseNonNegativeDecimal(value)
+                                        return {
+                                          ...prev,
+                                          netweight: value,
+                                          meter: outputMeterFromParent(kg, wipParent?.roll) || prev.meter,
+                                        }
+                                      })
+                                    }
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <NonNegativeDecimalInput
+                                    className="h-7 w-20 px-1.5 text-xs"
+                                    value={laminationAddRollForm.meter}
+                                    onValueChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, meter: value } : prev
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <AdhesiveItemSelect
+                                    value={laminationAddRollForm.adhesiveOhItemId}
+                                    items={adhesiveItems}
+                                    placeholder="OH"
+                                    onChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, adhesiveOhItemId: value } : prev
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <AdhesiveItemSelect
+                                    value={laminationAddRollForm.adhesiveNcoItemId}
+                                    items={adhesiveItems}
+                                    placeholder="NCO"
+                                    onChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, adhesiveNcoItemId: value } : prev
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <NonNegativeDecimalInput
+                                    className="h-7 w-16 px-1.5 text-xs"
+                                    value={laminationAddRollForm.ohPercent}
+                                    onValueChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, ohPercent: value } : prev
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+                                  <Select
+                                    value={
+                                      laminationAddRollForm.operatorName && laminationOperators.includes(laminationAddRollForm.operatorName)
+                                        ? laminationAddRollForm.operatorName
+                                        : undefined
+                                    }
+                                    onValueChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, operatorName: value } : prev
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
+                                      <SelectValue placeholder="Select" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {laminationOperators.map((name) => (
+                                        <SelectItem key={name} value={name}>
+                                          {name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <Select
+                                    value={laminationAddRollForm.shift || undefined}
+                                    onValueChange={(value) =>
+                                      setLaminationAddRollForm((prev: any) => (prev ? { ...prev, shift: value } : prev))
+                                    }
+                                  >
+                                    <SelectTrigger size="sm" className="h-7 w-16 px-1.5 text-xs">
+                                      <SelectValue placeholder="Shift" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {LAMINATION_SHIFTS.map((shiftOption) => (
+                                        <SelectItem key={shiftOption} value={shiftOption}>
+                                          {shiftOption}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                  <Input
+                                    type="text"
+                                    className="h-7 w-32 px-1.5 text-xs"
+                                    value={laminationAddRollForm.remark}
+                                    onChange={(e) =>
+                                      setLaminationAddRollForm((prev: any) =>
+                                        prev ? { ...prev, remark: e.target.value } : prev
+                                      )
+                                    }
+                                  />
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                                <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">—</td>
+                              </>
+                            )}
                           </tr>
                         )
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {canProduce && laminationAddRollForm && (
-                <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Output weight (kg)
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                          Operator name
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Shift</th>
-                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Remark</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="py-1.5 px-2">
-                          <NonNegativeDecimalInput
-                            className="h-7 w-24 px-1.5 text-xs"
-                            value={laminationAddRollForm.netweight}
-                            onValueChange={(value) =>
-                              setLaminationAddRollForm((prev: any) =>
-                                prev ? { ...prev, netweight: value } : prev
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <Select
-                            value={
-                              laminationAddRollForm.operatorName && laminationOperators.includes(laminationAddRollForm.operatorName)
-                                ? laminationAddRollForm.operatorName
-                                : undefined
-                            }
-                            onValueChange={(value) =>
-                              setLaminationAddRollForm((prev: any) =>
-                                prev ? { ...prev, operatorName: value } : prev
-                              )
-                            }
-                          >
-                            <SelectTrigger size="sm" className="h-7 w-36 px-1.5 text-xs">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {laminationOperators.map((name) => (
-                                <SelectItem key={name} value={name}>
-                                  {name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <Select
-                            value={laminationAddRollForm.shift || undefined}
-                            onValueChange={(value) =>
-                              setLaminationAddRollForm((prev: any) => (prev ? { ...prev, shift: value } : prev))
-                            }
-                          >
-                            <SelectTrigger size="sm" className="h-7 w-16 px-1.5 text-xs">
-                              <SelectValue placeholder="Shift" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {LAMINATION_SHIFTS.map((shiftOption) => (
-                                <SelectItem key={shiftOption} value={shiftOption}>
-                                  {shiftOption}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <Input
-                            type="text"
-                            className="h-7 w-32 px-1.5 text-xs"
-                            value={laminationAddRollForm.remark}
-                            onChange={(e) =>
-                              setLaminationAddRollForm((prev: any) =>
-                                prev ? { ...prev, remark: e.target.value } : prev
-                              )
-                            }
-                          />
-                        </td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -1156,6 +1385,10 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   return
                 }
                 const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
+                const outputMeter = parseNonNegativeDecimal(form.meter || "") ?? undefined
+                const ohPercent = parseNonNegativeDecimal(form.ohPercent || "") ?? undefined
+                const adhesiveOhItemId = form.adhesiveOhItemId ? Number(form.adhesiveOhItemId) : undefined
+                const adhesiveNcoItemId = form.adhesiveNcoItemId ? Number(form.adhesiveNcoItemId) : undefined
                 const wipWastage = parseNonNegativeDecimal(form.wipWastage || "") ?? 0
                 const rmWastage = parseNonNegativeDecimal(form.rmWastage || "") ?? 0
                 const totalWastage = wipWastage + rmWastage
@@ -1181,11 +1414,15 @@ export function LaminationPanel(props: LaminationPanelProps) {
                       size: form.size ? parseFloat(form.size) : undefined,
                       micron: form.micron ? parseFloat(form.micron) : undefined,
                       netweight: outputWeight,
+                      meter: outputMeter,
                       grossweight: outputWeight,
                       wastage: totalWastage,
                       operatorName: form.operatorName || undefined,
                       shift: form.shift || undefined,
                       remark: form.remark || undefined,
+                      adhesiveOhItemId: Number.isFinite(adhesiveOhItemId) ? adhesiveOhItemId : undefined,
+                      adhesiveNcoItemId: Number.isFinite(adhesiveNcoItemId) ? adhesiveNcoItemId : undefined,
+                      ohPercent,
                       itemName: wo.itemName ?? null,
                     },
                   }
@@ -1203,11 +1440,15 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   size: form.size ? parseFloat(form.size) : undefined,
                   micron: form.micron ? parseFloat(form.micron) : undefined,
                   netweight: outputWeight,
+                  meter: outputMeter,
                   grossweight: outputWeight,
                   wastage: totalWastage,
                   operatorName: form.operatorName.trim() || undefined,
                   shift: form.shift.trim() || undefined,
                   remark: form.remark.trim() || undefined,
+                  adhesiveOhItemId: Number.isFinite(adhesiveOhItemId) ? adhesiveOhItemId : undefined,
+                  adhesiveNcoItemId: Number.isFinite(adhesiveNcoItemId) ? adhesiveNcoItemId : undefined,
+                  ohPercent,
                   gradeId: form.parent.gradeId,
                   parentRollIds: parentIds,
                   parentBalanceWeights: [wipBalanceValue, rmBalanceValue],
@@ -1223,6 +1464,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                       ? {
                           ...prev,
                           netweight: "",
+                          meter: "",
                           wipWastage: "0",
                           rmWastage: "0",
                           wipBalance: wipSemiConsumed ? "" : prev.wipBalance,

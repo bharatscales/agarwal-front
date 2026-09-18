@@ -709,6 +709,10 @@ export default function Home() {
     operatorName: string
     shift: string
     remark: string
+    meter: string
+    adhesiveOhItemId: string
+    adhesiveNcoItemId: string
+    ohPercent: string
   } | null>(null)
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
   const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
@@ -2517,6 +2521,12 @@ export default function Home() {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
               const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
+              const parentKg = Number(formSource.roll.netweight)
+              const parentMeter = Number(formSource.roll.meter)
+              const outputMeter =
+                scaleWeight != null && parentKg > 0 && parentMeter > 0
+                  ? String(Math.round(parentMeter * (scaleWeight / parentKg)))
+                  : ""
               setLaminationAddRollForm((prev) => {
                 if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
                   return prev
@@ -2538,6 +2548,10 @@ export default function Home() {
                   operatorName: "",
                   shift: "A",
                   remark: "",
+                  meter: outputMeter,
+                  adhesiveOhItemId: "",
+                  adhesiveNcoItemId: "",
+                  ohPercent: "",
                 }
               })
             }
@@ -2839,7 +2853,16 @@ export default function Home() {
       setEclAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
     }
     if (laminationAddRollForm && scaleWeight != null) {
-      setLaminationAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
+      setLaminationAddRollForm((prev) => {
+        if (!prev) return null
+        const parentKg = Number(prev.roll.netweight)
+        const parentMeter = Number(prev.roll.meter)
+        const meter =
+          parentKg > 0 && parentMeter > 0
+            ? String(Math.round(parentMeter * (scaleWeight / parentKg)))
+            : prev.meter
+        return { ...prev, netweight: String(scaleWeight), meter }
+      })
     }
     if (slittingAddRollForm && scaleWeight != null) {
       setSlittingAddRollForm((prev) =>

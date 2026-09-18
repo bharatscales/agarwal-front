@@ -228,6 +228,9 @@ export type AddPrintedRollPayload = {
   printedWastage?: number
   inkGsm?: number
   inkGsmByInkWt?: number
+  adhesiveOhItemId?: number | null
+  adhesiveNcoItemId?: number | null
+  ohPercent?: number | null
   balanceWeight?: number
   semiConsumed?: boolean
   gradeId?: number
@@ -354,11 +357,15 @@ export const addLaminationRoll = async (
       size: payload.size,
       micron: payload.micron,
       netweight: payload.netweight,
+      meter: payload.meter ?? undefined,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
       operator_name: payload.operatorName || undefined,
       shift: payload.shift || undefined,
       remark: payload.remark || undefined,
+      adhesive_oh_item_id: payload.adhesiveOhItemId ?? undefined,
+      adhesive_nco_item_id: payload.adhesiveNcoItemId ?? undefined,
+      oh_percent: payload.ohPercent ?? undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,
