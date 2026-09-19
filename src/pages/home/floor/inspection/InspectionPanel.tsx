@@ -358,11 +358,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
   const inspectionProducedRollColumns = useMemo(
     () => [
       {
-        id: "sno",
-        header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div className="text-xs">{row.index + 1}</div>,
-      },
-      {
         accessorKey: "size",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Size" column={column} placeholder="Filter size..." />

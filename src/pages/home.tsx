@@ -411,13 +411,6 @@ export default function Home() {
 
   const printingProducedRollColumns = [
       {
-        id: "sno",
-        header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{row.index + 1}</div>
-        ),
-      },
-      {
         accessorKey: "jobCardNumber",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Loaded job card" column={column} placeholder="Filter job card..." />

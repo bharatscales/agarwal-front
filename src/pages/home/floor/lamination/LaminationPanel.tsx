@@ -705,11 +705,6 @@ export function LaminationPanel(props: LaminationPanelProps) {
 
   const laminationProducedRollColumns = useMemo(
     () => [
-      asSingleColumnGroup("snoGroup", {
-        id: "sno",
-        header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div>{row.index + 1}</div>,
-      }),
       eclInputGroupColumns("input1", input1Label, (row) =>
         pickEclProducedParents(row.parentRolls, getLaminationParentRole).input1
       ),

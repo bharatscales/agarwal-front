@@ -171,6 +171,57 @@ function asSingleColumnGroup(id: string, column: Record<string, unknown>) {
   }
 }
 
+function eclExtrusionGroupColumns() {
+  return {
+    id: "extrusion",
+    header: () => <div className="text-center w-full">Extrusion</div>,
+    columns: [
+      {
+        accessorKey: "inkGsm",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Coating (kg)" column={column} placeholder="Filter coating..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-xs">
+            {row.original.inkGsm != null ? `${Number(row.original.inkGsm).toFixed(2)} kg` : "-"}
+          </div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "trimWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Trim wastage (kg)" column={column} placeholder="Filter trim wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-xs">{displayKg(row.original.trimWastage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "lumpsWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Lumps wastage (kg)" column={column} placeholder="Filter lumps wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-xs">{displayKg(row.original.lumpsWastage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+      {
+        accessorKey: "eclOutputWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Output wastage (kg)" column={column} placeholder="Filter output wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-xs">{displayKg(row.original.eclOutputWastage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      },
+    ],
+  }
+}
+
 function loadedFilmCells(
   entry: { jobCardId: number; roll: any } | null,
   opts: {
@@ -602,59 +653,13 @@ export function EclPanel(props: EclPanelProps) {
 
   const eclProducedRollColumns = useMemo(
     () => [
-      asSingleColumnGroup("snoGroup", {
-        id: "sno",
-        header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div className="text-xs">{row.index + 1}</div>,
-      }),
       eclInputGroupColumns("input1", input1Label, (row) =>
         pickEclProducedParents(row.parentRolls, getEclParentRole).input1
       ),
       eclInputGroupColumns("input2", input2Label, (row) =>
         pickEclProducedParents(row.parentRolls, getEclParentRole).input2
       ),
-      asSingleColumnGroup("inkGsmGroup", {
-        accessorKey: "inkGsm",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Extrusion coating (kg)" column={column} placeholder="Filter extrusion..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">
-            {row.original.inkGsm != null ? `${Number(row.original.inkGsm).toFixed(2)} kg` : "-"}
-          </div>
-        ),
-        filterFn: includesStringFilterFn,
-      }),
-      asSingleColumnGroup("trimWastageGroup", {
-        accessorKey: "trimWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Trim wastage (kg)" column={column} placeholder="Filter trim wastage..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.trimWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      }),
-      asSingleColumnGroup("lumpsWastageGroup", {
-        accessorKey: "lumpsWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Lumps wastage (kg)" column={column} placeholder="Filter lumps wastage..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.lumpsWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      }),
-      asSingleColumnGroup("eclOutputWastageGroup", {
-        accessorKey: "eclOutputWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="ECL output wastage (kg)" column={column} placeholder="Filter ECL output wastage..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.eclOutputWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      }),
+      eclExtrusionGroupColumns(),
       asSingleColumnGroup("netweightGroup", {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
