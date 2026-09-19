@@ -9,7 +9,7 @@ export const producedRollEditDialogClassName =
   "sm:max-w-lg max-h-[85vh] overflow-y-auto bg-card text-card-foreground border-border"
 
 export const producedRollEditInputClassName =
-  "h-9 w-full px-3 text-sm text-foreground dark:bg-input/50 dark:text-foreground"
+  "h-7 w-20 px-1.5 text-xs text-foreground dark:bg-input/50 dark:text-foreground"
 
 export function ProducedRollEditField({
   label,

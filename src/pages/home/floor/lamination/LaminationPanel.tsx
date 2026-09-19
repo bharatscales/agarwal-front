@@ -1356,7 +1356,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Produced rolls</h4>
             {!laminationChildRollsLoading && (
               <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <tbody>
                     <tr>
                       <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
@@ -1646,7 +1646,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
           </ProducedRollEditField>
           <ProducedRollEditField label="Shift">
             <Select value={laminationEditForm.shift || undefined} onValueChange={(shift) => setLaminationEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {LAMINATION_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>

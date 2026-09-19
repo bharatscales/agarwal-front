@@ -108,7 +108,7 @@ function eclInputGroupColumns(
         id: `${id}Structure`,
         header: () => <div>Structure</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(pick(row.original)?.itemName)}</div>
+          <div className="text-xs">{displayValue(pick(row.original)?.itemName)}</div>
         ),
         meta: mergeByParent,
       },
@@ -117,7 +117,7 @@ function eclInputGroupColumns(
         header: () => <div>Size</div>,
         cell: ({ row }: { row: any }) => {
           const size = pick(row.original)?.size
-          return <div className="text-sm">{size != null ? String(size) : "-"}</div>
+          return <div className="text-xs">{size != null ? String(size) : "-"}</div>
         },
         meta: mergeByParent,
       },
@@ -126,7 +126,7 @@ function eclInputGroupColumns(
         header: () => <div>Micron</div>,
         cell: ({ row }: { row: any }) => {
           const micron = pick(row.original)?.micron
-          return <div className="text-sm">{micron != null ? String(micron) : "-"}</div>
+          return <div className="text-xs">{micron != null ? String(micron) : "-"}</div>
         },
         meta: mergeByParent,
       },
@@ -136,7 +136,7 @@ function eclInputGroupColumns(
         cell: ({ row }: { row: any }) => {
           const parent = pick(row.original)
           return (
-            <div className="text-sm">
+            <div className="text-xs">
               {parent ? formatWeightWithMeter(parent.netweight, parent.meter) : "-"}
             </div>
           )
@@ -147,7 +147,7 @@ function eclInputGroupColumns(
         id: `${id}Wastage`,
         header: () => <div>Wastage</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayKg(pick(row.original)?.wastage)}</div>
+          <div className="text-xs">{displayKg(pick(row.original)?.wastage)}</div>
         ),
         meta: mergeByParent,
       },
@@ -155,7 +155,7 @@ function eclInputGroupColumns(
         id: `${id}BalanceWeight`,
         header: () => <div>Balance weight</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayKg(pick(row.original)?.balanceWeight)}</div>
+          <div className="text-xs">{displayKg(pick(row.original)?.balanceWeight)}</div>
         ),
         meta: mergeByParent,
       },
@@ -605,7 +605,7 @@ export function EclPanel(props: EclPanelProps) {
       asSingleColumnGroup("snoGroup", {
         id: "sno",
         header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
+        cell: ({ row }: { row: any }) => <div className="text-xs">{row.index + 1}</div>,
       }),
       eclInputGroupColumns("input1", input1Label, (row) =>
         pickEclProducedParents(row.parentRolls, getEclParentRole).input1
@@ -619,7 +619,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Extrusion coating (kg)" column={column} placeholder="Filter extrusion..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.inkGsm != null ? `${Number(row.original.inkGsm).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -631,7 +631,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Trim wastage (kg)" column={column} placeholder="Filter trim wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayKg(row.original.trimWastage)}</div>
+          <div className="text-xs">{displayKg(row.original.trimWastage)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -641,7 +641,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Lumps wastage (kg)" column={column} placeholder="Filter lumps wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayKg(row.original.lumpsWastage)}</div>
+          <div className="text-xs">{displayKg(row.original.lumpsWastage)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -651,7 +651,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="ECL output wastage (kg)" column={column} placeholder="Filter ECL output wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayKg(row.original.eclOutputWastage)}</div>
+          <div className="text-xs">{displayKg(row.original.eclOutputWastage)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -661,7 +661,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -673,7 +673,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Operator name" column={column} placeholder="Filter operator..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.operatorName)}</div>
+          <div className="text-xs">{displayValue(row.original.operatorName)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -683,7 +683,7 @@ export function EclPanel(props: EclPanelProps) {
           <ColumnHeader title="Shift" column={column} placeholder="Filter shift..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.shift)}</div>
+          <div className="text-xs">{displayValue(row.original.shift)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -1280,7 +1280,7 @@ export function EclPanel(props: EclPanelProps) {
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Produced rolls</h4>
             {!eclChildRollsLoading && (
               <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <tbody>
                     <tr>
                       <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
@@ -1319,6 +1319,7 @@ export function EclPanel(props: EclPanelProps) {
               scrollable
               scrollHeight="45vh"
               compact
+              size="xs"
               showSelectionSummary={false}
             />
           )}
@@ -1572,7 +1573,7 @@ export function EclPanel(props: EclPanelProps) {
           </ProducedRollEditField>
           <ProducedRollEditField label="Shift">
             <Select value={eclEditForm.shift || undefined} onValueChange={(shift) => setEclEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {ECL_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>

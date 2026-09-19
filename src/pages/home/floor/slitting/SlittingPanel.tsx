@@ -205,7 +205,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
               ) : (
                 <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>

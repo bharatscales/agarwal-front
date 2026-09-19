@@ -414,7 +414,7 @@ export default function Home() {
         id: "sno",
         header: () => <div>S. no.</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.index + 1}</div>
+          <div className="text-xs">{row.index + 1}</div>
         ),
       },
       {
@@ -423,7 +423,7 @@ export default function Home() {
           <ColumnHeader title="Loaded job card" column={column} placeholder="Filter job card..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.jobCardNumber || "-"}</div>
+          <div className="text-xs">{row.original.jobCardNumber || "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -433,7 +433,7 @@ export default function Home() {
           <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
+          <div className="text-xs">{row.original.size != null ? String(row.original.size) : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -443,7 +443,7 @@ export default function Home() {
           <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
+          <div className="text-xs">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -453,7 +453,7 @@ export default function Home() {
           <ColumnHeader title="Input weight (kg)" column={column} placeholder="Filter input weight..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {formatWeightWithMeter(row.original.parentNetweight, row.original.parentMeter)}
           </div>
         ),
@@ -466,7 +466,7 @@ export default function Home() {
           <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -478,7 +478,7 @@ export default function Home() {
           <ColumnHeader title="Meter" column={column} placeholder="Filter meter..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.meter != null && Number(row.original.meter) > 0
               ? Math.round(Number(row.original.meter))
               : "-"}
@@ -492,7 +492,7 @@ export default function Home() {
           <ColumnHeader title="Plain wastage (kg)" column={column} placeholder="Filter plain wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.plainWastage != null ? `${Number(row.original.plainWastage).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -504,7 +504,7 @@ export default function Home() {
           <ColumnHeader title="Printed wastage (kg)" column={column} placeholder="Filter printed wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.printedWastage != null ? `${Number(row.original.printedWastage).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -516,7 +516,7 @@ export default function Home() {
           <ColumnHeader title="Ink gsm" column={column} placeholder="Filter ink gsm..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.inkGsm != null ? String(row.original.inkGsm) : "-"}
           </div>
         ),
@@ -528,7 +528,7 @@ export default function Home() {
           <ColumnHeader title="Ink gsm (by ink wt)" column={column} placeholder="Filter ink gsm by ink wt..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.inkGsmByInkWt != null ? String(row.original.inkGsmByInkWt) : "-"}
           </div>
         ),
@@ -542,7 +542,7 @@ export default function Home() {
         cell: ({ row }: { row: any }) => {
           const value = row.original.parentBalanceWeight ?? row.original.balanceWeight
           return (
-            <div className="text-sm">
+            <div className="text-xs">
               {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
             </div>
           )

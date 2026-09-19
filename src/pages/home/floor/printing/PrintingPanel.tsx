@@ -707,7 +707,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Produced rolls</h4>
               {!printingChildRollsLoading && (
                 <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <tbody>
                       <tr>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">Total produced rolls</td>
@@ -736,6 +736,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                 scrollable
                 scrollHeight="45vh"
                 compact
+                size="xs"
                 showSelectionSummary={false}
               />
             )}

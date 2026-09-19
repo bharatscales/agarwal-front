@@ -360,7 +360,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
       {
         id: "sno",
         header: () => <div>S. no.</div>,
-        cell: ({ row }: { row: any }) => <div className="text-sm">{row.index + 1}</div>,
+        cell: ({ row }: { row: any }) => <div className="text-xs">{row.index + 1}</div>,
       },
       {
         accessorKey: "size",
@@ -368,7 +368,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Size" column={column} placeholder="Filter size..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.size != null ? String(row.original.size) : "-"}</div>
+          <div className="text-xs">{row.original.size != null ? String(row.original.size) : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -378,7 +378,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Micron" column={column} placeholder="Filter micron..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
+          <div className="text-xs">{row.original.micron != null ? String(row.original.micron) : "-"}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -388,7 +388,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Input weight (kg)" column={column} placeholder="Filter input weight..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {formatWeightWithMeter(row.original.parentNetweight, row.original.parentMeter)}
           </div>
         ),
@@ -401,7 +401,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Output weight (kg)" column={column} placeholder="Filter output weight..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.netweight != null ? `${Number(row.original.netweight).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -413,7 +413,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Wastage (kg)" column={column} placeholder="Filter wastage..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">
+          <div className="text-xs">
             {row.original.wastage != null ? `${Number(row.original.wastage).toFixed(2)} kg` : "-"}
           </div>
         ),
@@ -427,7 +427,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
         cell: ({ row }: { row: any }) => {
           const value = row.original.parentBalanceWeight ?? row.original.balanceWeight
           return (
-            <div className="text-sm">
+            <div className="text-xs">
               {value != null ? `${Number(value).toFixed(2)} kg` : "-"}
             </div>
           )
@@ -440,7 +440,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Reason of wastage" column={column} placeholder="Filter reason..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.wastageReason)}</div>
+          <div className="text-xs">{displayValue(row.original.wastageReason)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -450,7 +450,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="No. of tag" column={column} placeholder="Filter tags..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.noOfTag)}</div>
+          <div className="text-xs">{displayValue(row.original.noOfTag)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -460,7 +460,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="No. of cuts" column={column} placeholder="Filter cuts..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.noOfCuts)}</div>
+          <div className="text-xs">{displayValue(row.original.noOfCuts)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -470,7 +470,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Operator name" column={column} placeholder="Filter operator..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.operatorName)}</div>
+          <div className="text-xs">{displayValue(row.original.operatorName)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -480,7 +480,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Shift" column={column} placeholder="Filter shift..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.shift)}</div>
+          <div className="text-xs">{displayValue(row.original.shift)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -490,7 +490,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           <ColumnHeader title="Remark" column={column} placeholder="Filter remark..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-sm">{displayValue(row.original.remark)}</div>
+          <div className="text-xs">{displayValue(row.original.remark)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
@@ -968,7 +968,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Produced rolls</h4>
               {!inspectionChildRollsLoading && (
                 <div className="rounded-[2px] border border-zinc-600 overflow-hidden">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <tbody>
                       <tr>
                         <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
@@ -1007,6 +1007,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                 scrollable
                 scrollHeight="45vh"
                 compact
+                size="xs"
                 showSelectionSummary={false}
               />
             )}
@@ -1208,7 +1209,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
           </ProducedRollEditField>
           <ProducedRollEditField label="Shift">
             <Select value={inspectionEditForm.shift || undefined} onValueChange={(shift) => setInspectionEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {INSPECTION_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>
