@@ -260,7 +260,7 @@ export function DataTable<TData, TValue>({
         key={header.id}
         colSpan={header.colSpan}
         rowSpan={rowSpan > 1 ? rowSpan : undefined}
-        className={`bg-sidebar ${textSize} font-bold border-r border-b border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 align-middle ${compact ? "py-1" : ""} ${hasRealSubHeaders ? "text-center" : ""}`}
+        className={`bg-sidebar ${textSize} font-bold border-r border-b border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black pl-2 align-middle ${compact ? "h-auto min-h-0 py-0" : ""} ${hasRealSubHeaders ? "text-center" : ""}`}
       >
         {flexRender(header.column.columnDef.header, header.getContext())}
       </TableHead>
@@ -293,7 +293,7 @@ export function DataTable<TData, TValue>({
         <TableCell
           key={cell.id}
           rowSpan={span?.rowSpan}
-          className={`${compact ? "py-0.5 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize} ${span?.rowSpan ? "align-middle" : ""}`}
+          className={`${compact ? "py-0 px-2" : "p-1 pl-2"} border-r border-zinc-600 text-zinc-300 dark:text-zinc-300 text-black ${textSize} ${span?.rowSpan ? "align-middle" : ""}`}
         >
           {flexRender(
             cell.column.columnDef.cell,

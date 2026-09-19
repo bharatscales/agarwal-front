@@ -208,28 +208,29 @@ export function SlittingPanel(props: SlittingPanelProps) {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Size</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Actions</th>
+                        <th className="text-left py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Barcode</th>
+                        <th className="text-left py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Size</th>
+                        <th className="text-left py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Micron</th>
+                        <th className="text-left py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
+                        <th className="text-left py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
+                        <th className="text-right py-0 px-2 font-medium text-gray-700 dark:text-gray-300">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {slittingChildRollsFromDb.map((r: any) => (
                         <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
-                          <td className="py-2 px-3 font-mono text-gray-900 dark:text-gray-100">{r.barcode || "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.size != null ? String(r.size) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.micron != null ? String(r.micron) : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}</td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}</td>
-                          <td className="py-2 px-3 text-right">
+                          <td className="py-0 px-2 font-mono text-gray-900 dark:text-gray-100">{r.barcode || "—"}</td>
+                          <td className="py-0 px-2 text-gray-600 dark:text-gray-400">{r.size != null ? String(r.size) : "—"}</td>
+                          <td className="py-0 px-2 text-gray-600 dark:text-gray-400">{r.micron != null ? String(r.micron) : "—"}</td>
+                          <td className="py-0 px-2 text-gray-600 dark:text-gray-400">{r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}</td>
+                          <td className="py-0 px-2 text-gray-600 dark:text-gray-400">{r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}</td>
+                          <td className="py-0 px-2 text-right">
                             <div className="flex items-center justify-end">
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
+                              className="h-6 w-6"
                               disabled={!wipPrintingTemplate || slittingCreateChildLoading}
                               onClick={async () => {
                                 const wo = slittingSelectedWo
@@ -296,12 +297,13 @@ export function SlittingPanel(props: SlittingPanelProps) {
                                 }
                               }}
                             >
-                              <Printer className="h-4 w-4" />
+                              <Printer className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
+                              className="h-6 w-6"
                               title="Edit"
                               disabled={slittingCreateChildLoading || isProducedRollLocked(r)}
                               onClick={() => {
@@ -314,12 +316,13 @@ export function SlittingPanel(props: SlittingPanelProps) {
                                 setSlittingEditRoll(r)
                               }}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
+                              className="h-6 w-6"
                               title="Delete"
                               disabled={slittingCreateChildLoading || isProducedRollLocked(r)}
                               onClick={async () => {
@@ -337,7 +340,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                                 }
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                             </div>
                           </td>

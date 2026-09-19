@@ -57,18 +57,19 @@ export function ProducedRollRowActions({
           type="button"
           variant="ghost"
           size="icon"
+          className="h-6 w-6"
           disabled={reprintDisabled}
           title="Reprint"
           onClick={onReprint}
         >
-          <Printer className="h-4 w-4" />
+          <Printer className="h-3.5 w-3.5" />
         </Button>
       ) : null}
-      <Button type="button" variant="ghost" size="icon" disabled={mutateDisabled} title="Edit" onClick={onEdit}>
-        <Pencil className="h-4 w-4" />
+      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={mutateDisabled} title="Edit" onClick={onEdit}>
+        <Pencil className="h-3.5 w-3.5" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" disabled={mutateDisabled} title="Delete" onClick={onDelete}>
-        <Trash2 className="h-4 w-4" />
+      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={mutateDisabled} title="Delete" onClick={onDelete}>
+        <Trash2 className="h-3.5 w-3.5" />
       </Button>
     </div>
   )
