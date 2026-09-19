@@ -39,7 +39,10 @@ import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 import {
   isProducedRollLocked,
   PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollEditField,
   ProducedRollRowActions,
+  producedRollEditDialogClassName,
+  producedRollEditInputClassName,
 } from "../produced-roll-actions"
 
 type EclPanelProps = any
@@ -1546,55 +1549,46 @@ export function EclPanel(props: EclPanelProps) {
     </>
   )}
     <Dialog open={Boolean(eclEditRoll)} onOpenChange={(open) => { if (!open) setEclEditRoll(null) }}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
           <DialogTitle>Edit produced roll</DialogTitle>
           <DialogDescription>Update ECL output fields and leftover balance weights.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Output weight (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.netweight} onValueChange={(netweight) => setEclEditForm((prev) => ({ ...prev, netweight }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Extrusion coating (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.inkGsm} onValueChange={(inkGsm) => setEclEditForm((prev) => ({ ...prev, inkGsm }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Trim wastage (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.trimWastage} onValueChange={(trimWastage) => setEclEditForm((prev) => ({ ...prev, trimWastage }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Lumps wastage (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.lumpsWastage} onValueChange={(lumpsWastage) => setEclEditForm((prev) => ({ ...prev, lumpsWastage }))} />
-          </div>
-          <div>
-            <Label className="text-xs">ECL output wastage (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.eclOutputWastage} onValueChange={(eclOutputWastage) => setEclEditForm((prev) => ({ ...prev, eclOutputWastage }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Shift</Label>
+          <ProducedRollEditField label="Output weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.netweight} onValueChange={(netweight) => setEclEditForm((prev) => ({ ...prev, netweight }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Extrusion coating (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.inkGsm} onValueChange={(inkGsm) => setEclEditForm((prev) => ({ ...prev, inkGsm }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Trim wastage (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.trimWastage} onValueChange={(trimWastage) => setEclEditForm((prev) => ({ ...prev, trimWastage }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Lumps wastage (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.lumpsWastage} onValueChange={(lumpsWastage) => setEclEditForm((prev) => ({ ...prev, lumpsWastage }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="ECL output wastage (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.eclOutputWastage} onValueChange={(eclOutputWastage) => setEclEditForm((prev) => ({ ...prev, eclOutputWastage }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Shift">
             <Select value={eclEditForm.shift || undefined} onValueChange={(shift) => setEclEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {ECL_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Operator name</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Operator name" className="col-span-2">
             <Input value={eclEditForm.operatorName} onChange={(e) => setEclEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs">{input1Label} balance (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.input1Balance} onValueChange={(input1Balance) => setEclEditForm((prev) => ({ ...prev, input1Balance }))} />
-          </div>
-          <div>
-            <Label className="text-xs">{input2Label} balance (kg)</Label>
-            <NonNegativeDecimalInput value={eclEditForm.input2Balance} onValueChange={(input2Balance) => setEclEditForm((prev) => ({ ...prev, input2Balance }))} />
-          </div>
+          </ProducedRollEditField>
+          <ProducedRollEditField label={`${input1Label} balance (kg)`}>
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.input1Balance} onValueChange={(input1Balance) => setEclEditForm((prev) => ({ ...prev, input1Balance }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label={`${input2Label} balance (kg)`}>
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={eclEditForm.input2Balance} onValueChange={(input2Balance) => setEclEditForm((prev) => ({ ...prev, input2Balance }))} />
+          </ProducedRollEditField>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setEclEditRoll(null)}>Cancel</Button>

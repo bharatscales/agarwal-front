@@ -2327,12 +2327,7 @@ export default function Home() {
             const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
             const outputWeight =
               outputFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : "")
-            const inputWeight = Number(first.roll.netweight || 0)
-            const parsedOutput = parseFloat(outputWeight)
             const wastage = "0"
-            const balanceweight = Number.isNaN(parsedOutput)
-              ? ""
-              : String(Math.max(0, Number((inputWeight - parsedOutput).toFixed(2))))
             setInspectionAddRollForm((prev) => {
               if (prev?.roll.id === first.roll.id) return prev
               return {
@@ -2350,7 +2345,12 @@ export default function Home() {
                 operatorName: "",
                 shift: firstCard?.shift ?? "A",
                 remark: "",
-                balanceweight,
+                balanceweight:
+                  first.roll.balanceWeight != null
+                    ? String(first.roll.balanceWeight)
+                    : first.roll.balance_weight != null
+                      ? String(first.roll.balance_weight)
+                      : "",
                 semiConsumed: false,
               }
             })
@@ -2363,6 +2363,8 @@ export default function Home() {
                   return {
                     ...prev,
                     parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    balanceweight:
+                      parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
                   }
                 })
               }

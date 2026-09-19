@@ -38,7 +38,10 @@ import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 import {
   isProducedRollLocked,
   PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollEditField,
   ProducedRollRowActions,
+  producedRollEditDialogClassName,
+  producedRollEditInputClassName,
 } from "../produced-roll-actions"
 
 type InspectionPanelProps = any
@@ -57,6 +60,12 @@ function remainingBalance(inputKg: number | null | undefined, outputRaw: string,
   if (output == null) return ""
   const wastageKg = parseNonNegativeDecimal(wastageRaw) ?? 0
   return String(Math.max(0, Number(((Number(inputKg) || 0) - output - wastageKg).toFixed(2))))
+}
+
+function loadedRollBalance(roll: { balanceWeight?: number | null; balance_weight?: number | null } | null | undefined): number | null {
+  const value = roll?.balanceWeight ?? roll?.balance_weight
+  if (value == null || Number.isNaN(Number(value)) || Number(value) < 0) return null
+  return Number(value)
 }
 
 function displayValue(value: unknown) {
@@ -547,7 +556,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
       operatorName: operatorOptions.includes(jobOperator) ? jobOperator : operatorOptions[0] ?? "",
       shift: extras?.shift ?? "A",
       remark: "",
-      balanceweight: remainingBalance(roll.netweight, outputWeight, wastage),
+      balanceweight: loadedRollBalance(roll) != null ? String(loadedRollBalance(roll)) : "",
       semiConsumed: false,
     })
     try {
@@ -557,6 +566,8 @@ export function InspectionPanel(props: InspectionPanelProps) {
         return {
           ...prev,
           parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+          balanceweight:
+            parent.balanceWeight != null ? String(parent.balanceWeight) : prev.balanceweight,
         }
       })
     } catch {
@@ -784,11 +795,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
                                   ? form.semiConsumed
                                     ? ""
                                     : form.balanceweight
-                                  : remainingBalance(
-                                      roll.netweight,
-                                      roll.netweight != null ? String(roll.netweight) : "",
-                                      "0"
-                                    )
+                                  : loadedRollBalance(roll) != null
+                                    ? String(loadedRollBalance(roll))
+                                    : ""
                               }
                               onValueChange={(nextValue) => {
                                 const parsed = parseNonNegativeDecimal(nextValue)
@@ -1170,63 +1179,52 @@ export function InspectionPanel(props: InspectionPanelProps) {
     </>
   )}
     <Dialog open={Boolean(inspectionEditRoll)} onOpenChange={(open) => { if (!open) setInspectionEditRoll(null) }}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
           <DialogTitle>Edit produced roll</DialogTitle>
           <DialogDescription>Update inspection output fields and leftover balance weight.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Size</Label>
-            <NonNegativeDecimalInput value={inspectionEditForm.size} onValueChange={(size) => setInspectionEditForm((prev) => ({ ...prev, size }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Micron</Label>
-            <NonNegativeDecimalInput value={inspectionEditForm.micron} onValueChange={(micron) => setInspectionEditForm((prev) => ({ ...prev, micron }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Output weight (kg)</Label>
-            <NonNegativeDecimalInput value={inspectionEditForm.netweight} onValueChange={(netweight) => setInspectionEditForm((prev) => ({ ...prev, netweight }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Wastage (kg)</Label>
-            <NonNegativeDecimalInput value={inspectionEditForm.wastage} onValueChange={(wastage) => setInspectionEditForm((prev) => ({ ...prev, wastage }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Balance weight (kg)</Label>
-            <NonNegativeDecimalInput value={inspectionEditForm.balanceweight} onValueChange={(balanceweight) => setInspectionEditForm((prev) => ({ ...prev, balanceweight }))} />
-          </div>
-          <div>
-            <Label className="text-xs">No. of tag</Label>
+          <ProducedRollEditField label="Size">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={inspectionEditForm.size} onValueChange={(size) => setInspectionEditForm((prev) => ({ ...prev, size }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Micron">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={inspectionEditForm.micron} onValueChange={(micron) => setInspectionEditForm((prev) => ({ ...prev, micron }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Output weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={inspectionEditForm.netweight} onValueChange={(netweight) => setInspectionEditForm((prev) => ({ ...prev, netweight }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Wastage (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={inspectionEditForm.wastage} onValueChange={(wastage) => setInspectionEditForm((prev) => ({ ...prev, wastage }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Balance weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={inspectionEditForm.balanceweight} onValueChange={(balanceweight) => setInspectionEditForm((prev) => ({ ...prev, balanceweight }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="No. of tag">
             <Input value={inspectionEditForm.noOfTag} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, noOfTag: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs">No. of cuts</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="No. of cuts">
             <Input value={inspectionEditForm.noOfCuts} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, noOfCuts: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Shift</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Shift">
             <Select value={inspectionEditForm.shift || undefined} onValueChange={(shift) => setInspectionEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {INSPECTION_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Operator name</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Operator name" className="col-span-2">
             <Input value={inspectionEditForm.operatorName} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Reason of wastage</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Reason of wastage" className="col-span-2">
             <Input value={inspectionEditForm.wastageReason} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, wastageReason: e.target.value }))} />
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Remark</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Remark" className="col-span-2">
             <Input value={inspectionEditForm.remark} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, remark: e.target.value }))} />
-          </div>
+          </ProducedRollEditField>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setInspectionEditRoll(null)}>Cancel</Button>

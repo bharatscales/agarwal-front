@@ -39,7 +39,10 @@ import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 import {
   isProducedRollLocked,
   PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollEditField,
   ProducedRollRowActions,
+  producedRollEditDialogClassName,
+  producedRollEditInputClassName,
 } from "../produced-roll-actions"
 
 type LaminationPanelProps = any
@@ -1620,55 +1623,46 @@ export function LaminationPanel(props: LaminationPanelProps) {
     </>
   )}
     <Dialog open={Boolean(laminationEditRoll)} onOpenChange={(open) => { if (!open) setLaminationEditRoll(null) }}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
           <DialogTitle>Edit produced roll</DialogTitle>
           <DialogDescription>Update lamination output fields and leftover balance weights.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Output weight (kg)</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.netweight} onValueChange={(netweight) => setLaminationEditForm((prev) => ({ ...prev, netweight }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Meter</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.meter} onValueChange={(meter) => setLaminationEditForm((prev) => ({ ...prev, meter }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Adhesive OH</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.adhesiveOh} onValueChange={(adhesiveOh) => setLaminationEditForm((prev) => ({ ...prev, adhesiveOh }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Adhesive NCO</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.adhesiveNco} onValueChange={(adhesiveNco) => setLaminationEditForm((prev) => ({ ...prev, adhesiveNco }))} />
-          </div>
-          <div>
-            <Label className="text-xs">OH %</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.ohPercent} onValueChange={(ohPercent) => setLaminationEditForm((prev) => ({ ...prev, ohPercent }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Shift</Label>
+          <ProducedRollEditField label="Output weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.netweight} onValueChange={(netweight) => setLaminationEditForm((prev) => ({ ...prev, netweight }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Meter">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.meter} onValueChange={(meter) => setLaminationEditForm((prev) => ({ ...prev, meter }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Adhesive OH">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.adhesiveOh} onValueChange={(adhesiveOh) => setLaminationEditForm((prev) => ({ ...prev, adhesiveOh }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Adhesive NCO">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.adhesiveNco} onValueChange={(adhesiveNco) => setLaminationEditForm((prev) => ({ ...prev, adhesiveNco }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="OH %">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.ohPercent} onValueChange={(ohPercent) => setLaminationEditForm((prev) => ({ ...prev, ohPercent }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Shift">
             <Select value={laminationEditForm.shift || undefined} onValueChange={(shift) => setLaminationEditForm((prev) => ({ ...prev, shift }))}>
-              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Shift" /></SelectTrigger>
               <SelectContent>
                 {LAMINATION_SHIFTS.map((shift) => (
                   <SelectItem key={shift} value={shift}>{shift}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Operator name</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Operator name" className="col-span-2">
             <Input value={laminationEditForm.operatorName} onChange={(e) => setLaminationEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs">{input1Label} balance (kg)</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.input1Balance} onValueChange={(input1Balance) => setLaminationEditForm((prev) => ({ ...prev, input1Balance }))} />
-          </div>
-          <div>
-            <Label className="text-xs">{input2Label} balance (kg)</Label>
-            <NonNegativeDecimalInput value={laminationEditForm.input2Balance} onValueChange={(input2Balance) => setLaminationEditForm((prev) => ({ ...prev, input2Balance }))} />
-          </div>
+          </ProducedRollEditField>
+          <ProducedRollEditField label={`${input1Label} balance (kg)`}>
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.input1Balance} onValueChange={(input1Balance) => setLaminationEditForm((prev) => ({ ...prev, input1Balance }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label={`${input2Label} balance (kg)`}>
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={laminationEditForm.input2Balance} onValueChange={(input2Balance) => setLaminationEditForm((prev) => ({ ...prev, input2Balance }))} />
+          </ProducedRollEditField>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setLaminationEditRoll(null)}>Cancel</Button>

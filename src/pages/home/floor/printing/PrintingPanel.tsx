@@ -28,6 +28,11 @@ import {
 } from "@/lib/non-negative-decimal-input"
 import { getProducedRollParentGroupKey } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import {
+  ProducedRollEditField,
+  producedRollEditDialogClassName,
+  producedRollEditInputClassName,
+} from "../produced-roll-actions"
 
 const RM_FILM_GROUP = "rm film"
 
@@ -976,68 +981,68 @@ export function PrintingPanel(props: PrintingPanelProps) {
     </>
   )}
     <Dialog open={Boolean(printingProducedEditRoll)} onOpenChange={(open) => { if (!open) setPrintingProducedEditRoll(null) }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
           <DialogTitle>Edit produced roll</DialogTitle>
           <DialogDescription>Update output fields and leftover balance weight.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Size</Label>
+          <ProducedRollEditField label="Size">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.size}
               onValueChange={(size) => setPrintingEditForm((prev) => ({ ...prev, size }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Micron</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Micron">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.micron}
               onValueChange={(micron) => setPrintingEditForm((prev) => ({ ...prev, micron }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Output weight (kg)</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Output weight (kg)">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.netweight}
               onValueChange={(netweight) => setPrintingEditForm((prev) => ({ ...prev, netweight }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Meter</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Meter">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.meter}
               onValueChange={(meter) => setPrintingEditForm((prev) => ({ ...prev, meter }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Plain wastage (kg)</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Plain wastage (kg)">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.plainWastage}
               onValueChange={(plainWastage) => setPrintingEditForm((prev) => ({ ...prev, plainWastage }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Printed wastage (kg)</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Printed wastage (kg)">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.printedWastage}
               onValueChange={(printedWastage) => setPrintingEditForm((prev) => ({ ...prev, printedWastage }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Ink gsm</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Ink gsm">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.inkGsm}
               onValueChange={(inkGsm) => setPrintingEditForm((prev) => ({ ...prev, inkGsm }))}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Balance weight (kg)</Label>
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Balance weight (kg)">
             <NonNegativeDecimalInput
+              className={producedRollEditInputClassName}
               value={printingEditForm.balanceweight}
               onValueChange={(balanceweight) => setPrintingEditForm((prev) => ({ ...prev, balanceweight }))}
             />
-          </div>
+          </ProducedRollEditField>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setPrintingProducedEditRoll(null)}>

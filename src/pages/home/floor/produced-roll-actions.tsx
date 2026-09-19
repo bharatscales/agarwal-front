@@ -1,6 +1,32 @@
 import { Pencil, Printer, Trash2 } from "lucide-react"
+import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
+
+export const producedRollEditDialogClassName =
+  "sm:max-w-lg max-h-[85vh] overflow-y-auto bg-card text-card-foreground border-border"
+
+export const producedRollEditInputClassName =
+  "h-9 w-full px-3 text-sm text-foreground dark:bg-input/50 dark:text-foreground"
+
+export function ProducedRollEditField({
+  label,
+  className,
+  children,
+}: {
+  label: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  )
+}
 
 export function isProducedRollLocked(row: { consumed?: boolean; issued?: boolean }) {
   return Boolean(row.consumed || row.issued)

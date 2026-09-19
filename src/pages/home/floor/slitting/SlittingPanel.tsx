@@ -17,7 +17,12 @@ import { Label } from "@/components/ui/label"
 import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
 import { NonNegativeDecimalInput, parseNonNegativeDecimal } from "@/lib/non-negative-decimal-input"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
-import { isProducedRollLocked } from "../produced-roll-actions"
+import {
+  isProducedRollLocked,
+  ProducedRollEditField,
+  producedRollEditDialogClassName,
+  producedRollEditInputClassName,
+} from "../produced-roll-actions"
 
 type SlittingPanelProps = any
 
@@ -693,28 +698,24 @@ export function SlittingPanel(props: SlittingPanelProps) {
     </>
   )}
     <Dialog open={Boolean(slittingEditRoll)} onOpenChange={(open) => { if (!open) setSlittingEditRoll(null) }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
           <DialogTitle>Edit produced roll</DialogTitle>
           <DialogDescription>Update slit roll size and weights.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Size</Label>
-            <NonNegativeDecimalInput value={slittingEditForm.size} onValueChange={(size) => setSlittingEditForm((prev) => ({ ...prev, size }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Micron</Label>
-            <NonNegativeDecimalInput value={slittingEditForm.micron} onValueChange={(micron) => setSlittingEditForm((prev) => ({ ...prev, micron }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Net weight (kg)</Label>
-            <NonNegativeDecimalInput value={slittingEditForm.netweight} onValueChange={(netweight) => setSlittingEditForm((prev) => ({ ...prev, netweight }))} />
-          </div>
-          <div>
-            <Label className="text-xs">Gross weight (kg)</Label>
-            <NonNegativeDecimalInput value={slittingEditForm.grossweight} onValueChange={(grossweight) => setSlittingEditForm((prev) => ({ ...prev, grossweight }))} />
-          </div>
+          <ProducedRollEditField label="Size">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={slittingEditForm.size} onValueChange={(size) => setSlittingEditForm((prev) => ({ ...prev, size }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Micron">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={slittingEditForm.micron} onValueChange={(micron) => setSlittingEditForm((prev) => ({ ...prev, micron }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Net weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={slittingEditForm.netweight} onValueChange={(netweight) => setSlittingEditForm((prev) => ({ ...prev, netweight }))} />
+          </ProducedRollEditField>
+          <ProducedRollEditField label="Gross weight (kg)">
+            <NonNegativeDecimalInput className={producedRollEditInputClassName} value={slittingEditForm.grossweight} onValueChange={(grossweight) => setSlittingEditForm((prev) => ({ ...prev, grossweight }))} />
+          </ProducedRollEditField>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setSlittingEditRoll(null)}>Cancel</Button>
