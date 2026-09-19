@@ -1,12 +1,23 @@
-import { Check, Pencil, Printer, ScanBarcode, X } from "lucide-react"
-import { useMemo } from "react"
+import { Check, Pencil, Printer, ScanBarcode, Trash2, X } from "lucide-react"
+import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
+import { NonNegativeDecimalInput, parseNonNegativeDecimal } from "@/lib/non-negative-decimal-input"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import { isProducedRollLocked } from "../produced-roll-actions"
 
 type SlittingPanelProps = any
 
@@ -61,6 +72,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
     getRollsStockByParentIds,
     unloadFloorLoadedRoll,
     onSkipWorkOrder,
+    setSlittingRollsRefreshKey,
   } = props
 
   const floorWorkOrderColumns = useMemo(
@@ -68,6 +80,24 @@ export function SlittingPanel(props: SlittingPanelProps) {
     [onSkipWorkOrder]
   )
   const parent = slittingLoadedRolls[0] ?? null
+  const [slittingEditRoll, setSlittingEditRoll] = useState<any>(null)
+  const [slittingEditSaving, setSlittingEditSaving] = useState(false)
+  const [slittingEditForm, setSlittingEditForm] = useState({
+    size: "",
+    micron: "",
+    netweight: "",
+    grossweight: "",
+  })
+
+  const refreshSlittingProducedRolls = () => {
+    const parentIds = slittingLoadedRolls.map((r: any) => r.roll.id)
+    if (parentIds.length > 0) {
+      getRollsStockByParentIds(parentIds, "finished_goods").then(setSlittingChildRollsFromDb)
+    } else {
+      setSlittingChildRollsFromDb([])
+    }
+    setSlittingRollsRefreshKey?.((key: number) => key + 1)
+  }
 
   const handleUnloadSlittingRoll = async (jobCardId: number, rollId: number) => {
     try {
@@ -100,7 +130,9 @@ export function SlittingPanel(props: SlittingPanelProps) {
     setSlittingAddRollEditingField(null)
   }
 
-  return slittingSelectedWo ? (
+  return (
+    <>
+  {slittingSelectedWo ? (
     <div className="space-y-4 mt-4">
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-6">
         <div>
@@ -176,7 +208,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Micron</th>
                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Net weight</th>
                         <th className="text-left py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Gross weight</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Reprint</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-700 dark:text-gray-300">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -188,6 +220,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.netweight != null ? `${Number(r.netweight).toFixed(2)} kg` : "—"}</td>
                           <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{r.grossweight != null ? `${Number(r.grossweight).toFixed(2)} kg` : "—"}</td>
                           <td className="py-2 px-3 text-right">
+                            <div className="flex items-center justify-end">
                             <Button
                               type="button"
                               variant="ghost"
@@ -260,6 +293,48 @@ export function SlittingPanel(props: SlittingPanelProps) {
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Edit"
+                              disabled={slittingCreateChildLoading || isProducedRollLocked(r)}
+                              onClick={() => {
+                                setSlittingEditForm({
+                                  size: r.size != null ? String(r.size) : "",
+                                  micron: r.micron != null ? String(r.micron) : "",
+                                  netweight: r.netweight != null ? String(r.netweight) : "",
+                                  grossweight: r.grossweight != null ? String(r.grossweight) : "",
+                                })
+                                setSlittingEditRoll(r)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Delete"
+                              disabled={slittingCreateChildLoading || isProducedRollLocked(r)}
+                              onClick={async () => {
+                                if (!window.confirm("Delete this produced roll?")) return
+                                try {
+                                  setSlittingCreateChildLoading(true)
+                                  await deleteProducedRoll(r.id)
+                                  setSlittingCreateChildMessage("Produced roll deleted.")
+                                  if (slittingEditRoll?.id === r.id) setSlittingEditRoll(null)
+                                  refreshSlittingProducedRolls()
+                                } catch (error) {
+                                  setSlittingCreateChildMessage(jobCardApiErrorMessage(error, "Failed to delete produced roll."))
+                                } finally {
+                                  setSlittingCreateChildLoading(false)
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -615,6 +690,63 @@ export function SlittingPanel(props: SlittingPanelProps) {
           showSelectionSummary={false}
         />
       )}
+    </>
+  )}
+    <Dialog open={Boolean(slittingEditRoll)} onOpenChange={(open) => { if (!open) setSlittingEditRoll(null) }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit produced roll</DialogTitle>
+          <DialogDescription>Update slit roll size and weights.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Size</Label>
+            <NonNegativeDecimalInput value={slittingEditForm.size} onValueChange={(size) => setSlittingEditForm((prev) => ({ ...prev, size }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Micron</Label>
+            <NonNegativeDecimalInput value={slittingEditForm.micron} onValueChange={(micron) => setSlittingEditForm((prev) => ({ ...prev, micron }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Net weight (kg)</Label>
+            <NonNegativeDecimalInput value={slittingEditForm.netweight} onValueChange={(netweight) => setSlittingEditForm((prev) => ({ ...prev, netweight }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Gross weight (kg)</Label>
+            <NonNegativeDecimalInput value={slittingEditForm.grossweight} onValueChange={(grossweight) => setSlittingEditForm((prev) => ({ ...prev, grossweight }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setSlittingEditRoll(null)}>Cancel</Button>
+          <Button
+            type="button"
+            disabled={slittingEditSaving}
+            onClick={async () => {
+              const roll = slittingEditRoll
+              if (!roll?.id) return
+              try {
+                setSlittingEditSaving(true)
+                await updateProducedRoll(roll.id, {
+                  size: parseNonNegativeDecimal(slittingEditForm.size),
+                  micron: parseNonNegativeDecimal(slittingEditForm.micron),
+                  netweight: parseNonNegativeDecimal(slittingEditForm.netweight),
+                  grossweight: parseNonNegativeDecimal(slittingEditForm.grossweight),
+                })
+                setSlittingCreateChildMessage("Produced roll updated.")
+                setSlittingEditRoll(null)
+                refreshSlittingProducedRolls()
+              } catch (error) {
+                setSlittingCreateChildMessage(jobCardApiErrorMessage(error, "Failed to update produced roll."))
+              } finally {
+                setSlittingEditSaving(false)
+              }
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   )
 }

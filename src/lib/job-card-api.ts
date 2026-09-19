@@ -231,6 +231,9 @@ export type AddPrintedRollPayload = {
   adhesiveOh?: number | null
   adhesiveNco?: number | null
   ohPercent?: number | null
+  trimWastage?: number | null
+  lumpsWastage?: number | null
+  eclOutputWastage?: number | null
   balanceWeight?: number
   semiConsumed?: boolean
   gradeId?: number
@@ -333,6 +336,9 @@ export const addEclRoll = async (
       shift: payload.shift || undefined,
       remark: payload.remark || undefined,
       ink_gsm: payload.inkGsm,
+      trim_wastage: payload.trimWastage ?? undefined,
+      lumps_wastage: payload.lumpsWastage ?? undefined,
+      ecl_output_wastage: payload.eclOutputWastage ?? undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       parent_balance_weights: payload.parentBalanceWeights,
@@ -398,5 +404,78 @@ export const addSlittingRoll = async (
     }
   )
   return response.data
+}
+
+export type UpdateProducedRollPayload = {
+  size?: number | null
+  micron?: number | null
+  netweight?: number | null
+  meter?: number | null
+  grossweight?: number | null
+  wastage?: number | null
+  wastageReason?: string | null
+  noOfTag?: number | null
+  noOfCuts?: number | null
+  operatorName?: string | null
+  shift?: string | null
+  remark?: string | null
+  plainWastage?: number | null
+  printedWastage?: number | null
+  inkGsm?: number | null
+  inkGsmByInkWt?: number | null
+  adhesiveOh?: number | null
+  adhesiveNco?: number | null
+  ohPercent?: number | null
+  trimWastage?: number | null
+  lumpsWastage?: number | null
+  eclOutputWastage?: number | null
+  balanceWeight?: number | null
+  parentRollIds?: number[]
+  parentBalanceWeights?: Array<number | null>
+  parentWastages?: Array<number | null>
+}
+
+export function jobCardApiErrorMessage(error: unknown, fallback: string) {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  return typeof detail === "string" && detail.trim() ? detail : fallback
+}
+
+export const updateProducedRoll = async (
+  rollId: number,
+  payload: UpdateProducedRollPayload
+): Promise<AddPrintedRollResponse> => {
+  const body: Record<string, unknown> = {}
+  if ("size" in payload) body.size = payload.size
+  if ("micron" in payload) body.micron = payload.micron
+  if ("netweight" in payload) body.netweight = payload.netweight
+  if ("meter" in payload) body.meter = payload.meter
+  if ("grossweight" in payload) body.grossweight = payload.grossweight
+  if ("wastage" in payload) body.wastage = payload.wastage
+  if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
+  if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
+  if ("noOfCuts" in payload) body.no_of_cuts = payload.noOfCuts
+  if ("operatorName" in payload) body.operator_name = payload.operatorName
+  if ("shift" in payload) body.shift = payload.shift
+  if ("remark" in payload) body.remark = payload.remark
+  if ("plainWastage" in payload) body.plain_wastage = payload.plainWastage
+  if ("printedWastage" in payload) body.printed_wastage = payload.printedWastage
+  if ("inkGsm" in payload) body.ink_gsm = payload.inkGsm
+  if ("inkGsmByInkWt" in payload) body.ink_gsm_by_ink_wt = payload.inkGsmByInkWt
+  if ("adhesiveOh" in payload) body.adhesive_oh = payload.adhesiveOh
+  if ("adhesiveNco" in payload) body.adhesive_nco = payload.adhesiveNco
+  if ("ohPercent" in payload) body.oh_percent = payload.ohPercent
+  if ("trimWastage" in payload) body.trim_wastage = payload.trimWastage
+  if ("lumpsWastage" in payload) body.lumps_wastage = payload.lumpsWastage
+  if ("eclOutputWastage" in payload) body.ecl_output_wastage = payload.eclOutputWastage
+  if ("balanceWeight" in payload) body.balance_weight = payload.balanceWeight
+  if (payload.parentRollIds != null) body.parent_roll_ids = payload.parentRollIds
+  if (payload.parentBalanceWeights != null) body.parent_balance_weights = payload.parentBalanceWeights
+  if (payload.parentWastages != null) body.parent_wastages = payload.parentWastages
+  const response = await api.patch<AddPrintedRollResponse>(`/job-card/produced-rolls/${rollId}`, body)
+  return response.data
+}
+
+export const deleteProducedRoll = async (rollId: number) => {
+  await api.delete(`/job-card/produced-rolls/${rollId}`)
 }
 

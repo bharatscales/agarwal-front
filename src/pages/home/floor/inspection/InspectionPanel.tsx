@@ -16,16 +16,30 @@ import {
 } from "@/components/ui/select"
 import { CreatableCombobox } from "@/components/ui/creatable-combobox"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
   parseNonNegativeDecimal,
 } from "@/lib/non-negative-decimal-input"
+import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
 import { getAllOperators } from "@/lib/operator-api"
 import { getWastageReasons } from "@/lib/rolls-stock-api"
 import { getProducedRollParentGroupKey, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import {
+  isProducedRollLocked,
+  PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollRowActions,
+} from "../produced-roll-actions"
 
 type InspectionPanelProps = any
 
@@ -99,6 +113,21 @@ export function InspectionPanel(props: InspectionPanelProps) {
 
   const [inspectionOperators, setInspectionOperators] = useState<string[]>([])
   const [savedWastageReasons, setSavedWastageReasons] = useState<string[]>([])
+  const [inspectionEditRoll, setInspectionEditRoll] = useState<any>(null)
+  const [inspectionEditSaving, setInspectionEditSaving] = useState(false)
+  const [inspectionEditForm, setInspectionEditForm] = useState({
+    size: "",
+    micron: "",
+    netweight: "",
+    wastage: "",
+    balanceweight: "",
+    wastageReason: "",
+    noOfTag: "",
+    noOfCuts: "",
+    operatorName: "",
+    shift: "",
+    remark: "",
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -265,6 +294,58 @@ export function InspectionPanel(props: InspectionPanelProps) {
     }
   }
 
+  const refreshInspectionProducedRolls = () => {
+    if (!inspectionSelectedWo) return
+    getRollsStockByWorkOrder(inspectionSelectedWo.id, "wip_inspection").then(setInspectionChildRollsFromDb)
+    setInspectionRollsRefreshKey((key: number) => key + 1)
+  }
+
+  const handleInspectionProducedRollDelete = async (row: any) => {
+    if (!window.confirm(PRODUCED_ROLL_DELETE_CONFIRM)) return
+    try {
+      setInspectionCreateChildLoading(true)
+      await deleteProducedRoll(row.id)
+      setInspectionCreateChildMessage("Produced roll deleted.")
+      if (inspectionEditRoll?.id === row.id) setInspectionEditRoll(null)
+      refreshInspectionProducedRolls()
+    } catch (error) {
+      setInspectionCreateChildMessage(jobCardApiErrorMessage(error, "Failed to delete produced roll."))
+    } finally {
+      setInspectionCreateChildLoading(false)
+    }
+  }
+
+  const handleSaveInspectionProducedEdit = async () => {
+    const roll = inspectionEditRoll
+    if (!roll?.id) return
+    const netweight = parseNonNegativeDecimal(inspectionEditForm.netweight)
+    const wastage = parseNonNegativeDecimal(inspectionEditForm.wastage)
+    try {
+      setInspectionEditSaving(true)
+      await updateProducedRoll(roll.id, {
+        size: parseNonNegativeDecimal(inspectionEditForm.size),
+        micron: parseNonNegativeDecimal(inspectionEditForm.micron),
+        netweight,
+        grossweight: netweight,
+        wastage,
+        balanceWeight: parseNonNegativeDecimal(inspectionEditForm.balanceweight) ?? 0,
+        wastageReason: inspectionEditForm.wastageReason.trim() || null,
+        noOfTag: parseOptionalInt(inspectionEditForm.noOfTag) ?? null,
+        noOfCuts: parseOptionalInt(inspectionEditForm.noOfCuts) ?? null,
+        operatorName: inspectionEditForm.operatorName.trim() || null,
+        shift: inspectionEditForm.shift.trim() || null,
+        remark: inspectionEditForm.remark.trim() || null,
+      })
+      setInspectionCreateChildMessage("Produced roll updated.")
+      setInspectionEditRoll(null)
+      refreshInspectionProducedRolls()
+    } catch (error) {
+      setInspectionCreateChildMessage(jobCardApiErrorMessage(error, "Failed to update produced roll."))
+    } finally {
+      setInspectionEditSaving(false)
+    }
+  }
+
   const inspectionProducedRollColumns = useMemo(
     () => [
       {
@@ -405,20 +486,33 @@ export function InspectionPanel(props: InspectionPanelProps) {
         filterFn: includesStringFilterFn,
       },
       {
-        id: "reprint",
-        header: () => <div className="text-left">Reprint</div>,
+        id: "actions",
+        header: () => <div className="text-left">Actions</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={!wipPrintingTemplate || inspectionCreateChildLoading}
-              onClick={() => handleInspectionProducedRollReprint(row.original)}
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
+          <ProducedRollRowActions
+            reprintDisabled={!wipPrintingTemplate || inspectionCreateChildLoading}
+            mutateDisabled={inspectionCreateChildLoading || isProducedRollLocked(row.original)}
+            onReprint={() => handleInspectionProducedRollReprint(row.original)}
+            onEdit={() => {
+              const roll = row.original
+              const balance = roll.parentBalanceWeight ?? roll.balanceWeight
+              setInspectionEditForm({
+                size: roll.size != null ? String(roll.size) : "",
+                micron: roll.micron != null ? String(roll.micron) : "",
+                netweight: roll.netweight != null ? String(roll.netweight) : "",
+                wastage: roll.wastage != null ? String(roll.wastage) : "",
+                balanceweight: balance != null ? String(balance) : "",
+                wastageReason: roll.wastageReason ?? "",
+                noOfTag: roll.noOfTag != null ? String(roll.noOfTag) : "",
+                noOfCuts: roll.noOfCuts != null ? String(roll.noOfCuts) : "",
+                operatorName: roll.operatorName ?? "",
+                shift: roll.shift ?? "",
+                remark: roll.remark ?? "",
+              })
+              setInspectionEditRoll(roll)
+            }}
+            onDelete={() => void handleInspectionProducedRollDelete(row.original)}
+          />
         ),
       },
     ],
@@ -581,7 +675,9 @@ export function InspectionPanel(props: InspectionPanelProps) {
     </>
   )
 
-  return inspectionSelectedWo ? (
+  return (
+    <>
+  {inspectionSelectedWo ? (
     <div className="space-y-4 mt-4">
       <div>
         <div className="flex flex-col-reverse gap-2">
@@ -609,7 +705,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Output weight (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Wastage (kg)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
-                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Semi consumed</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Roll continue</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Reason of wastage</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of tag</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">No. of cuts</th>
@@ -711,7 +807,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                             <Checkbox
                               checked={Boolean(form?.semiConsumed)}
                               disabled={!isSelected || inspectionCreateChildLoading}
-                              aria-label="Semi consumed"
+                              aria-label="Roll continue"
                               title="Keep this roll loaded; do not create a balance roll"
                               onCheckedChange={(checked) => {
                                 const isChecked = checked === true
@@ -936,7 +1032,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                     const semiConsumed = Boolean(form.semiConsumed)
                     const balanceValue = semiConsumed ? null : parseNonNegativeDecimal(form.balanceweight || "")
                     if (!semiConsumed && balanceValue == null) {
-                      setInspectionCreateChildMessage("Enter balance weight or tick Semi consumed.")
+                      setInspectionCreateChildMessage("Enter balance weight or tick Roll continue.")
                       return
                     }
                     const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
@@ -1071,6 +1167,73 @@ export function InspectionPanel(props: InspectionPanelProps) {
           showSelectionSummary={false}
         />
       )}
+    </>
+  )}
+    <Dialog open={Boolean(inspectionEditRoll)} onOpenChange={(open) => { if (!open) setInspectionEditRoll(null) }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit produced roll</DialogTitle>
+          <DialogDescription>Update inspection output fields and leftover balance weight.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Size</Label>
+            <NonNegativeDecimalInput value={inspectionEditForm.size} onValueChange={(size) => setInspectionEditForm((prev) => ({ ...prev, size }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Micron</Label>
+            <NonNegativeDecimalInput value={inspectionEditForm.micron} onValueChange={(micron) => setInspectionEditForm((prev) => ({ ...prev, micron }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Output weight (kg)</Label>
+            <NonNegativeDecimalInput value={inspectionEditForm.netweight} onValueChange={(netweight) => setInspectionEditForm((prev) => ({ ...prev, netweight }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Wastage (kg)</Label>
+            <NonNegativeDecimalInput value={inspectionEditForm.wastage} onValueChange={(wastage) => setInspectionEditForm((prev) => ({ ...prev, wastage }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Balance weight (kg)</Label>
+            <NonNegativeDecimalInput value={inspectionEditForm.balanceweight} onValueChange={(balanceweight) => setInspectionEditForm((prev) => ({ ...prev, balanceweight }))} />
+          </div>
+          <div>
+            <Label className="text-xs">No. of tag</Label>
+            <Input value={inspectionEditForm.noOfTag} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, noOfTag: e.target.value }))} />
+          </div>
+          <div>
+            <Label className="text-xs">No. of cuts</Label>
+            <Input value={inspectionEditForm.noOfCuts} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, noOfCuts: e.target.value }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Shift</Label>
+            <Select value={inspectionEditForm.shift || undefined} onValueChange={(shift) => setInspectionEditForm((prev) => ({ ...prev, shift }))}>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectContent>
+                {INSPECTION_SHIFTS.map((shift) => (
+                  <SelectItem key={shift} value={shift}>{shift}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Operator name</Label>
+            <Input value={inspectionEditForm.operatorName} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Reason of wastage</Label>
+            <Input value={inspectionEditForm.wastageReason} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, wastageReason: e.target.value }))} />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Remark</Label>
+            <Input value={inspectionEditForm.remark} onChange={(e) => setInspectionEditForm((prev) => ({ ...prev, remark: e.target.value }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setInspectionEditRoll(null)}>Cancel</Button>
+          <Button type="button" disabled={inspectionEditSaving} onClick={() => void handleSaveInspectionProducedEdit()}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   )
 }

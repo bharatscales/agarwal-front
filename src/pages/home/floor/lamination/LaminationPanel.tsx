@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -18,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
+import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
@@ -27,6 +36,11 @@ import { getAllOperators } from "@/lib/operator-api"
 import { createDualInputGroupPathGetter, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import {
+  isProducedRollLocked,
+  PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollRowActions,
+} from "../produced-roll-actions"
 
 type LaminationPanelProps = any
 
@@ -321,7 +335,7 @@ function loadedFilmCells(
         <Checkbox
           checked={opts.semiConsumed}
           disabled={!opts.canEdit || opts.unloadDisabled}
-          aria-label="Semi consumed"
+          aria-label="Roll continue"
           title="Keep this roll loaded; do not create a balance roll"
           onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
@@ -404,6 +418,21 @@ export function LaminationPanel(props: LaminationPanelProps) {
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
+  const [laminationEditRoll, setLaminationEditRoll] = useState<any>(null)
+  const [laminationEditSaving, setLaminationEditSaving] = useState(false)
+  const [laminationEditForm, setLaminationEditForm] = useState({
+    netweight: "",
+    meter: "",
+    adhesiveOh: "",
+    adhesiveNco: "",
+    ohPercent: "",
+    operatorName: "",
+    shift: "",
+    input1Id: null as number | null,
+    input2Id: null as number | null,
+    input1Balance: "",
+    input2Balance: "",
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -598,6 +627,79 @@ export function LaminationPanel(props: LaminationPanelProps) {
     }
   }
 
+  const refreshLaminationProducedRolls = () => {
+    if (!laminationSelectedWo) return
+    getRollsStockByWorkOrder(laminationSelectedWo.id, "wip_lamination").then(setLaminationChildRollsFromDb)
+    setLaminationRollsRefreshKey((key: number) => key + 1)
+  }
+
+  const openLaminationProducedEdit = (roll: any) => {
+    const { input1, input2 } = pickEclProducedParents(roll.parentRolls, getLaminationParentRole)
+    setLaminationEditForm({
+      netweight: roll.netweight != null ? String(roll.netweight) : "",
+      meter: roll.meter != null ? String(roll.meter) : "",
+      adhesiveOh: roll.adhesiveOh != null ? String(roll.adhesiveOh) : "",
+      adhesiveNco: roll.adhesiveNco != null ? String(roll.adhesiveNco) : "",
+      ohPercent: roll.ohPercent != null ? String(roll.ohPercent) : "",
+      operatorName: roll.operatorName ?? "",
+      shift: roll.shift ?? "",
+      input1Id: input1?.id ?? null,
+      input2Id: input2?.id ?? null,
+      input1Balance: input1?.balanceWeight != null ? String(input1.balanceWeight) : "",
+      input2Balance: input2?.balanceWeight != null ? String(input2.balanceWeight) : "",
+    })
+    setLaminationEditRoll(roll)
+  }
+
+  const handleLaminationProducedRollDelete = async (row: any) => {
+    if (!window.confirm(PRODUCED_ROLL_DELETE_CONFIRM)) return
+    try {
+      setLaminationCreateChildLoading(true)
+      await deleteProducedRoll(row.id)
+      setLaminationCreateChildMessage("Produced roll deleted.")
+      if (laminationEditRoll?.id === row.id) setLaminationEditRoll(null)
+      refreshLaminationProducedRolls()
+    } catch (error) {
+      setLaminationCreateChildMessage(jobCardApiErrorMessage(error, "Failed to delete produced roll."))
+    } finally {
+      setLaminationCreateChildLoading(false)
+    }
+  }
+
+  const handleSaveLaminationProducedEdit = async () => {
+    const roll = laminationEditRoll
+    if (!roll?.id) return
+    const parentRollIds = [laminationEditForm.input1Id, laminationEditForm.input2Id].filter((id): id is number => id != null)
+    const netweight = parseNonNegativeDecimal(laminationEditForm.netweight)
+    const meter = parseNonNegativeDecimal(laminationEditForm.meter)
+    try {
+      setLaminationEditSaving(true)
+      await updateProducedRoll(roll.id, {
+        netweight,
+        meter: meter != null ? Math.round(meter) : null,
+        grossweight: netweight,
+        adhesiveOh: parseNonNegativeDecimal(laminationEditForm.adhesiveOh),
+        adhesiveNco: parseNonNegativeDecimal(laminationEditForm.adhesiveNco),
+        ohPercent: parseNonNegativeDecimal(laminationEditForm.ohPercent),
+        operatorName: laminationEditForm.operatorName.trim() || null,
+        shift: laminationEditForm.shift.trim() || null,
+        parentRollIds,
+        parentBalanceWeights: parentRollIds.map((id) =>
+          id === laminationEditForm.input1Id
+            ? parseNonNegativeDecimal(laminationEditForm.input1Balance) ?? 0
+            : parseNonNegativeDecimal(laminationEditForm.input2Balance) ?? 0
+        ),
+      })
+      setLaminationCreateChildMessage("Produced roll updated.")
+      setLaminationEditRoll(null)
+      refreshLaminationProducedRolls()
+    } catch (error) {
+      setLaminationCreateChildMessage(jobCardApiErrorMessage(error, "Failed to update produced roll."))
+    } finally {
+      setLaminationEditSaving(false)
+    }
+  }
+
   const laminationProducedRollColumns = useMemo(
     () => [
       asSingleColumnGroup("snoGroup", {
@@ -633,21 +735,17 @@ export function LaminationPanel(props: LaminationPanelProps) {
         ),
         filterFn: includesStringFilterFn,
       }),
-      asSingleColumnGroup("reprintGroup", {
-        id: "reprint",
-        header: () => <div className="text-left">Reprint</div>,
+      asSingleColumnGroup("actionsGroup", {
+        id: "actions",
+        header: () => <div className="text-left">Actions</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={!wipPrintingTemplate || laminationCreateChildLoading}
-              onClick={() => handleLaminationProducedRollReprint(row.original)}
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
+          <ProducedRollRowActions
+            reprintDisabled={!wipPrintingTemplate || laminationCreateChildLoading}
+            mutateDisabled={laminationCreateChildLoading || isProducedRollLocked(row.original)}
+            onReprint={() => handleLaminationProducedRollReprint(row.original)}
+            onEdit={() => openLaminationProducedEdit(row.original)}
+            onDelete={() => void handleLaminationProducedRollDelete(row.original)}
+          />
         ),
       }),
     ],
@@ -913,7 +1011,9 @@ export function LaminationPanel(props: LaminationPanelProps) {
     </>
   )
 
-  return laminationSelectedWo ? (
+  return (
+    <>
+  {laminationSelectedWo ? (
     <div className="space-y-4 mt-4">
       <div className="flex flex-col-reverse gap-2">
         <div>
@@ -969,7 +1069,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                         </th>
                       </tr>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Roll continue", ""].map(
                           (title, i) => (
                             <th
                               key={`input1-${title || "remove"}`}
@@ -979,7 +1079,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                             </th>
                           )
                         )}
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Roll continue", ""].map(
                           (title, i) => (
                             <th
                               key={`input2-${title || "remove"}`}
@@ -1329,7 +1429,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                 const wipBalanceValue = wipSemiConsumed ? null : parseNonNegativeDecimal(form.wipBalance || "")
                 const rmBalanceValue = rmSemiConsumed ? null : parseNonNegativeDecimal(form.rmBalance || "")
                 if ((!wipSemiConsumed && wipBalanceValue == null) || (!rmSemiConsumed && rmBalanceValue == null)) {
-                  setLaminationCreateChildMessage("Enter balance weight or tick Semi consumed for both films.")
+                  setLaminationCreateChildMessage("Enter balance weight or tick Roll continue for both films.")
                   return
                 }
                 const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
@@ -1423,7 +1523,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                         }
                       : prev
                   )
-                  setLaminationCreateChildMessage("Lamination roll created. Semi-consumed films kept on the machine.")
+                  setLaminationCreateChildMessage("Lamination roll created. Roll continue films kept on the machine.")
                 } else {
                   setLaminationFormCommittedForRollId(form.roll.id)
                   setLaminationCreateChildMessage(
@@ -1517,6 +1617,65 @@ export function LaminationPanel(props: LaminationPanelProps) {
           showSelectionSummary={false}
         />
       )}
+    </>
+  )}
+    <Dialog open={Boolean(laminationEditRoll)} onOpenChange={(open) => { if (!open) setLaminationEditRoll(null) }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit produced roll</DialogTitle>
+          <DialogDescription>Update lamination output fields and leftover balance weights.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Output weight (kg)</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.netweight} onValueChange={(netweight) => setLaminationEditForm((prev) => ({ ...prev, netweight }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Meter</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.meter} onValueChange={(meter) => setLaminationEditForm((prev) => ({ ...prev, meter }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Adhesive OH</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.adhesiveOh} onValueChange={(adhesiveOh) => setLaminationEditForm((prev) => ({ ...prev, adhesiveOh }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Adhesive NCO</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.adhesiveNco} onValueChange={(adhesiveNco) => setLaminationEditForm((prev) => ({ ...prev, adhesiveNco }))} />
+          </div>
+          <div>
+            <Label className="text-xs">OH %</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.ohPercent} onValueChange={(ohPercent) => setLaminationEditForm((prev) => ({ ...prev, ohPercent }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Shift</Label>
+            <Select value={laminationEditForm.shift || undefined} onValueChange={(shift) => setLaminationEditForm((prev) => ({ ...prev, shift }))}>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectContent>
+                {LAMINATION_SHIFTS.map((shift) => (
+                  <SelectItem key={shift} value={shift}>{shift}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Operator name</Label>
+            <Input value={laminationEditForm.operatorName} onChange={(e) => setLaminationEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
+          </div>
+          <div>
+            <Label className="text-xs">{input1Label} balance (kg)</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.input1Balance} onValueChange={(input1Balance) => setLaminationEditForm((prev) => ({ ...prev, input1Balance }))} />
+          </div>
+          <div>
+            <Label className="text-xs">{input2Label} balance (kg)</Label>
+            <NonNegativeDecimalInput value={laminationEditForm.input2Balance} onValueChange={(input2Balance) => setLaminationEditForm((prev) => ({ ...prev, input2Balance }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setLaminationEditRoll(null)}>Cancel</Button>
+          <Button type="button" disabled={laminationEditSaving} onClick={() => void handleSaveLaminationProducedEdit()}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   )
 }

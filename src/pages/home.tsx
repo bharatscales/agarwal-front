@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import {
-  ArrowLeft,
-  Printer,
-} from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 import { useSidebar } from "@/components/ui/sidebar"
@@ -17,9 +14,11 @@ import {
   addPrintedRoll,
   addSlittingRoll,
   createJobCard,
+  deleteProducedRoll,
   getAllJobCards,
   getCurrentRoll,
   getLoadedRolls,
+  jobCardApiErrorMessage,
   scanRoll,
   unloadRoll,
   type CurrentRoll,
@@ -56,6 +55,11 @@ import { EclPanel } from "./home/floor/ecl/EclPanel"
 import { InspectionPanel } from "./home/floor/inspection/InspectionPanel"
 import { LaminationPanel } from "./home/floor/lamination/LaminationPanel"
 import { PrintingPanel } from "./home/floor/printing/PrintingPanel"
+import {
+  isProducedRollLocked,
+  PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollRowActions,
+} from "./home/floor/produced-roll-actions"
 import { SlittingPanel } from "./home/floor/slitting/SlittingPanel"
 import { usePrinterStatus } from "./home/hooks/usePrinterStatus"
 import { useRoleFlags } from "./home/hooks/useRoleFlags"
@@ -216,6 +220,7 @@ export default function Home() {
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
   const [printingChildRollsLoading, setPrintingChildRollsLoading] = useState(false)
+  const [printingProducedEditRoll, setPrintingProducedEditRoll] = useState<any>(null)
   const [wipPrintingTemplate, setWipPrintingTemplate] = useState<TemplateMaster | null>(null)
   const [printingPrintStatus, setPrintingPrintStatus] = useState<"idle" | "printing" | "done">("idle")
   const [floorPrintingBarcode, setFloorPrintingBarcode] = useState("")
@@ -383,6 +388,27 @@ export default function Home() {
     }
   }
 
+  const refreshPrintingProducedRolls = () => {
+    if (!printingSelectedWo) return
+    getRollsStockByWorkOrder(printingSelectedWo.id, "wip_printed").then(setPrintingChildRollsFromDb)
+    setPrintingRollsRefreshKey((key) => key + 1)
+  }
+
+  const handlePrintingProducedRollDelete = async (row: any) => {
+    if (!window.confirm(PRODUCED_ROLL_DELETE_CONFIRM)) return
+    try {
+      setPrintingCreateChildLoading(true)
+      await deleteProducedRoll(row.id)
+      setPrintingCreateChildMessage("Produced roll deleted.")
+      if (printingProducedEditRoll?.id === row.id) setPrintingProducedEditRoll(null)
+      refreshPrintingProducedRolls()
+    } catch (error) {
+      setPrintingCreateChildMessage(jobCardApiErrorMessage(error, "Failed to delete produced roll."))
+    } finally {
+      setPrintingCreateChildLoading(false)
+    }
+  }
+
   const printingProducedRollColumns = [
       {
         id: "sno",
@@ -524,20 +550,16 @@ export default function Home() {
         filterFn: includesStringFilterFn,
       },
       {
-        id: "reprint",
-        header: () => <div className="text-left">Reprint</div>,
+        id: "actions",
+        header: () => <div className="text-left">Actions</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={!wipPrintingTemplate || printingCreateChildLoading}
-              onClick={() => handlePrintingProducedRollReprint(row.original)}
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
+          <ProducedRollRowActions
+            reprintDisabled={!wipPrintingTemplate || printingCreateChildLoading}
+            mutateDisabled={printingCreateChildLoading || isProducedRollLocked(row.original)}
+            onReprint={() => handlePrintingProducedRollReprint(row.original)}
+            onEdit={() => setPrintingProducedEditRoll(row.original)}
+            onDelete={() => void handlePrintingProducedRollDelete(row.original)}
+          />
         ),
       },
     ]
@@ -575,6 +597,9 @@ export default function Home() {
     micron: string
     netweight: string
     extrusionKg: string
+    trimWastage: string
+    lumpsWastage: string
+    eclOutputWastage: string
     wipWastage: string
     rmWastage: string
     wipBalance: string
@@ -2433,6 +2458,9 @@ export default function Home() {
                   micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
                   netweight: outputFromScale,
                   extrusionKg: "",
+                  trimWastage: "0",
+                  lumpsWastage: "0",
+                  eclOutputWastage: "0",
                   wipWastage: "0",
                   rmWastage: "0",
                   wipBalance: "",
@@ -2992,6 +3020,9 @@ export default function Home() {
                     printingProducedTotals={printingProducedTotals}
                     printingChildRollsFromDb={printingChildRollsFromDb}
                     printingProducedRollColumns={printingProducedRollColumns}
+                    printingProducedEditRoll={printingProducedEditRoll}
+                    setPrintingProducedEditRoll={setPrintingProducedEditRoll}
+                    refreshPrintingProducedRolls={refreshPrintingProducedRolls}
                     printingFormCommittedForRollId={printingFormCommittedForRollId}
                     wipPrintingTemplate={wipPrintingTemplate}
                     createPrintJob={createPrintJob}

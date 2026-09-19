@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -18,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
+import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
@@ -27,6 +36,11 @@ import { getAllOperators } from "@/lib/operator-api"
 import { createDualInputGroupPathGetter, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import {
+  isProducedRollLocked,
+  PRODUCED_ROLL_DELETE_CONFIRM,
+  ProducedRollRowActions,
+} from "../produced-roll-actions"
 
 type EclPanelProps = any
 
@@ -215,7 +229,7 @@ function loadedFilmCells(
         <Checkbox
           checked={opts.semiConsumed}
           disabled={!opts.canEdit || opts.unloadDisabled}
-          aria-label="Semi consumed"
+          aria-label="Roll continue"
           title="Keep this roll loaded; do not create a balance roll"
           onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
@@ -298,6 +312,21 @@ export function EclPanel(props: EclPanelProps) {
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
+  const [eclEditRoll, setEclEditRoll] = useState<any>(null)
+  const [eclEditSaving, setEclEditSaving] = useState(false)
+  const [eclEditForm, setEclEditForm] = useState({
+    netweight: "",
+    inkGsm: "",
+    trimWastage: "",
+    lumpsWastage: "",
+    eclOutputWastage: "",
+    operatorName: "",
+    shift: "",
+    input1Id: null as number | null,
+    input2Id: null as number | null,
+    input1Balance: "",
+    input2Balance: "",
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -472,6 +501,9 @@ export function EclPanel(props: EclPanelProps) {
           netweight: r.netweight,
           wastage: r.wastage,
           inkGsm: r.inkGsm,
+          trimWastage: r.trimWastage,
+          lumpsWastage: r.lumpsWastage,
+          eclOutputWastage: r.eclOutputWastage,
           operatorName: r.operatorName,
           shift: r.shift,
           remark: r.remark,
@@ -490,6 +522,78 @@ export function EclPanel(props: EclPanelProps) {
       setEclCreateChildMessage("Failed to send reprint to printer.")
     } finally {
       setEclCreateChildLoading(false)
+    }
+  }
+
+  const refreshEclProducedRolls = () => {
+    if (!eclSelectedWo) return
+    getRollsStockByWorkOrder(eclSelectedWo.id, "wip_ecl").then(setEclChildRollsFromDb)
+    setEclRollsRefreshKey((key: number) => key + 1)
+  }
+
+  const openEclProducedEdit = (roll: any) => {
+    const { input1, input2 } = pickEclProducedParents(roll.parentRolls, getEclParentRole)
+    setEclEditForm({
+      netweight: roll.netweight != null ? String(roll.netweight) : "",
+      inkGsm: roll.inkGsm != null ? String(roll.inkGsm) : "",
+      trimWastage: roll.trimWastage != null ? String(roll.trimWastage) : "",
+      lumpsWastage: roll.lumpsWastage != null ? String(roll.lumpsWastage) : "",
+      eclOutputWastage: roll.eclOutputWastage != null ? String(roll.eclOutputWastage) : "",
+      operatorName: roll.operatorName ?? "",
+      shift: roll.shift ?? "",
+      input1Id: input1?.id ?? null,
+      input2Id: input2?.id ?? null,
+      input1Balance: input1?.balanceWeight != null ? String(input1.balanceWeight) : "",
+      input2Balance: input2?.balanceWeight != null ? String(input2.balanceWeight) : "",
+    })
+    setEclEditRoll(roll)
+  }
+
+  const handleEclProducedRollDelete = async (row: any) => {
+    if (!window.confirm(PRODUCED_ROLL_DELETE_CONFIRM)) return
+    try {
+      setEclCreateChildLoading(true)
+      await deleteProducedRoll(row.id)
+      setEclCreateChildMessage("Produced roll deleted.")
+      if (eclEditRoll?.id === row.id) setEclEditRoll(null)
+      refreshEclProducedRolls()
+    } catch (error) {
+      setEclCreateChildMessage(jobCardApiErrorMessage(error, "Failed to delete produced roll."))
+    } finally {
+      setEclCreateChildLoading(false)
+    }
+  }
+
+  const handleSaveEclProducedEdit = async () => {
+    const roll = eclEditRoll
+    if (!roll?.id) return
+    const parentRollIds = [eclEditForm.input1Id, eclEditForm.input2Id].filter((id): id is number => id != null)
+    const netweight = parseNonNegativeDecimal(eclEditForm.netweight)
+    try {
+      setEclEditSaving(true)
+      await updateProducedRoll(roll.id, {
+        netweight,
+        grossweight: netweight,
+        inkGsm: parseNonNegativeDecimal(eclEditForm.inkGsm),
+        trimWastage: parseNonNegativeDecimal(eclEditForm.trimWastage),
+        lumpsWastage: parseNonNegativeDecimal(eclEditForm.lumpsWastage),
+        eclOutputWastage: parseNonNegativeDecimal(eclEditForm.eclOutputWastage),
+        operatorName: eclEditForm.operatorName.trim() || null,
+        shift: eclEditForm.shift.trim() || null,
+        parentRollIds,
+        parentBalanceWeights: parentRollIds.map((id) =>
+          id === eclEditForm.input1Id
+            ? parseNonNegativeDecimal(eclEditForm.input1Balance) ?? 0
+            : parseNonNegativeDecimal(eclEditForm.input2Balance) ?? 0
+        ),
+      })
+      setEclCreateChildMessage("Produced roll updated.")
+      setEclEditRoll(null)
+      refreshEclProducedRolls()
+    } catch (error) {
+      setEclCreateChildMessage(jobCardApiErrorMessage(error, "Failed to update produced roll."))
+    } finally {
+      setEclEditSaving(false)
     }
   }
 
@@ -515,6 +619,36 @@ export function EclPanel(props: EclPanelProps) {
           <div className="text-sm">
             {row.original.inkGsm != null ? `${Number(row.original.inkGsm).toFixed(2)} kg` : "-"}
           </div>
+        ),
+        filterFn: includesStringFilterFn,
+      }),
+      asSingleColumnGroup("trimWastageGroup", {
+        accessorKey: "trimWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Trim wastage (kg)" column={column} placeholder="Filter trim wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayKg(row.original.trimWastage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      }),
+      asSingleColumnGroup("lumpsWastageGroup", {
+        accessorKey: "lumpsWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Lumps wastage (kg)" column={column} placeholder="Filter lumps wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayKg(row.original.lumpsWastage)}</div>
+        ),
+        filterFn: includesStringFilterFn,
+      }),
+      asSingleColumnGroup("eclOutputWastageGroup", {
+        accessorKey: "eclOutputWastage",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="ECL output wastage (kg)" column={column} placeholder="Filter ECL output wastage..." />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <div className="text-sm">{displayKg(row.original.eclOutputWastage)}</div>
         ),
         filterFn: includesStringFilterFn,
       }),
@@ -550,21 +684,17 @@ export function EclPanel(props: EclPanelProps) {
         ),
         filterFn: includesStringFilterFn,
       }),
-      asSingleColumnGroup("reprintGroup", {
-        id: "reprint",
-        header: () => <div className="text-left">Reprint</div>,
+      asSingleColumnGroup("actionsGroup", {
+        id: "actions",
+        header: () => <div className="text-left">Actions</div>,
         cell: ({ row }: { row: any }) => (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={!wipPrintingTemplate || eclCreateChildLoading}
-              onClick={() => handleEclProducedRollReprint(row.original)}
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-          </div>
+          <ProducedRollRowActions
+            reprintDisabled={!wipPrintingTemplate || eclCreateChildLoading}
+            mutateDisabled={eclCreateChildLoading || isProducedRollLocked(row.original)}
+            onReprint={() => handleEclProducedRollReprint(row.original)}
+            onEdit={() => openEclProducedEdit(row.original)}
+            onDelete={() => void handleEclProducedRollDelete(row.original)}
+          />
         ),
       }),
     ],
@@ -828,7 +958,9 @@ export function EclPanel(props: EclPanelProps) {
     </>
   )
 
-  return eclSelectedWo ? (
+  return (
+    <>
+  {eclSelectedWo ? (
     <div className="space-y-4 mt-4">
       <div className="flex flex-col-reverse gap-2">
         <div>
@@ -885,7 +1017,7 @@ export function EclPanel(props: EclPanelProps) {
                         </th>
                       </tr>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Roll continue", ""].map(
                           (title, i) => (
                             <th
                               key={`input1-${title || "remove"}`}
@@ -895,7 +1027,7 @@ export function EclPanel(props: EclPanelProps) {
                             </th>
                           )
                         )}
-                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Semi consumed", ""].map(
+                        {["Structure", "Size", "Micron", "Input weight", "Wastage", "Balance weight", "Roll continue", ""].map(
                           (title, i) => (
                             <th
                               key={`input2-${title || "remove"}`}
@@ -1000,6 +1132,15 @@ export function EclPanel(props: EclPanelProps) {
                           Extrusion coating (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Trim wastage (kg)
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          Lumps wastage (kg)
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+                          ECL output wastage (kg)
+                        </th>
+                        <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
                           Output weight (kg)
                         </th>
                         <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
@@ -1018,6 +1159,39 @@ export function EclPanel(props: EclPanelProps) {
                             onValueChange={(value) =>
                               setEclAddRollForm((prev: any) =>
                                 prev ? { ...prev, extrusionKg: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-20 px-1.5 text-xs"
+                            value={eclAddRollForm.trimWastage}
+                            onValueChange={(value) =>
+                              setEclAddRollForm((prev: any) =>
+                                prev ? { ...prev, trimWastage: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-20 px-1.5 text-xs"
+                            value={eclAddRollForm.lumpsWastage}
+                            onValueChange={(value) =>
+                              setEclAddRollForm((prev: any) =>
+                                prev ? { ...prev, lumpsWastage: value } : prev
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <NonNegativeDecimalInput
+                            className="h-7 w-20 px-1.5 text-xs"
+                            value={eclAddRollForm.eclOutputWastage}
+                            onValueChange={(value) =>
+                              setEclAddRollForm((prev: any) =>
+                                prev ? { ...prev, eclOutputWastage: value } : prev
                               )
                             }
                           />
@@ -1178,14 +1352,17 @@ export function EclPanel(props: EclPanelProps) {
                 const wipBalanceValue = wipSemiConsumed ? null : parseNonNegativeDecimal(form.wipBalance || "")
                 const rmBalanceValue = rmSemiConsumed ? null : parseNonNegativeDecimal(form.rmBalance || "")
                 if ((!wipSemiConsumed && wipBalanceValue == null) || (!rmSemiConsumed && rmBalanceValue == null)) {
-                  setEclCreateChildMessage("Enter balance weight or tick Semi consumed for both films.")
+                  setEclCreateChildMessage("Enter balance weight or tick Roll continue for both films.")
                   return
                 }
                 const outputWeight = parseNonNegativeDecimal(form.netweight || "") ?? undefined
                 const extrusionKg = parseNonNegativeDecimal(form.extrusionKg || "") ?? undefined
+                const trimWastage = parseNonNegativeDecimal(form.trimWastage || "") ?? 0
+                const lumpsWastage = parseNonNegativeDecimal(form.lumpsWastage || "") ?? 0
+                const eclOutputWastage = parseNonNegativeDecimal(form.eclOutputWastage || "") ?? 0
                 const wipWastage = parseNonNegativeDecimal(form.wipWastage || "") ?? 0
                 const rmWastage = parseNonNegativeDecimal(form.rmWastage || "") ?? 0
-                const totalWastage = wipWastage + rmWastage
+                const totalWastage = wipWastage + rmWastage + trimWastage + lumpsWastage + eclOutputWastage
                 if (wipPrintingTemplate) {
                   const printData = {
                     workOrder: {
@@ -1211,6 +1388,9 @@ export function EclPanel(props: EclPanelProps) {
                       grossweight: outputWeight,
                       wastage: totalWastage,
                       inkGsm: extrusionKg,
+                      trimWastage,
+                      lumpsWastage,
+                      eclOutputWastage,
                       operatorName: form.operatorName || undefined,
                       shift: form.shift || undefined,
                       remark: form.remark || undefined,
@@ -1237,6 +1417,9 @@ export function EclPanel(props: EclPanelProps) {
                   shift: form.shift.trim() || undefined,
                   remark: form.remark.trim() || undefined,
                   inkGsm: extrusionKg,
+                  trimWastage,
+                  lumpsWastage,
+                  eclOutputWastage,
                   gradeId: form.parent.gradeId,
                   parentRollIds: parentIds,
                   parentBalanceWeights: [wipBalanceValue, rmBalanceValue],
@@ -1253,6 +1436,9 @@ export function EclPanel(props: EclPanelProps) {
                           ...prev,
                           netweight: "",
                           extrusionKg: "",
+                          trimWastage: "0",
+                          lumpsWastage: "0",
+                          eclOutputWastage: "0",
                           wipWastage: "0",
                           rmWastage: "0",
                           wipBalance: wipSemiConsumed ? "" : prev.wipBalance,
@@ -1263,7 +1449,7 @@ export function EclPanel(props: EclPanelProps) {
                         }
                       : prev
                   )
-                  setEclCreateChildMessage("ECL roll created. Semi-consumed films kept on the machine.")
+                  setEclCreateChildMessage("ECL roll created. Roll continue films kept on the machine.")
                 } else {
                   setEclFormCommittedForRollId(form.roll.id)
                   setEclCreateChildMessage(
@@ -1357,6 +1543,65 @@ export function EclPanel(props: EclPanelProps) {
           showSelectionSummary={false}
         />
       )}
+    </>
+  )}
+    <Dialog open={Boolean(eclEditRoll)} onOpenChange={(open) => { if (!open) setEclEditRoll(null) }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit produced roll</DialogTitle>
+          <DialogDescription>Update ECL output fields and leftover balance weights.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Output weight (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.netweight} onValueChange={(netweight) => setEclEditForm((prev) => ({ ...prev, netweight }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Extrusion coating (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.inkGsm} onValueChange={(inkGsm) => setEclEditForm((prev) => ({ ...prev, inkGsm }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Trim wastage (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.trimWastage} onValueChange={(trimWastage) => setEclEditForm((prev) => ({ ...prev, trimWastage }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Lumps wastage (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.lumpsWastage} onValueChange={(lumpsWastage) => setEclEditForm((prev) => ({ ...prev, lumpsWastage }))} />
+          </div>
+          <div>
+            <Label className="text-xs">ECL output wastage (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.eclOutputWastage} onValueChange={(eclOutputWastage) => setEclEditForm((prev) => ({ ...prev, eclOutputWastage }))} />
+          </div>
+          <div>
+            <Label className="text-xs">Shift</Label>
+            <Select value={eclEditForm.shift || undefined} onValueChange={(shift) => setEclEditForm((prev) => ({ ...prev, shift }))}>
+              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+              <SelectContent>
+                {ECL_SHIFTS.map((shift) => (
+                  <SelectItem key={shift} value={shift}>{shift}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Operator name</Label>
+            <Input value={eclEditForm.operatorName} onChange={(e) => setEclEditForm((prev) => ({ ...prev, operatorName: e.target.value }))} />
+          </div>
+          <div>
+            <Label className="text-xs">{input1Label} balance (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.input1Balance} onValueChange={(input1Balance) => setEclEditForm((prev) => ({ ...prev, input1Balance }))} />
+          </div>
+          <div>
+            <Label className="text-xs">{input2Label} balance (kg)</Label>
+            <NonNegativeDecimalInput value={eclEditForm.input2Balance} onValueChange={(input2Balance) => setEclEditForm((prev) => ({ ...prev, input2Balance }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setEclEditRoll(null)}>Cancel</Button>
+          <Button type="button" disabled={eclEditSaving} onClick={() => void handleSaveEclProducedEdit()}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   )
 }

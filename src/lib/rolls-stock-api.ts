@@ -22,6 +22,9 @@ export type RollsStockPayload = {
   adhesiveOh?: number | null
   adhesiveNco?: number | null
   ohPercent?: number | null
+  trimWastage?: number | null
+  lumpsWastage?: number | null
+  eclOutputWastage?: number | null
   balanceWeight?: number | null
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
@@ -62,6 +65,9 @@ type RollsStockResponse = {
   adhesive_oh?: number | null
   adhesive_nco?: number | null
   oh_percent?: number | null
+  trim_wastage?: number | null
+  lumps_wastage?: number | null
+  ecl_output_wastage?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
   parent_meter?: number | null
@@ -120,6 +126,9 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   adhesiveOh: rollsStock.adhesive_oh ?? null,
   adhesiveNco: rollsStock.adhesive_nco ?? null,
   ohPercent: rollsStock.oh_percent ?? null,
+  trimWastage: rollsStock.trim_wastage ?? null,
+  lumpsWastage: rollsStock.lumps_wastage ?? null,
+  eclOutputWastage: rollsStock.ecl_output_wastage ?? null,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
   parentMeter: rollsStock.parent_meter != null ? Math.round(rollsStock.parent_meter) : null,
@@ -197,6 +206,9 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     adhesive_oh: payload.adhesiveOh,
     adhesive_nco: payload.adhesiveNco,
     oh_percent: payload.ohPercent,
+    trim_wastage: payload.trimWastage,
+    lumps_wastage: payload.lumpsWastage,
+    ecl_output_wastage: payload.eclOutputWastage,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
@@ -236,6 +248,9 @@ export const updateRollsStock = async (
   if ("adhesiveOh" in payload) body.adhesive_oh = payload.adhesiveOh
   if ("adhesiveNco" in payload) body.adhesive_nco = payload.adhesiveNco
   if ("ohPercent" in payload) body.oh_percent = payload.ohPercent
+  if ("trimWastage" in payload) body.trim_wastage = payload.trimWastage
+  if ("lumpsWastage" in payload) body.lumps_wastage = payload.lumpsWastage
+  if ("eclOutputWastage" in payload) body.ecl_output_wastage = payload.eclOutputWastage
   if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
   if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
   if ("noOfCuts" in payload) body.no_of_cuts = payload.noOfCuts

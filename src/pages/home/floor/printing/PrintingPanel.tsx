@@ -6,11 +6,20 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { formatWeightWithMeter, inkGsmByInkWt } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
+import { jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
@@ -47,6 +56,9 @@ export function PrintingPanel(props: PrintingPanelProps) {
     printingProducedTotals,
     printingChildRollsFromDb,
     printingProducedRollColumns,
+    printingProducedEditRoll,
+    setPrintingProducedEditRoll,
+    refreshPrintingProducedRolls,
     printingFormCommittedForRollId,
     wipPrintingTemplate,
     createPrintJob,
@@ -83,6 +95,17 @@ export function PrintingPanel(props: PrintingPanelProps) {
   } = props
 
   const [isAddWorkOrderOpen, setIsAddWorkOrderOpen] = useState(false)
+  const [printingEditForm, setPrintingEditForm] = useState({
+    size: "",
+    micron: "",
+    netweight: "",
+    meter: "",
+    plainWastage: "",
+    printedWastage: "",
+    inkGsm: "",
+    balanceweight: "",
+  })
+  const [printingEditSaving, setPrintingEditSaving] = useState(false)
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
@@ -106,6 +129,53 @@ export function PrintingPanel(props: PrintingPanelProps) {
       cancelled = true
     }
   }, [floorPrintingRmPickerOpen])
+
+  useEffect(() => {
+    if (!printingProducedEditRoll) return
+    const roll = printingProducedEditRoll
+    const balance = roll.parentBalanceWeight ?? roll.balanceWeight
+    setPrintingEditForm({
+      size: roll.size != null ? String(roll.size) : "",
+      micron: roll.micron != null ? String(roll.micron) : "",
+      netweight: roll.netweight != null ? String(roll.netweight) : "",
+      meter: roll.meter != null ? String(roll.meter) : "",
+      plainWastage: roll.plainWastage != null ? String(roll.plainWastage) : "",
+      printedWastage: roll.printedWastage != null ? String(roll.printedWastage) : "",
+      inkGsm: roll.inkGsm != null ? String(roll.inkGsm) : "",
+      balanceweight: balance != null ? String(balance) : "",
+    })
+  }, [printingProducedEditRoll])
+
+  const handleSavePrintingProducedEdit = async () => {
+    const roll = printingProducedEditRoll
+    if (!roll?.id) return
+    const netweight = parseNonNegativeDecimal(printingEditForm.netweight)
+    const plainWastage = parseNonNegativeDecimal(printingEditForm.plainWastage)
+    const printedWastage = parseNonNegativeDecimal(printingEditForm.printedWastage)
+    const meterValue = parseOptionalNumber(printingEditForm.meter)
+    try {
+      setPrintingEditSaving(true)
+      await updateProducedRoll(roll.id, {
+        size: parseOptionalNumber(printingEditForm.size),
+        micron: parseOptionalNumber(printingEditForm.micron),
+        netweight,
+        meter: meterValue != null ? Math.round(meterValue) : null,
+        grossweight: netweight,
+        plainWastage,
+        printedWastage,
+        wastage: (plainWastage || 0) + (printedWastage || 0),
+        inkGsm: parseNonNegativeDecimal(printingEditForm.inkGsm),
+        balanceWeight: parseNonNegativeDecimal(printingEditForm.balanceweight) ?? 0,
+      })
+      setPrintingCreateChildMessage("Produced roll updated.")
+      setPrintingProducedEditRoll(null)
+      refreshPrintingProducedRolls?.()
+    } catch (error) {
+      setPrintingCreateChildMessage(jobCardApiErrorMessage(error, "Failed to update produced roll."))
+    } finally {
+      setPrintingEditSaving(false)
+    }
+  }
 
   const rmFilmItemBadges = useMemo(() => {
     const fromMaster = rmFilmItems
@@ -166,7 +236,9 @@ export function PrintingPanel(props: PrintingPanelProps) {
     }
   }
 
-  return printingSelectedWo ? (
+  return (
+    <>
+  {printingSelectedWo ? (
     <div className="space-y-4 mt-4">
       <div>
         <div className="flex flex-col-reverse gap-2">
@@ -348,7 +420,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Ink gsm (by ink wt)</th>
                       <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Balance weight (kg)</th>
-                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Semi consumed</th>
+                      <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">Roll continue</th>
                       <th className="text-right py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"> </th>
                     </tr>
                   </thead>
@@ -558,7 +630,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                             <Checkbox
                               checked={Boolean(isSelected && printingAddRollForm.semiConsumed)}
                               disabled={!isSelected || printingCreateChildLoading}
-                              aria-label="Semi consumed"
+                              aria-label="Roll continue"
                               title="Keep this roll loaded; do not create a balance roll"
                               onCheckedChange={(checked) => {
                                 const isChecked = checked === true
@@ -693,7 +765,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                     const semiConsumed = Boolean(form.semiConsumed)
                     const balanceValue = semiConsumed ? null : parseNonNegativeDecimal(form.balanceweight || "")
                     if (!semiConsumed && balanceValue == null) {
-                      setPrintingCreateChildMessage("Enter balance weight or tick Semi consumed.")
+                      setPrintingCreateChildMessage("Enter balance weight or tick Roll continue.")
                       return
                     }
                     const netweightValue = parseNonNegativeDecimal(form.netweight || "") ?? undefined
@@ -901,6 +973,82 @@ export function PrintingPanel(props: PrintingPanelProps) {
           setPrintingWorkOrders((prev: any[]) => [newWorkOrder, ...prev])
         }}
       />
+    </>
+  )}
+    <Dialog open={Boolean(printingProducedEditRoll)} onOpenChange={(open) => { if (!open) setPrintingProducedEditRoll(null) }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit produced roll</DialogTitle>
+          <DialogDescription>Update output fields and leftover balance weight.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Size</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.size}
+              onValueChange={(size) => setPrintingEditForm((prev) => ({ ...prev, size }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Micron</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.micron}
+              onValueChange={(micron) => setPrintingEditForm((prev) => ({ ...prev, micron }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Output weight (kg)</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.netweight}
+              onValueChange={(netweight) => setPrintingEditForm((prev) => ({ ...prev, netweight }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Meter</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.meter}
+              onValueChange={(meter) => setPrintingEditForm((prev) => ({ ...prev, meter }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Plain wastage (kg)</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.plainWastage}
+              onValueChange={(plainWastage) => setPrintingEditForm((prev) => ({ ...prev, plainWastage }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Printed wastage (kg)</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.printedWastage}
+              onValueChange={(printedWastage) => setPrintingEditForm((prev) => ({ ...prev, printedWastage }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Ink gsm</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.inkGsm}
+              onValueChange={(inkGsm) => setPrintingEditForm((prev) => ({ ...prev, inkGsm }))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Balance weight (kg)</Label>
+            <NonNegativeDecimalInput
+              value={printingEditForm.balanceweight}
+              onValueChange={(balanceweight) => setPrintingEditForm((prev) => ({ ...prev, balanceweight }))}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setPrintingProducedEditRoll(null)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={printingEditSaving} onClick={() => void handleSavePrintingProducedEdit()}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </>
   )
 }
