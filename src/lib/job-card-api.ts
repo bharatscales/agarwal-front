@@ -234,6 +234,14 @@ export type AddPrintedRollPayload = {
   trimWastage?: number | null
   lumpsWastage?: number | null
   eclOutputWastage?: number | null
+  eclWastage?: number | null
+  laminationWastage?: number | null
+  slitterWastage?: number | null
+  coilRewinding?: number | null
+  slitDirection?: string | null
+  coreSize?: number | null
+  coilDia?: number | null
+  jobRepeat?: number | null
   balanceWeight?: number
   semiConsumed?: boolean
   gradeId?: number
@@ -398,6 +406,16 @@ export const addSlittingRoll = async (
       netweight: payload.netweight,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
+      printed_wastage: payload.printedWastage ?? undefined,
+      trim_wastage: payload.trimWastage ?? undefined,
+      ecl_wastage: payload.eclWastage ?? undefined,
+      lamination_wastage: payload.laminationWastage ?? undefined,
+      slitter_wastage: payload.slitterWastage ?? undefined,
+      coil_rewinding: payload.coilRewinding ?? undefined,
+      slit_direction: payload.slitDirection || undefined,
+      core_size: payload.coreSize ?? undefined,
+      coil_dia: payload.coilDia ?? undefined,
+      job_repeat: payload.jobRepeat ?? undefined,
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
@@ -429,6 +447,14 @@ export type UpdateProducedRollPayload = {
   trimWastage?: number | null
   lumpsWastage?: number | null
   eclOutputWastage?: number | null
+  eclWastage?: number | null
+  laminationWastage?: number | null
+  slitterWastage?: number | null
+  coilRewinding?: number | null
+  slitDirection?: string | null
+  coreSize?: number | null
+  coilDia?: number | null
+  jobRepeat?: number | null
   balanceWeight?: number | null
   parentRollIds?: number[]
   parentBalanceWeights?: Array<number | null>
@@ -467,6 +493,14 @@ export const updateProducedRoll = async (
   if ("trimWastage" in payload) body.trim_wastage = payload.trimWastage
   if ("lumpsWastage" in payload) body.lumps_wastage = payload.lumpsWastage
   if ("eclOutputWastage" in payload) body.ecl_output_wastage = payload.eclOutputWastage
+  if ("eclWastage" in payload) body.ecl_wastage = payload.eclWastage
+  if ("laminationWastage" in payload) body.lamination_wastage = payload.laminationWastage
+  if ("slitterWastage" in payload) body.slitter_wastage = payload.slitterWastage
+  if ("coilRewinding" in payload) body.coil_rewinding = payload.coilRewinding
+  if ("slitDirection" in payload) body.slit_direction = payload.slitDirection
+  if ("coreSize" in payload) body.core_size = payload.coreSize
+  if ("coilDia" in payload) body.coil_dia = payload.coilDia
+  if ("jobRepeat" in payload) body.job_repeat = payload.jobRepeat
   if ("balanceWeight" in payload) body.balance_weight = payload.balanceWeight
   if (payload.parentRollIds != null) body.parent_roll_ids = payload.parentRollIds
   if (payload.parentBalanceWeights != null) body.parent_balance_weights = payload.parentBalanceWeights

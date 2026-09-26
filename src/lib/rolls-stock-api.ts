@@ -25,6 +25,14 @@ export type RollsStockPayload = {
   trimWastage?: number | null
   lumpsWastage?: number | null
   eclOutputWastage?: number | null
+  eclWastage?: number | null
+  laminationWastage?: number | null
+  slitterWastage?: number | null
+  coilRewinding?: number | null
+  slitDirection?: string | null
+  coreSize?: number | null
+  coilDia?: number | null
+  jobRepeat?: number | null
   balanceWeight?: number | null
   gradeId?: number
   /** Optional: for RM stock entries; WIP rolls from production usually should not link to a stock voucher. */
@@ -68,6 +76,14 @@ type RollsStockResponse = {
   trim_wastage?: number | null
   lumps_wastage?: number | null
   ecl_output_wastage?: number | null
+  ecl_wastage?: number | null
+  lamination_wastage?: number | null
+  slitter_wastage?: number | null
+  coil_rewinding?: number | null
+  slit_direction?: string | null
+  core_size?: number | null
+  coil_dia?: number | null
+  job_repeat?: number | null
   balance_weight?: number | null
   parent_netweight?: number | null
   parent_meter?: number | null
@@ -129,6 +145,14 @@ const mapRollsStock = (rollsStock: RollsStockResponse) => ({
   trimWastage: rollsStock.trim_wastage ?? null,
   lumpsWastage: rollsStock.lumps_wastage ?? null,
   eclOutputWastage: rollsStock.ecl_output_wastage ?? null,
+  eclWastage: rollsStock.ecl_wastage ?? null,
+  laminationWastage: rollsStock.lamination_wastage ?? null,
+  slitterWastage: rollsStock.slitter_wastage ?? null,
+  coilRewinding: rollsStock.coil_rewinding ?? null,
+  slitDirection: rollsStock.slit_direction ?? null,
+  coreSize: rollsStock.core_size ?? null,
+  coilDia: rollsStock.coil_dia ?? null,
+  jobRepeat: rollsStock.job_repeat ?? null,
   balanceWeight: rollsStock.balance_weight ?? null,
   parentNetweight: rollsStock.parent_netweight ?? null,
   parentMeter: rollsStock.parent_meter != null ? Math.round(rollsStock.parent_meter) : null,
@@ -209,6 +233,14 @@ export const createRollsStock = async (payload: RollsStockPayload) => {
     trim_wastage: payload.trimWastage,
     lumps_wastage: payload.lumpsWastage,
     ecl_output_wastage: payload.eclOutputWastage,
+    ecl_wastage: payload.eclWastage,
+    lamination_wastage: payload.laminationWastage,
+    slitter_wastage: payload.slitterWastage,
+    coil_rewinding: payload.coilRewinding,
+    slit_direction: payload.slitDirection,
+    core_size: payload.coreSize,
+    coil_dia: payload.coilDia,
+    job_repeat: payload.jobRepeat,
     grade_id: payload.gradeId,
     stock_voucher_id: payload.stockVoucherId,
     stage: payload.stage,
@@ -251,6 +283,14 @@ export const updateRollsStock = async (
   if ("trimWastage" in payload) body.trim_wastage = payload.trimWastage
   if ("lumpsWastage" in payload) body.lumps_wastage = payload.lumpsWastage
   if ("eclOutputWastage" in payload) body.ecl_output_wastage = payload.eclOutputWastage
+  if ("eclWastage" in payload) body.ecl_wastage = payload.eclWastage
+  if ("laminationWastage" in payload) body.lamination_wastage = payload.laminationWastage
+  if ("slitterWastage" in payload) body.slitter_wastage = payload.slitterWastage
+  if ("coilRewinding" in payload) body.coil_rewinding = payload.coilRewinding
+  if ("slitDirection" in payload) body.slit_direction = payload.slitDirection
+  if ("coreSize" in payload) body.core_size = payload.coreSize
+  if ("coilDia" in payload) body.coil_dia = payload.coilDia
+  if ("jobRepeat" in payload) body.job_repeat = payload.jobRepeat
   if ("wastageReason" in payload) body.wastage_reason = payload.wastageReason
   if ("noOfTag" in payload) body.no_of_tag = payload.noOfTag
   if ("noOfCuts" in payload) body.no_of_cuts = payload.noOfCuts

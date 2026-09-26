@@ -837,15 +837,21 @@ export default function Home() {
     jobCardId: number
     roll: CurrentRoll
     parent: { gradeId?: number }
-    size: string
     micron: string
-    netweight: string
-    grossweight: string
+    trimWastage: string
+    eclWastage: string
+    printedWastage: string
+    laminationWastage: string
+    slitterWastage: string
+    wastage: string
+    coilRewinding: string
+    slitDirection: string
+    coreSize: string
+    coilDia: string
+    size: string
+    jobRepeat: string
   } | null>(null)
   const [slittingRollsRefreshKey, setSlittingRollsRefreshKey] = useState(0)
-  const [slittingAddRollEditingField, setSlittingAddRollEditingField] = useState<
-    null | "netweight" | "grossweight"
-  >(null)
   const [slittingChildRollsFromDb, setSlittingChildRollsFromDb] = useState<
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
   >([])
@@ -2599,12 +2605,11 @@ export default function Home() {
     return () => { cancelled = true }
   }, [laminationSelectedWo?.id, laminationRollsRefreshKey])
 
-  // When Floor user selects a work order in Slitting section, fetch loaded parent and show weight form
+  // When Floor user selects a work order in Slitting section, fetch loaded parent and show output form
   useEffect(() => {
     if (!slittingSelectedWo) {
       setSlittingLoadedRolls([])
       setSlittingAddRollForm(null)
-      setSlittingAddRollEditingField(null)
       return
     }
     let cancelled = false
@@ -2634,35 +2639,39 @@ export default function Home() {
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
-                setSlittingAddRollEditingField(null)
-                const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
                 setSlittingAddRollForm({
                   jobCardNumber: first.jobCardNumber,
                   jobCardId: first.jobCardId,
                   roll: first.roll,
                   parent: { gradeId: parent.gradeId },
-                  size: first.roll.size != null ? String(first.roll.size) : "",
                   micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  netweight: "",
-                  grossweight: grossFromScale,
+                  trimWastage: "0",
+                  eclWastage: "0",
+                  printedWastage: "0",
+                  laminationWastage: "0",
+                  slitterWastage: "0",
+                  wastage: "0",
+                  coilRewinding: "",
+                  slitDirection: "",
+                  coreSize: "",
+                  coilDia: "",
+                  size: "",
+                  jobRepeat: "",
                 })
               }
             } catch {
               if (!cancelled) {
                 setSlittingAddRollForm(null)
-                setSlittingAddRollEditingField(null)
               }
             }
           } else {
             setSlittingAddRollForm(null)
-            setSlittingAddRollEditingField(null)
           }
         }
       } catch {
         if (!cancelled) {
           setSlittingLoadedRolls([])
           setSlittingAddRollForm(null)
-          setSlittingAddRollEditingField(null)
         }
       } finally {
         if (!cancelled) setSlittingRollsLoading(false)
@@ -2886,11 +2895,6 @@ export default function Home() {
             : prev.meter
         return { ...prev, netweight: String(scaleWeight), meter }
       })
-    }
-    if (slittingAddRollForm && scaleWeight != null) {
-      setSlittingAddRollForm((prev) =>
-        prev ? { ...prev, grossweight: String(scaleWeight) } : null
-      )
     }
   }, [scaleWeight])
 
@@ -3230,8 +3234,6 @@ export default function Home() {
                     slittingCreateChildLoading={slittingCreateChildLoading}
                     setSlittingCreateChildLoading={setSlittingCreateChildLoading}
                     setSlittingCreateChildMessage={setSlittingCreateChildMessage}
-                    setSlittingAddRollEditingField={setSlittingAddRollEditingField}
-                    slittingAddRollEditingField={slittingAddRollEditingField}
                     slittingChildRollsLoading={slittingChildRollsLoading}
                     slittingChildRollsFromDb={slittingChildRollsFromDb}
                     setSlittingChildRollsFromDb={setSlittingChildRollsFromDb}
