@@ -196,6 +196,66 @@ export const unloadRoll = async (jobCardId: number, rollId: number): Promise<voi
   await api.post(`/job-card/${jobCardId}/unload-roll`, { roll_id: rollId })
 }
 
+export const CLOSE_WITHOUT_OUTPUT_REASONS = ["Web break", "Damaged", "Quality reject", "Other"] as const
+
+export type ClosedWithoutOutputRoll = {
+  id: number
+  barcode: string
+  itemName: string | null
+  size: number | null
+  micron: number | null
+  netweight: number | null
+  meter: number | null
+  wastage: number | null
+  wastageReason: string | null
+  stage: string | null
+}
+
+type ClosedWithoutOutputRollResponse = {
+  id: number
+  barcode: string
+  item_name?: string | null
+  size?: number | null
+  micron?: number | null
+  netweight?: number | null
+  meter?: number | null
+  wastage?: number | null
+  wastage_reason?: string | null
+  stage?: string | null
+}
+
+/** Films consumed on this job card with no produced child roll. */
+export const getClosedWithoutOutput = async (jobCardId: number): Promise<ClosedWithoutOutputRoll[]> => {
+  const response = await api.get<{ rolls: ClosedWithoutOutputRollResponse[] }>(
+    `/job-card/${jobCardId}/closed-without-output`
+  )
+  return (response.data.rolls ?? []).map((roll) => ({
+    id: roll.id,
+    barcode: roll.barcode,
+    itemName: roll.item_name ?? null,
+    size: roll.size ?? null,
+    micron: roll.micron ?? null,
+    netweight: roll.netweight ?? null,
+    meter: roll.meter ?? null,
+    wastage: roll.wastage ?? null,
+    wastageReason: roll.wastage_reason ?? null,
+    stage: roll.stage ?? null,
+  }))
+}
+
+/** Consume one loaded ECL or lamination film without creating an output roll. */
+export const closeRollWithoutOutput = async (
+  jobCardId: number,
+  payload: { rollId: number; wastage: number; wastageReason: string; remark?: string }
+): Promise<void> => {
+  await api.post(`/job-card/${jobCardId}/close-roll-without-output`, {
+    roll_id: payload.rollId,
+    wastage: payload.wastage,
+    wastage_reason: payload.wastageReason,
+    remark: payload.remark?.trim() || undefined,
+  })
+}
+
 /** Record roll job movement with direction 'out' (e.g. after creating WIP printed roll). */
 export const addRollMovementOut = async (
   jobCardId: number,

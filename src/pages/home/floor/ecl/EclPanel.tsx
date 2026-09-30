@@ -26,7 +26,15 @@ import {
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
-import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
+import {
+  closeRollWithoutOutput,
+  deleteProducedRoll,
+  getAllJobCards,
+  getClosedWithoutOutput,
+  jobCardApiErrorMessage,
+  updateProducedRoll,
+  type ClosedWithoutOutputRoll,
+} from "@/lib/job-card-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
@@ -35,6 +43,12 @@ import {
 import { getAllOperators } from "@/lib/operator-api"
 import { createDualInputGroupPathGetter, includesStringFilterFn } from "@/lib/table-filter-utils"
 import { allowedWipStagesForDept, isOperationSkipped, wipStageLabel } from "@/lib/wo-flow"
+import {
+  ClosedWithoutOutputList,
+  CloseWithoutOutputDialog,
+  type ClosedWithoutOutputRow,
+  type CloseWithoutOutputTarget,
+} from "../close-without-output"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 import {
   isProducedRollLocked,
@@ -233,6 +247,7 @@ function loadedFilmCells(
     onBalance: (value: string) => void
     onSemiConsumed: (checked: boolean) => void
     onUnload: (jobCardId: number, rollId: number) => void
+    onCloseWithoutOutput: () => void
     unloadDisabled: boolean
   }
 ) {
@@ -288,13 +303,24 @@ function loadedFilmCells(
           onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
       </td>
-      <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
+      <td className="py-1.5 px-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1.5 text-xs"
+          title="Consume this film without creating an output roll"
+          disabled={opts.unloadDisabled}
+          onClick={opts.onCloseWithoutOutput}
+        >
+          Close
+        </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="h-6 w-6"
-          title="Remove loaded roll"
+          title="Remove loaded roll and return it to stock"
           disabled={opts.unloadDisabled}
           onClick={() => void opts.onUnload(entry.jobCardId, roll.id)}
         >
@@ -368,6 +394,11 @@ export function EclPanel(props: EclPanelProps) {
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
   const [eclEditRoll, setEclEditRoll] = useState<any>(null)
   const [eclEditSaving, setEclEditSaving] = useState(false)
+  const [eclCloseTarget, setEclCloseTarget] = useState<CloseWithoutOutputTarget | null>(null)
+  const [eclClosedRolls, setEclClosedRolls] = useState<
+    Array<ClosedWithoutOutputRoll & { jobCardId: number; jobCardNumber: string }>
+  >([])
+  const [eclClosedRefreshKey, setEclClosedRefreshKey] = useState(0)
   const [eclEditForm, setEclEditForm] = useState({
     netweight: "",
     inkGsm: "",
@@ -498,6 +529,85 @@ export function EclPanel(props: EclPanelProps) {
         (err as { message?: string })?.message ||
         "Could not unload roll."
       setEclCreateChildMessage(detail)
+    } finally {
+      setEclCreateChildLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!eclSelectedWo?.id) {
+      setEclClosedRolls([])
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      try {
+        const cards = await getAllJobCards(0, 20, eclSelectedWo.id, "ECL")
+        const groups = await Promise.all(
+          cards.map(async (card) => {
+            const rolls = await getClosedWithoutOutput(card.id)
+            return rolls.map((roll) => ({
+              ...roll,
+              jobCardId: card.id,
+              jobCardNumber: card.jobCardNumber,
+            }))
+          })
+        )
+        if (!cancelled) setEclClosedRolls(groups.flat())
+      } catch {
+        if (!cancelled) setEclClosedRolls([])
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [eclSelectedWo?.id, eclClosedRefreshKey])
+
+  const openEclCloseWithoutOutput = (entry: { jobCardId: number; roll: any }, label: string) => {
+    const roll = entry.roll
+    setEclCloseTarget({
+      jobCardId: entry.jobCardId,
+      rollId: roll.id,
+      label,
+      barcode: roll.barcode ?? "",
+      structure: roll.item_name ?? roll.itemName ?? "",
+      weightKg: roll.netweight != null ? Number(roll.netweight) : null,
+    })
+  }
+
+  const handleEclCloseWithoutOutput = async (values: { wastage: number; reason: string; remark: string }) => {
+    const target = eclCloseTarget
+    if (!target) return
+    try {
+      setEclCreateChildLoading(true)
+      setEclCreateChildMessage(null)
+      await closeRollWithoutOutput(target.jobCardId, {
+        rollId: target.rollId,
+        wastage: values.wastage,
+        wastageReason: values.reason,
+        remark: values.remark,
+      })
+      const role = getEclParentRole(
+        eclLoadedRolls.find((entry: { roll: { id: number } }) => entry.roll.id === target.rollId)?.roll.stage
+      )
+      setEclAddRollForm((prev: any) => {
+        if (!prev) return prev
+        if (role === "wip") {
+          return { ...prev, wipWastage: "0", wipBalance: "", wipSemiConsumed: false }
+        }
+        if (role === "rm") {
+          return { ...prev, rmWastage: "0", rmBalance: "", rmSemiConsumed: false }
+        }
+        return prev
+      })
+      setEclCloseTarget(null)
+      setEclCreateChildMessage(`${target.label} consumed as wastage. No output roll created.`)
+      setEclClosedRefreshKey((key) => key + 1)
+      setEclRollsRefreshKey((key: number) => key + 1)
+    } catch (error) {
+      setEclCreateChildMessage(jobCardApiErrorMessage(error, "Could not close this roll."))
+      throw error
     } finally {
       setEclCreateChildLoading(false)
     }
@@ -743,6 +853,22 @@ export function EclPanel(props: EclPanelProps) {
     return Array.from(byJob.values())
   }, [eclLoadedRolls, getEclParentRole])
 
+  const eclClosedWithoutOutputRows = useMemo<ClosedWithoutOutputRow[]>(() => {
+    return eclClosedRolls.map((roll) => {
+      const role = getEclParentRole(roll.stage)
+      const label = role === "wip" ? input1Label : role === "rm" ? input2Label : "Film"
+      return {
+        id: roll.id,
+        jobCardNumber: roll.jobCardNumber,
+        label,
+        structure: roll.itemName || "—",
+        weightLabel: roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—",
+        wastageLabel: roll.wastage != null ? `${Number(roll.wastage).toFixed(2)} kg` : "—",
+        reason: roll.wastageReason || "—",
+      }
+    })
+  }, [eclClosedRolls, getEclParentRole, input1Label, input2Label])
+
   const renderLoadSlot = (
     role: "wip" | "rm",
     barcode: string,
@@ -975,7 +1101,7 @@ export function EclPanel(props: EclPanelProps) {
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded films</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             ECL needs two films on the same job card: {input1Label} and {input2Label}.
-            Extrusion coating weight is entered when producing.
+            Extrusion coating weight is entered when producing. Close consumes one film when no output roll is made. X returns a film to stock.
           </p>
           {eclRollsLoading ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
@@ -1089,6 +1215,8 @@ export function EclPanel(props: EclPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadEclRoll,
+                              onCloseWithoutOutput: () =>
+                                row.input1 && openEclCloseWithoutOutput(row.input1, input1Label),
                               unloadDisabled: eclCreateChildLoading,
                             })}
                             {loadedFilmCells(row.input2, {
@@ -1122,6 +1250,8 @@ export function EclPanel(props: EclPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadEclRoll,
+                              onCloseWithoutOutput: () =>
+                                row.input2 && openEclCloseWithoutOutput(row.input2, input2Label),
                               unloadDisabled: eclCreateChildLoading,
                             })}
                           </tr>
@@ -1279,6 +1409,8 @@ export function EclPanel(props: EclPanelProps) {
             </div>
           )}
         </div>
+
+        <ClosedWithoutOutputList rows={eclClosedWithoutOutputRows} />
 
         <div>
           <div className="flex items-center justify-between gap-3 mb-1">
@@ -1554,6 +1686,14 @@ export function EclPanel(props: EclPanelProps) {
       )}
     </>
   )}
+    <CloseWithoutOutputDialog
+      target={eclCloseTarget}
+      saving={eclCreateChildLoading}
+      onOpenChange={(open) => {
+        if (!open) setEclCloseTarget(null)
+      }}
+      onConfirm={handleEclCloseWithoutOutput}
+    />
     <Dialog open={Boolean(eclEditRoll)} onOpenChange={(open) => { if (!open) setEclEditRoll(null) }}>
       <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>
