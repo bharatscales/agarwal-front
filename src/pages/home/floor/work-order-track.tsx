@@ -16,13 +16,6 @@ const EMPTY_STAGES: WorkOrderStageTrack[] = [
   { operation: "Slitting", state: "not_started", rolls: 0, weight: 0 },
 ]
 
-export function formatTrackStock(rolls: number, weight: number): string {
-  if (!rolls) return ""
-  const rounded = Math.round(weight * 10) / 10
-  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
-  return `${rolls}-${text}`
-}
-
 function formatWeightKg(weight: number): string {
   const rounded = Math.round(weight * 10) / 10
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
@@ -72,10 +65,7 @@ export function WorkOrderTrackCell({ track }: { track?: WorkOrderTrack }) {
   return (
     <div className="flex shrink-0 items-start pt-3.5 pb-1" title={title}>
       {stages.map((stage, index) => {
-        const stock =
-          stage.state === "skipped" || index === stages.length - 1
-            ? ""
-            : formatTrackStock(stage.rolls, stage.weight)
+        const showStock = stage.state !== "skipped" && index < stages.length - 1 && stage.rolls > 0
         return (
           <div key={stage.operation} className="flex shrink-0 items-start">
             <div className="flex w-11 flex-col items-center" title={stageTitle(stage)}>
@@ -92,12 +82,17 @@ export function WorkOrderTrackCell({ track }: { track?: WorkOrderTrack }) {
             </div>
             {index < stages.length - 1 ? (
               <div className="relative flex h-3.5 w-12 items-center">
-                {stock ? (
+                {showStock ? (
                   <span className="absolute inset-x-0 bottom-full mb-0.5 text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
-                    {stock}
+                    {formatWeightKg(stage.weight)}
                   </span>
                 ) : null}
                 <span className="h-px w-full bg-gray-400 dark:bg-gray-500" />
+                {showStock ? (
+                  <span className="absolute inset-x-0 top-full mt-0.5 text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
+                    {stage.rolls}
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </div>
