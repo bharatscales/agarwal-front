@@ -39,6 +39,16 @@ function App() {
                 <Layout />
               </ProtectedRoute>
             } />
+            <Route path="/masters/party/supplier" element={
+              <ProtectedRoute requiredRole="admin" allowStockDepartment>
+                <Layout />
+              </ProtectedRoute>
+            } />
+            <Route path="/masters/party/customer" element={
+              <ProtectedRoute requiredRole="admin" allowStockDepartment>
+                <Layout />
+              </ProtectedRoute>
+            } />
             <Route path="/masters/template" element={
               <ProtectedRoute>
                 <Layout />

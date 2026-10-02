@@ -189,7 +189,11 @@ export default function Layout() {
       case "/masters/item":
         return <Item />;
       case "/masters/party":
-        return <Party />;
+        return <Navigate to="/masters/party/supplier" replace />;
+      case "/masters/party/supplier":
+        return <Party key="supplier" partyKind="supplier" />;
+      case "/masters/party/customer":
+        return <Party key="customer" partyKind="customer" />;
       case "/masters/template":
         return <Template />;
       case "/masters/machine":

@@ -144,6 +144,7 @@ export function AppSidebar() {
     : null;
 
   const [isMastersOpen, setIsMastersOpen] = useState(false);
+  const [isPartyOpen, setIsPartyOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [isRmReportsOpen, setIsRmReportsOpen] = useState(false);
   const [isWipReportsOpen, setIsWipReportsOpen] = useState(false);
@@ -229,12 +230,16 @@ export function AppSidebar() {
       setIsRmInkStockOpen(false);
       setIsRmAdhesiveStockOpen(false);
       setIsRmChemicalStockOpen(false);
+      setIsPartyOpen(false);
     }
   }, [state]);
 
   useEffect(() => {
     if (location.pathname.startsWith("/masters/") && location.pathname !== "/masters/enum") {
       setIsMastersOpen(true);
+    }
+    if (location.pathname.startsWith("/masters/party")) {
+      setIsPartyOpen(true);
     }
   }, [location.pathname]);
 
@@ -904,6 +909,45 @@ export function AppSidebar() {
                       return true;
                     })
                     .map((item) => (
+                    item.title === "Party" ? (
+                    <div key={item.title}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={() => setIsPartyOpen((open) => !open)}
+                          className="w-full justify-between pl-8"
+                        >
+                          <span>Party</span>
+                          {isPartyOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {isPartyOpen && (
+                        <>
+                          <SidebarMenuItem>
+                            <SidebarMenuButton
+                              isActive={location.pathname === "/masters/party/supplier"}
+                              onClick={() => handleNavigation("/masters/party/supplier")}
+                              className="w-full pl-12"
+                            >
+                              <span>Supplier</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                          <SidebarMenuItem>
+                            <SidebarMenuButton
+                              isActive={location.pathname === "/masters/party/customer"}
+                              onClick={() => handleNavigation("/masters/party/customer")}
+                              className="w-full pl-12"
+                            >
+                              <span>Customer</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        </>
+                      )}
+                    </div>
+                    ) : (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         isActive={isActive(item.path)}
@@ -913,6 +957,7 @@ export function AppSidebar() {
                         <span>{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
+                    )
                   ))}
                 </div>
               )}

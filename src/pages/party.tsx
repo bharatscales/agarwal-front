@@ -23,7 +23,20 @@ type PartyForm = {
   partyType: string
 }
 
-export default function Party() {
+type PartyKind = "supplier" | "customer"
+
+const PARTY_LABEL: Record<PartyKind, string> = {
+  supplier: "Supplier",
+  customer: "Customer",
+}
+
+function matchesPartyKind(partyType: string, partyKind: PartyKind) {
+  const normalized = partyType.trim().toLowerCase()
+  return normalized === partyKind || normalized === "both"
+}
+
+export default function Party({ partyKind }: { partyKind: PartyKind }) {
+  const partyLabel = PARTY_LABEL[partyKind]
   const { user } = useAuth()
   const canEdit = user?.role === "admin" || user?.role === "superuser"
 
@@ -48,12 +61,19 @@ export default function Party() {
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof PartyForm, string>>>({})
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
+  const visibleParties = parties.filter((party) => matchesPartyKind(party.partyType, partyKind))
 
   const handleRefresh = () => {
     fetchParties()
   }
 
   const handleAddParty = () => {
+    setFormData({
+      partyCode: "",
+      partyName: "",
+      partyType: partyKind,
+    })
+    setFormErrors({})
     setIsAddPartyOpen(true)
   }
 
@@ -169,14 +189,14 @@ export default function Party() {
     createParty({
       partyCode: formData.partyCode.trim(),
       partyName: formData.partyName.trim(),
-      partyType: formData.partyType.trim(),
+      partyType: partyKind,
     })
       .then((newParty) => {
         setParties(prev => [newParty, ...prev])
         setFormData({
           partyCode: "",
           partyName: "",
-          partyType: "",
+          partyType: partyKind,
         })
         setFormErrors({})
         setIsAddPartyOpen(false)
@@ -228,7 +248,7 @@ export default function Party() {
     setFormData({
       partyCode: "",
       partyName: "",
-      partyType: "",
+      partyType: partyKind,
     })
     setFormErrors({})
   }
@@ -291,9 +311,9 @@ export default function Party() {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-bold">Party</h1>
+            <h1 className="text-lg sm:text-xl font-bold">{partyLabel}</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Manage party master data.
+              Manage {partyLabel.toLowerCase()} master data.
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -304,7 +324,7 @@ export default function Party() {
             {canEdit && (
               <Button onClick={handleAddParty} size="sm">
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Add Party</span>
+                <span className="hidden sm:inline">Add {partyLabel}</span>
               </Button>
             )}
           </div>
@@ -339,15 +359,15 @@ export default function Party() {
               onDelete: handleDeleteParty,
               canEdit,
             })}
-            data={parties}
+            data={visibleParties}
           />
         </div>
       )}
 
-      {parties.length === 0 && !isLoading && !error && (
+      {visibleParties.length === 0 && !isLoading && !error && (
         <div className="text-center py-8">
           <p className="text-gray-500 dark:text-gray-400">
-            No parties found. Create your first party to get started.
+            No {partyLabel.toLowerCase()}s found. Create your first {partyLabel.toLowerCase()} to get started.
           </p>
         </div>
       )}
@@ -357,9 +377,9 @@ export default function Party() {
           <Card className="w-full max-w-2xl">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <div>
-                <CardTitle>Add New Party</CardTitle>
+                <CardTitle>Add New {partyLabel}</CardTitle>
                 <CardDescription>
-                  Create a new party with basic details.
+                  Create a new {partyLabel.toLowerCase()} with basic details.
                 </CardDescription>
               </div>
               <Button
@@ -412,39 +432,6 @@ export default function Party() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="partyType">Party Type *</Label>
-                    <Select
-                      value={formData.partyType}
-                      onValueChange={(value) =>
-                        handleInputChange("partyType", value)
-                      }
-                    >
-                      <SelectTrigger
-                        id="partyType"
-                        ref={(el) => {
-                          addFieldRefs.current[2] = el
-                        }}
-                        onKeyDown={(e) => handleEnterKey(e, 2)}
-                        className="w-full"
-                        icon={ArrowRight}
-                      >
-                        <SelectValue placeholder="Select party type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {partyTypes.map((partyType) => (
-                          <SelectItem key={partyType} value={partyType}>
-                            {partyType}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formErrors.partyType && (
-                      <p className="text-sm text-red-500">{formErrors.partyType}</p>
-                    )}
-                  </div>
-                </div>
               </CardContent>
 
               <CardFooter className="flex gap-2 mt-6">
@@ -457,7 +444,7 @@ export default function Party() {
                   Cancel
                 </Button>
                 <Button type="submit" className="flex-1">
-                  Save Party
+                  Save {partyLabel}
                 </Button>
               </CardFooter>
             </form>
