@@ -1,11 +1,16 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import api, {
-  clearAccessToken,
+  AUTH_SESSION_EXPIRED_EVENT,
+  allowSessionRefresh,
+  endSessionLocally,
   clearImpersonationTargetId,
+  decodeJwtPayload,
   getAccessToken,
+  refreshAccessToken,
   setAccessToken,
   setImpersonationTargetId,
+  setRefreshToken,
   type AgaarwalAxiosRequestConfig,
 } from '@/lib/axios';
 import { startImpersonation, stopImpersonation } from '@/lib/user-api';
@@ -81,18 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const checkAuth = async () => {
     try {
-      const token = getAccessToken();
-      if (!token) {
-        try {
-          const refreshResponse = await api.post('/login/refresh', {}, {
-            skipAuth: true,
-            skipAuthRefresh: true,
-          } as AgaarwalAxiosRequestConfig);
-          setAccessToken(refreshResponse.data.access_token);
-        } catch {
+      if (!getAccessToken()) {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
           setUser(null);
           setImpersonatedBy(null);
-          setIsLoading(false);
           return;
         }
       }
@@ -109,22 +107,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setImpersonatedBy(null);
         }
       } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          setUser(null);
-          setImpersonatedBy(null);
-          clearAccessToken();
-        } else {
-          console.error('Auth check failed after attempts:', error);
-          setUser(null);
-          setImpersonatedBy(null);
-          clearAccessToken();
+        const token = getAccessToken();
+        const username = token ? decodeJwtPayload(token)?.sub : null;
+        const sessionEnded = axios.isAxiosError(error) && error.response?.status === 401 && !token;
+        if (!sessionEnded && typeof username === 'string' && username) {
+          setUser({ id: '0', username });
+          return;
         }
+
+        if (!axios.isAxiosError(error) || error.response?.status === 401) {
+          setUser(null);
+          setImpersonatedBy(null);
+          return;
+        }
+
+        console.error('Auth check failed after attempts:', error);
+        setUser(null);
+        setImpersonatedBy(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
       setImpersonatedBy(null);
-      clearAccessToken();
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +157,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } as AgaarwalAxiosRequestConfig);
 
       if (response.data.access_token) {
+        allowSessionRefresh();
         setAccessToken(response.data.access_token);
+        if (response.data.refresh_token) {
+          setRefreshToken(response.data.refresh_token);
+        }
       } else {
         return false;
       }
@@ -184,8 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      clearAccessToken();
-      clearImpersonationTargetId();
+      endSessionLocally();
       await api.post('/logout/', {}, {
         skipAuth: true,
         skipAuthRefresh: true,
@@ -193,8 +200,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
-      clearAccessToken();
-      clearImpersonationTargetId();
+      endSessionLocally();
       setUser(null);
       setImpersonatedBy(null);
     }
@@ -224,14 +230,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAccessToken(tokenResponse.access_token);
     } catch (error) {
       // Impersonation token may be expired; refresh cookie always belongs to the admin.
-      try {
-        const refreshResponse = await api.post('/login/refresh', {}, {
-          skipAuth: true,
-          skipAuthRefresh: true,
-        } as AgaarwalAxiosRequestConfig);
-        setAccessToken(refreshResponse.data.access_token);
-      } catch (refreshError) {
-        console.error('Exit impersonation failed:', error, refreshError);
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        console.error('Exit impersonation failed:', error);
         throw error;
       }
     }
@@ -246,6 +247,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw error;
     }
   };
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setUser(null);
+      setImpersonatedBy(null);
+    };
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, []);
 
   useEffect(() => {
     checkAuth();
