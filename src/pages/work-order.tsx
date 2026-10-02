@@ -209,7 +209,7 @@ export default function WorkOrder() {
     setEditFormData({
       partyId: workOrder.partyId?.toString() || "",
       itemId: workOrder.itemId?.toString() || "",
-      plannedQty: workOrder.plannedQty.toString(),
+      plannedQty: workOrder.plannedQty != null ? String(workOrder.plannedQty) : "",
       priority: workOrder.priority || "normal",
       machineId: "",
       operatorName: "",

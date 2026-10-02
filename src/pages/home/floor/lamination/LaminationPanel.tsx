@@ -1,5 +1,5 @@
 import { Printer, ScanBarcode, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
 import { DataTable } from "@/components/data-table"
@@ -124,14 +124,41 @@ function pickEclProducedParents(
   return { input1, input2 }
 }
 
+function parentsForProducedColumn(
+  parentRolls: EclParentRollSummary[] | undefined,
+  getRole: (stage: string | null | undefined) => "wip" | "rm" | null,
+  role: "wip" | "rm"
+) {
+  const parents = parentRolls ?? []
+  const matched = parents.filter((parent) => getRole(parent.stage) === role)
+  if (matched.length > 0 || parents.some((parent) => getRole(parent.stage) != null)) return matched
+  const picked = pickEclProducedParents(parents, getRole)
+  const fallback = role === "wip" ? picked.input1 : picked.input2
+  return fallback ? [fallback] : []
+}
+
+function renderParentLines(
+  parents: EclParentRollSummary[],
+  render: (parent: EclParentRollSummary) => ReactNode
+) {
+  if (parents.length === 0) return <div>-</div>
+  return (
+    <div className="space-y-0.5">
+      {parents.map((parent) => (
+        <div key={parent.id}>{render(parent)}</div>
+      ))}
+    </div>
+  )
+}
+
 function eclInputGroupColumns(
   id: "input1" | "input2",
   label: string,
-  pick: (row: any) => EclParentRollSummary | null
+  pickAll: (row: any) => EclParentRollSummary[]
 ) {
   const mergeByParent = {
     mergeRows: true,
-    getMergeKey: (row: any) => pick(row)?.id ?? null,
+    getMergeKey: (row: any) => pickAll(row).map((parent) => parent.id).join("-") || null,
   }
   return {
     id,
@@ -143,56 +170,49 @@ function eclInputGroupColumns(
         size: 80,
         minSize: 72,
         maxSize: 88,
-        cell: ({ row }: { row: any }) => (
-          <div>{displayStructure(pick(row.original)?.itemName)}</div>
-        ),
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) => displayStructure(parent.itemName)),
         meta: mergeByParent,
       },
       {
         id: `${id}Size`,
         header: () => <div>Size</div>,
-        cell: ({ row }: { row: any }) => {
-          const size = pick(row.original)?.size
-          return <div>{size != null ? String(size) : "-"}</div>
-        },
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) =>
+            parent.size != null ? String(parent.size) : "-"
+          ),
         meta: mergeByParent,
       },
       {
         id: `${id}Micron`,
         header: () => <div>Micron</div>,
-        cell: ({ row }: { row: any }) => {
-          const micron = pick(row.original)?.micron
-          return <div>{micron != null ? String(micron) : "-"}</div>
-        },
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) =>
+            parent.micron != null ? String(parent.micron) : "-"
+          ),
         meta: mergeByParent,
       },
       {
         id: `${id}InputWeight`,
         header: () => <div>Input weight</div>,
-        cell: ({ row }: { row: any }) => {
-          const parent = pick(row.original)
-          return (
-            <div>
-              {parent ? formatWeightWithMeter(parent.netweight, parent.meter) : "-"}
-            </div>
-          )
-        },
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) =>
+            formatWeightWithMeter(parent.netweight, parent.meter)
+          ),
         meta: mergeByParent,
       },
       {
         id: `${id}Wastage`,
         header: () => <div>Wastage</div>,
-        cell: ({ row }: { row: any }) => (
-          <div>{displayKg(pick(row.original)?.wastage)}</div>
-        ),
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) => displayKg(parent.wastage)),
         meta: mergeByParent,
       },
       {
         id: `${id}BalanceWeight`,
         header: () => <div>Balance weight</div>,
-        cell: ({ row }: { row: any }) => (
-          <div>{displayKg(pick(row.original)?.balanceWeight)}</div>
-        ),
+        cell: ({ row }: { row: any }) =>
+          renderParentLines(pickAll(row.original), (parent) => displayKg(parent.balanceWeight)),
         meta: mergeByParent,
       },
     ],
@@ -364,11 +384,11 @@ function loadedFilmCells(
           variant="ghost"
           size="sm"
           className="h-6 px-1.5 text-xs"
-          title="Consume this film without creating an output roll"
+          title="Use this film now. It becomes a parent when the output roll is created"
           disabled={opts.unloadDisabled}
           onClick={opts.onCloseWithoutOutput}
         >
-          Close
+          Consume
         </Button>
         <Button
           type="button"
@@ -661,7 +681,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
         return prev
       })
       setLaminationCloseTarget(null)
-      setLaminationCreateChildMessage(`${target.label} consumed as wastage. No output roll created.`)
+      setLaminationCreateChildMessage(`${target.label} consumed. It will be a parent of the next output roll.`)
       setLaminationClosedRefreshKey((key) => key + 1)
       setLaminationRollsRefreshKey((key: number) => key + 1)
     } catch (error) {
@@ -820,10 +840,10 @@ export function LaminationPanel(props: LaminationPanelProps) {
   const laminationProducedRollColumns = useMemo(
     () => [
       eclInputGroupColumns("input1", input1Label, (row) =>
-        pickEclProducedParents(row.parentRolls, getLaminationParentRole).input1
+        parentsForProducedColumn(row.parentRolls, getLaminationParentRole, "wip")
       ),
       eclInputGroupColumns("input2", input2Label, (row) =>
-        pickEclProducedParents(row.parentRolls, getLaminationParentRole).input2
+        parentsForProducedColumn(row.parentRolls, getLaminationParentRole, "rm")
       ),
       laminationOutputGroupColumns(),
       laminationAdhesiveGroupColumns(),
@@ -1148,7 +1168,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded films</h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             Lamination needs two films on the same job card: {input1Label} and {input2Label}.
-            Close consumes one film when no output roll is made. X returns a film to stock.
+            Consume uses a film before the output exists. X returns a film to stock.
           </p>
           {laminationRollsLoading ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
@@ -1558,7 +1578,11 @@ export function LaminationPanel(props: LaminationPanelProps) {
               try {
                 setLaminationCreateChildLoading(true)
                 setLaminationCreateChildMessage(null)
-                const parentIds = [wipParent.roll.id, rmParent.roll.id]
+                const pendingParentIds = laminationClosedRolls
+                  .filter((roll) => roll.jobCardId === form.jobCardId)
+                  .map((roll) => roll.id)
+                  .filter((id) => id !== wipParent.roll.id && id !== rmParent.roll.id)
+                const parentIds = [wipParent.roll.id, rmParent.roll.id, ...pendingParentIds]
                 const wipSemiConsumed = Boolean(form.wipSemiConsumed)
                 const rmSemiConsumed = Boolean(form.rmSemiConsumed)
                 const wipBalanceValue = wipSemiConsumed ? null : parseNonNegativeDecimal(form.wipBalance || "")
@@ -1634,9 +1658,17 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   ohPercent,
                   gradeId: form.parent.gradeId,
                   parentRollIds: parentIds,
-                  parentBalanceWeights: [wipBalanceValue, rmBalanceValue],
-                  parentWastages: [wipWastage, rmWastage],
-                  parentSemiConsumed: [wipSemiConsumed, rmSemiConsumed],
+                  parentBalanceWeights: [
+                    wipBalanceValue,
+                    rmBalanceValue,
+                    ...pendingParentIds.map(() => null),
+                  ],
+                  parentWastages: [wipWastage, rmWastage, ...pendingParentIds.map(() => null)],
+                  parentSemiConsumed: [
+                    wipSemiConsumed,
+                    rmSemiConsumed,
+                    ...pendingParentIds.map(() => true),
+                  ],
                   weightAtTime: outputWeight,
                 })
                 getRollsStockByWorkOrder(wo.id, "wip_lamination").then(setLaminationChildRollsFromDb)
@@ -1668,6 +1700,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
                   )
                 }
                 setLaminationRollsRefreshKey((key: number) => key + 1)
+                setLaminationClosedRefreshKey((key) => key + 1)
               } catch {
                 setLaminationCreateChildMessage(
                   wipPrintingTemplate

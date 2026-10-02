@@ -7,6 +7,7 @@ import api, {
   clearImpersonationTargetId,
   decodeJwtPayload,
   getAccessToken,
+  isAccessTokenExpired,
   refreshAccessToken,
   setAccessToken,
   setImpersonationTargetId,
@@ -208,6 +209,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const impersonate = async (userId: number): Promise<User | null> => {
     try {
+      const token = getAccessToken();
+      const claims = token ? decodeJwtPayload(token) : null;
+      if (!token || isAccessTokenExpired(token) || typeof claims?.imp_by === 'string') {
+        clearImpersonationTargetId();
+        const adminToken = await refreshAccessToken();
+        if (!adminToken) {
+          throw new Error('Session expired');
+        }
+      }
       const tokenResponse = await startImpersonation(userId);
       setAccessToken(tokenResponse.access_token);
       setImpersonationTargetId(userId);

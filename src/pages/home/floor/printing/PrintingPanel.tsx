@@ -19,7 +19,14 @@ import { Label } from "@/components/ui/label"
 import { WorkOrderCreateDialog } from "@/components/work-order-create-dialog"
 import { formatWeightWithMeter, inkGsmByInkWt } from "@/lib/film-calc"
 import { getItemsByGroupForMenu, type MenuItem } from "@/lib/item-api"
-import { jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
+import {
+  closeRollWithoutOutput,
+  getAllJobCards,
+  getClosedWithoutOutput,
+  jobCardApiErrorMessage,
+  updateProducedRoll,
+  type ClosedWithoutOutputRoll,
+} from "@/lib/job-card-api"
 import {
   hasSemiConsumeChoice,
   NonNegativeDecimalInput,
@@ -27,7 +34,14 @@ import {
   parseOptionalNumber,
 } from "@/lib/non-negative-decimal-input"
 import { getProducedRollParentGroupKey } from "@/lib/table-filter-utils"
+import type { WorkOrderTrack } from "@/lib/work-order-api"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
+import {
+  ClosedWithoutOutputList,
+  CloseWithoutOutputDialog,
+  type ClosedWithoutOutputRow,
+  type CloseWithoutOutputTarget,
+} from "../close-without-output"
 import {
   ProducedRollEditField,
   producedRollEditDialogClassName,
@@ -77,6 +91,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
     setPrintingSelectedWo,
     updateWorkOrder,
     setPrintingWorkOrders,
+    printingTracks,
+    setPrintingTracks,
     printingCreateChildMessage,
     printingLoading,
     printingError,
@@ -111,10 +127,22 @@ export function PrintingPanel(props: PrintingPanelProps) {
     balanceweight: "",
   })
   const [printingEditSaving, setPrintingEditSaving] = useState(false)
+  const [printingConsumeTarget, setPrintingConsumeTarget] = useState<CloseWithoutOutputTarget | null>(null)
+  const [printingConsumedRolls, setPrintingConsumedRolls] = useState<
+    Array<ClosedWithoutOutputRoll & { jobCardId: number; jobCardNumber: string }>
+  >([])
+  const [printingConsumedRefreshKey, setPrintingConsumedRefreshKey] = useState(0)
   const [rmFilmItemFilter, setRmFilmItemFilter] = useState("all")
   const [rmFilmWarehouseFilter, setRmFilmWarehouseFilter] = useState<"all" | "virgin_rm" | "rm_balance">("all")
   const [rmFilmItems, setRmFilmItems] = useState<MenuItem[]>([])
-  const floorWorkOrderColumns = useMemo(() => getFloorWorkOrderColumns(), [])
+  const floorWorkOrderColumns = useMemo(
+    () =>
+      getFloorWorkOrderColumns({
+        showTrack: true,
+        tracks: (printingTracks ?? {}) as Record<number, WorkOrderTrack>,
+      }),
+    [printingTracks]
+  )
 
   useEffect(() => {
     if (!floorPrintingRmPickerOpen) {
@@ -241,6 +269,84 @@ export function PrintingPanel(props: PrintingPanelProps) {
     }
   }
 
+  useEffect(() => {
+    if (!printingSelectedWo?.id) {
+      setPrintingConsumedRolls([])
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      try {
+        const cards = await getAllJobCards(0, 20, printingSelectedWo.id, "Printing")
+        const groups = await Promise.all(
+          cards.map(async (card) => {
+            const rolls = await getClosedWithoutOutput(card.id)
+            return rolls.map((roll) => ({
+              ...roll,
+              jobCardId: card.id,
+              jobCardNumber: card.jobCardNumber,
+            }))
+          })
+        )
+        if (!cancelled) setPrintingConsumedRolls(groups.flat())
+      } catch {
+        if (!cancelled) setPrintingConsumedRolls([])
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [printingSelectedWo?.id, printingConsumedRefreshKey])
+
+  const printingConsumedRows = useMemo<ClosedWithoutOutputRow[]>(() => {
+    return printingConsumedRolls.map((roll) => ({
+      id: roll.id,
+      jobCardNumber: roll.jobCardNumber,
+      label: "RM film",
+      structure: roll.itemName || "—",
+      weightLabel: roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—",
+      wastageLabel: roll.wastage != null ? `${Number(roll.wastage).toFixed(2)} kg` : "—",
+      reason: roll.wastageReason || "—",
+    }))
+  }, [printingConsumedRolls])
+
+  const openPrintingConsume = (entry: { jobCardId: number; roll: any }) => {
+    const roll = entry.roll
+    setPrintingConsumeTarget({
+      jobCardId: entry.jobCardId,
+      rollId: roll.id,
+      label: roll.barcode || "RM film",
+      barcode: roll.barcode ?? "",
+      structure: roll.item_name ?? roll.itemName ?? "",
+      weightKg: roll.netweight != null ? Number(roll.netweight) : null,
+    })
+  }
+
+  const handlePrintingConsume = async (values: { wastage: number; reason: string; remark: string }) => {
+    const target = printingConsumeTarget
+    if (!target) return
+    try {
+      setPrintingCreateChildLoading(true)
+      setPrintingCreateChildMessage(null)
+      await closeRollWithoutOutput(target.jobCardId, {
+        rollId: target.rollId,
+        wastage: values.wastage,
+        wastageReason: values.reason,
+        remark: values.remark,
+      })
+      setPrintingConsumeTarget(null)
+      setPrintingCreateChildMessage(`${target.label} consumed. It will be a parent of the next printed roll.`)
+      setPrintingConsumedRefreshKey((key) => key + 1)
+      setPrintingRollsRefreshKey((key: number) => key + 1)
+    } catch (error) {
+      setPrintingCreateChildMessage(jobCardApiErrorMessage(error, "Could not consume this roll."))
+      throw error
+    } finally {
+      setPrintingCreateChildLoading(false)
+    }
+  }
+
   return (
     <>
   {printingSelectedWo ? (
@@ -248,7 +354,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
       <div>
         <div className="flex flex-col-reverse gap-2">
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Loaded roll</h4>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded rolls</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              More than one roll can parent one printed roll. Consume uses a roll before that printed roll exists. X returns a roll to stock.
+            </p>
             {printingRollsLoading ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
             ) : printingLoadedRolls.length === 0 ? (
@@ -454,9 +563,9 @@ export function PrintingPanel(props: PrintingPanelProps) {
                                 parent: { gradeId: undefined },
                                 size: roll.size != null ? String(roll.size) : "",
                                 micron: roll.micron != null ? String(roll.micron) : "",
-                                netweight: roll.netweight != null ? String(roll.netweight) : "",
+                                netweight: "",
                                 meter: "",
-                                grossweight: roll.netweight != null ? String(roll.netweight) : "",
+                                grossweight: "",
                                 wastage: "0",
                                 plainWastage: "0",
                                 printedWastage: "0",
@@ -498,7 +607,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <NonNegativeDecimalInput
                               disabled={!isSelected}
-                              value={isSelected ? printingAddRollForm.netweight : (roll.netweight != null && Number(roll.netweight) >= 0 ? String(roll.netweight) : "")}
+                              value={isSelected ? printingAddRollForm.netweight : ""}
                               onValueChange={(nextValue) =>
                                 setPrintingAddRollForm((prev: any) =>
                                   prev && prev.roll.id === roll.id ? { ...prev, netweight: nextValue } : prev
@@ -680,13 +789,24 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               }}
                             />
                           </td>
-                          <td className="py-1.5 px-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-1.5 px-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-1.5 text-xs"
+                              title="Use this roll now. It becomes a parent when the printed roll is created"
+                              disabled={printingCreateChildLoading}
+                              onClick={() => openPrintingConsume({ jobCardId, roll })}
+                            >
+                              Consume
+                            </Button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              title="Remove loaded roll"
+                              title="Remove loaded roll and return it to stock"
                               disabled={printingCreateChildLoading}
                               onClick={() => void handleUnloadPrintingRoll(jobCardId, roll.id)}
                             >
@@ -701,6 +821,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
               </div>
             )}
           </div>
+
+          <ClosedWithoutOutputList rows={printingConsumedRows} />
 
           <div>
             <div className="flex items-center justify-between gap-3 mb-1">
@@ -763,8 +885,10 @@ export function PrintingPanel(props: PrintingPanelProps) {
                   try {
                     setPrintingCreateChildLoading(true)
                     setPrintingCreateChildMessage(null)
-                    const parentIds = printingLoadedRolls.map((r: any) => r.roll.id)
-                    if (parentIds.length === 0) {
+                    const loadedOnCard = printingLoadedRolls.filter(
+                      (entry: { jobCardId: number; roll: any }) => entry.jobCardId === form.jobCardId
+                    )
+                    if (loadedOnCard.length === 0) {
                       setPrintingCreateChildMessage("Load an RM roll before printing.")
                       return
                     }
@@ -774,6 +898,28 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       setPrintingCreateChildMessage("Enter balance weight or tick Roll continue.")
                       return
                     }
+                    const pendingIds = printingConsumedRolls
+                      .filter((roll) => roll.jobCardId === form.jobCardId)
+                      .map((roll) => roll.id)
+                      .filter((id) => !loadedOnCard.some((entry: { roll: any }) => entry.roll.id === id))
+                    const parentIds = [
+                      ...loadedOnCard.map((entry: { roll: any }) => entry.roll.id),
+                      ...pendingIds,
+                    ]
+                    const parentBalanceWeights = [
+                      ...loadedOnCard.map((entry: { roll: any }) => {
+                        if (entry.roll.id === form.roll.id) return semiConsumed ? null : balanceValue
+                        return loadedRollBalance(entry.roll)
+                      }),
+                      ...pendingIds.map(() => null),
+                    ]
+                    const parentSemiConsumed = [
+                      ...loadedOnCard.map((entry: { roll: any }) => {
+                        if (entry.roll.id === form.roll.id) return semiConsumed
+                        return loadedRollBalance(entry.roll) == null
+                      }),
+                      ...pendingIds.map(() => true),
+                    ]
                     const netweightValue = parseNonNegativeDecimal(form.netweight || "") ?? undefined
                     const meterValue = parseOptionalNumber(form.meter || "")
                     const roundedMeterValue =
@@ -863,6 +1009,8 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       inkGsmByInkWt: inkGsmByInkWtValue ?? undefined,
                       gradeId: form.parent.gradeId,
                       parentRollIds: parentIds,
+                      parentBalanceWeights,
+                      parentSemiConsumed,
                       weightAtTime: netweightValue,
                       balanceWeight: semiConsumed ? undefined : (balanceValue ?? undefined),
                       semiConsumed,
@@ -890,6 +1038,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
                       setPrintingFormCommittedForRollId(form.roll.id)
                     }
                     setPrintingRollsRefreshKey((key: number) => key + 1)
+                    setPrintingConsumedRefreshKey((key) => key + 1)
                   } catch {
                     setPrintingCreateChildMessage(
                       wipPrintingTemplate
@@ -928,7 +1077,22 @@ export function PrintingPanel(props: PrintingPanelProps) {
                   setPrintingCreateChildMessage(null)
                   await updateWorkOrder(wo.id, { status: "printed" })
                   setPrintingCreateChildMessage("Work order marked as printed.")
-                  setPrintingWorkOrders((prev: any[]) => prev.filter((x) => x.id !== wo.id))
+                  setPrintingWorkOrders((prev: any[]) =>
+                    prev.map((row) => (row.id === wo.id ? { ...row, status: "printed" } : row))
+                  )
+                  setPrintingTracks((prev: Record<number, WorkOrderTrack>) => {
+                    const track = prev?.[wo.id]
+                    if (!track) return prev ?? {}
+                    return {
+                      ...prev,
+                      [wo.id]: {
+                        ...track,
+                        stages: track.stages.map((stage) =>
+                          stage.operation === "Printing" ? { ...stage, state: "completed" as const } : stage
+                        ),
+                      },
+                    }
+                  })
                   setPrintingSelectedWo(null)
                 } catch {
                   setPrintingCreateChildMessage("Failed to finish work order.")
@@ -981,6 +1145,14 @@ export function PrintingPanel(props: PrintingPanelProps) {
       />
     </>
   )}
+    <CloseWithoutOutputDialog
+      target={printingConsumeTarget}
+      saving={printingCreateChildLoading}
+      onOpenChange={(open) => {
+        if (!open) setPrintingConsumeTarget(null)
+      }}
+      onConfirm={handlePrintingConsume}
+    />
     <Dialog open={Boolean(printingProducedEditRoll)} onOpenChange={(open) => { if (!open) setPrintingProducedEditRoll(null) }}>
       <DialogContent className={producedRollEditDialogClassName}>
         <DialogHeader>

@@ -104,6 +104,47 @@ export const deleteWorkOrder = async (workOrderId: number) => {
   await api.delete(`/work-order/${workOrderId}`)
 }
 
+export type WorkOrderStageState = "not_started" | "in_process" | "completed" | "skipped"
+
+export type WorkOrderStageTrack = {
+  operation: string
+  state: WorkOrderStageState
+  rolls: number
+  weight: number
+}
+
+export type WorkOrderTrack = {
+  workOrderId: number
+  stages: WorkOrderStageTrack[]
+}
+
+type WorkOrderTrackResponse = {
+  work_order_id: number
+  stages: WorkOrderStageTrack[]
+}
+
+export const isTrackFullyComplete = (track: WorkOrderTrack | undefined): boolean => {
+  if (!track || track.stages.length === 0) return false
+  const required = track.stages.filter((stage) => stage.state !== "skipped")
+  if (required.length === 0) return false
+  return required.every((stage) => stage.state === "completed")
+}
+
+export const getWorkOrderTracks = async (ids: number[]): Promise<Record<number, WorkOrderTrack>> => {
+  if (ids.length === 0) return {}
+  const response = await api.get<WorkOrderTrackResponse[]>("/work-order/track", {
+    params: { ids: ids.join(",") },
+  })
+  const tracks: Record<number, WorkOrderTrack> = {}
+  for (const row of response.data) {
+    tracks[row.work_order_id] = {
+      workOrderId: row.work_order_id,
+      stages: row.stages ?? [],
+    }
+  }
+  return tracks
+}
+
 export const skipWorkOrderOperation = async (workOrderId: number, operation: string) => {
   const response = await api.post<WorkOrderResponse>(`/work-order/${workOrderId}/skip-operation`, {
     operation,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { ArrowLeft } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
@@ -23,7 +23,14 @@ import {
   unloadRoll,
   type CurrentRoll,
 } from "@/lib/job-card-api"
-import { getAllWorkOrders, skipWorkOrderOperation, updateWorkOrder } from "@/lib/work-order-api"
+import {
+  getAllWorkOrders,
+  getWorkOrderTracks,
+  isTrackFullyComplete,
+  skipWorkOrderOperation,
+  updateWorkOrder,
+  type WorkOrderTrack,
+} from "@/lib/work-order-api"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import {
   allowedWipStagesForDept,
@@ -51,6 +58,13 @@ import { FloorShell } from "./home/components/FloorShell"
 import { GeneralDashboard } from "./home/components/GeneralDashboard"
 import { StockDashboard } from "./home/components/StockDashboard"
 import { floorDepartmentBlocks, type FloorDepartmentId } from "./home/constants"
+import {
+  readDepartmentForm,
+  readFloorView,
+  readSelectedWorkOrderIds,
+  withFreshLoadedRoll,
+  writeFloorDrafts,
+} from "./home/floor/floor-form-draft"
 import { EclPanel } from "./home/floor/ecl/EclPanel"
 import { InspectionPanel } from "./home/floor/inspection/InspectionPanel"
 import { LaminationPanel } from "./home/floor/lamination/LaminationPanel"
@@ -183,8 +197,14 @@ export default function Home() {
     isScaleConnected,
     connectScale,
   } = useScaleConnection()
-  const [floorView, setFloorView] = useState<FloorDepartmentId | null>(null)
+  const [floorView, setFloorView] = useState<FloorDepartmentId | null>(() => readFloorView())
+  const pendingWorkOrderIds = useRef(readSelectedWorkOrderIds())
+  const selectedWorkOrderIdRef = useRef<Partial<Record<FloorDepartmentId, number | null>>>({})
   const [printingWorkOrders, setPrintingWorkOrders] = useState<WorkOrderMaster[]>([])
+  const [printingTracks, setPrintingTracks] = useState<Record<number, WorkOrderTrack>>({})
+  const [printingListRefreshKey, setPrintingListRefreshKey] = useState(0)
+  const printingListLoadedRef = useRef(false)
+  const printingDetailWasOpenRef = useRef(false)
   const [printingLoading, setPrintingLoading] = useState(false)
   const [printingError, setPrintingError] = useState<string | null>(null)
   const [printingSelectedWo, setPrintingSelectedWo] = useState<WorkOrderMaster | null>(null)
@@ -195,23 +215,25 @@ export default function Home() {
   >([])
   const [printingCreateChildLoading, setPrintingCreateChildLoading] = useState(false)
   const [printingCreateChildMessage, setPrintingCreateChildMessage] = useState<string | null>(null)
-  const [printingAddRollForm, setPrintingAddRollForm] = useState<{
-    jobCardNumber: string
-    jobCardId: number
-    roll: CurrentRoll
-    parent: { gradeId?: number; density?: number | null }
-    size: string
-    micron: string
-    netweight: string
-    meter: string
-    grossweight: string
-    wastage: string
-    plainWastage: string
-    printedWastage: string
-    inkGsm: string
-    balanceweight: string
-    semiConsumed: boolean
-  } | null>(null)
+  const [printingAddRollForm, setPrintingAddRollForm] = useState(() =>
+    readDepartmentForm<{
+      jobCardNumber: string
+      jobCardId: number
+      roll: CurrentRoll
+      parent: { gradeId?: number; density?: number | null }
+      size: string
+      micron: string
+      netweight: string
+      meter: string
+      grossweight: string
+      wastage: string
+      plainWastage: string
+      printedWastage: string
+      inkGsm: string
+      balanceweight: string
+      semiConsumed: boolean
+    }>("printing")
+  )
   const [, setPrintingAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
   >(null)
@@ -269,24 +291,26 @@ export default function Home() {
   >([])
   const [inspectionCreateChildLoading, setInspectionCreateChildLoading] = useState(false)
   const [inspectionCreateChildMessage, setInspectionCreateChildMessage] = useState<string | null>(null)
-  const [inspectionAddRollForm, setInspectionAddRollForm] = useState<{
-    jobCardNumber: string
-    jobCardId: number
-    roll: CurrentRoll
-    parent: { gradeId?: number }
-    size: string
-    micron: string
-    netweight: string
-    wastage: string
-    wastageReason: string
-    noOfTag: string
-    noOfCuts: string
-    operatorName: string
-    shift: string
-    remark: string
-    balanceweight: string
-    semiConsumed: boolean
-  } | null>(null)
+  const [inspectionAddRollForm, setInspectionAddRollForm] = useState(() =>
+    readDepartmentForm<{
+      jobCardNumber: string
+      jobCardId: number
+      roll: CurrentRoll
+      parent: { gradeId?: number }
+      size: string
+      micron: string
+      netweight: string
+      wastage: string
+      wastageReason: string
+      noOfTag: string
+      noOfCuts: string
+      operatorName: string
+      shift: string
+      remark: string
+      balanceweight: string
+      semiConsumed: boolean
+    }>("inspection")
+  )
   const [inspectionAddRollEditingField, setInspectionAddRollEditingField] = useState<
     null | "netweight" | "grossweight"
   >(null)
@@ -581,28 +605,30 @@ export default function Home() {
   >([])
   const [eclCreateChildLoading, setEclCreateChildLoading] = useState(false)
   const [eclCreateChildMessage, setEclCreateChildMessage] = useState<string | null>(null)
-  const [eclAddRollForm, setEclAddRollForm] = useState<{
-    jobCardNumber: string
-    jobCardId: number
-    roll: CurrentRoll
-    parent: { gradeId?: number }
-    size: string
-    micron: string
-    netweight: string
-    extrusionKg: string
-    trimWastage: string
-    lumpsWastage: string
-    eclOutputWastage: string
-    wipWastage: string
-    rmWastage: string
-    wipBalance: string
-    rmBalance: string
-    wipSemiConsumed: boolean
-    rmSemiConsumed: boolean
-    operatorName: string
-    shift: string
-    remark: string
-  } | null>(null)
+  const [eclAddRollForm, setEclAddRollForm] = useState(() =>
+    readDepartmentForm<{
+      jobCardNumber: string
+      jobCardId: number
+      roll: CurrentRoll
+      parent: { gradeId?: number }
+      size: string
+      micron: string
+      netweight: string
+      extrusionKg: string
+      trimWastage: string
+      lumpsWastage: string
+      eclOutputWastage: string
+      wipWastage: string
+      rmWastage: string
+      wipBalance: string
+      rmBalance: string
+      wipSemiConsumed: boolean
+      rmSemiConsumed: boolean
+      operatorName: string
+      shift: string
+      remark: string
+    }>("ecl")
+  )
   const [eclFormCommittedForRollId, setEclFormCommittedForRollId] = useState<number | null>(null)
   const [eclRollsRefreshKey, setEclRollsRefreshKey] = useState(0)
   const [eclAddRollEditingField, setEclAddRollEditingField] = useState<
@@ -710,28 +736,30 @@ export default function Home() {
   >([])
   const [laminationCreateChildLoading, setLaminationCreateChildLoading] = useState(false)
   const [laminationCreateChildMessage, setLaminationCreateChildMessage] = useState<string | null>(null)
-  const [laminationAddRollForm, setLaminationAddRollForm] = useState<{
-    jobCardNumber: string
-    jobCardId: number
-    roll: CurrentRoll
-    parent: { gradeId?: number }
-    size: string
-    micron: string
-    netweight: string
-    wipWastage: string
-    rmWastage: string
-    wipBalance: string
-    rmBalance: string
-    wipSemiConsumed: boolean
-    rmSemiConsumed: boolean
-    operatorName: string
-    shift: string
-    remark: string
-    meter: string
-    adhesiveOh: string
-    adhesiveNco: string
-    ohPercent: string
-  } | null>(null)
+  const [laminationAddRollForm, setLaminationAddRollForm] = useState(() =>
+    readDepartmentForm<{
+      jobCardNumber: string
+      jobCardId: number
+      roll: CurrentRoll
+      parent: { gradeId?: number }
+      size: string
+      micron: string
+      netweight: string
+      wipWastage: string
+      rmWastage: string
+      wipBalance: string
+      rmBalance: string
+      wipSemiConsumed: boolean
+      rmSemiConsumed: boolean
+      operatorName: string
+      shift: string
+      remark: string
+      meter: string
+      adhesiveOh: string
+      adhesiveNco: string
+      ohPercent: string
+    }>("lamination")
+  )
   const [laminationFormCommittedForRollId, setLaminationFormCommittedForRollId] = useState<number | null>(null)
   const [laminationRollsRefreshKey, setLaminationRollsRefreshKey] = useState(0)
   const [laminationChildRollsFromDb, setLaminationChildRollsFromDb] = useState<
@@ -832,25 +860,27 @@ export default function Home() {
   >([])
   const [slittingCreateChildLoading, setSlittingCreateChildLoading] = useState(false)
   const [slittingCreateChildMessage, setSlittingCreateChildMessage] = useState<string | null>(null)
-  const [slittingAddRollForm, setSlittingAddRollForm] = useState<{
-    jobCardNumber: string
-    jobCardId: number
-    roll: CurrentRoll
-    parent: { gradeId?: number }
-    micron: string
-    trimWastage: string
-    eclWastage: string
-    printedWastage: string
-    laminationWastage: string
-    slitterWastage: string
-    wastage: string
-    coilRewinding: string
-    slitDirection: string
-    coreSize: string
-    coilDia: string
-    size: string
-    jobRepeat: string
-  } | null>(null)
+  const [slittingAddRollForm, setSlittingAddRollForm] = useState(() =>
+    readDepartmentForm<{
+      jobCardNumber: string
+      jobCardId: number
+      roll: CurrentRoll
+      parent: { gradeId?: number }
+      micron: string
+      trimWastage: string
+      eclWastage: string
+      printedWastage: string
+      laminationWastage: string
+      slitterWastage: string
+      wastage: string
+      coilRewinding: string
+      slitDirection: string
+      coreSize: string
+      coilDia: string
+      size: string
+      jobRepeat: string
+    }>("slitting")
+  )
   const [slittingRollsRefreshKey, setSlittingRollsRefreshKey] = useState(0)
   const [slittingChildRollsFromDb, setSlittingChildRollsFromDb] = useState<
     Awaited<ReturnType<typeof getRollsStockByParentIds>>
@@ -1928,12 +1958,50 @@ export default function Home() {
     }
   }
 
-  // Floor Printing page: show active work orders that have a Printing job card
+  // Reload the printing list when the operator comes back from a work order.
+  useEffect(() => {
+    if (printingSelectedWo) {
+      printingDetailWasOpenRef.current = true
+      return
+    }
+    if (!printingDetailWasOpenRef.current) return
+    printingDetailWasOpenRef.current = false
+    if (isFloorUser && floorView === "printing") {
+      setPrintingListRefreshKey((key) => key + 1)
+    }
+  }, [printingSelectedWo, isFloorUser, floorView])
+
+  selectedWorkOrderIdRef.current = {
+    printing: printingSelectedWo?.id ?? null,
+    inspection: inspectionSelectedWo?.id ?? null,
+    ecl: eclSelectedWo?.id ?? null,
+    lamination: laminationSelectedWo?.id ?? null,
+    slitting: slittingSelectedWo?.id ?? null,
+  }
+
+  const restorePendingWorkOrder = (
+    department: FloorDepartmentId,
+    workOrders: WorkOrderMaster[],
+    setSelected: Dispatch<SetStateAction<WorkOrderMaster | null>>,
+    clearForm: () => void
+  ) => {
+    const pendingId = pendingWorkOrderIds.current[department]
+    if (pendingId == null) return
+    delete pendingWorkOrderIds.current[department]
+    if (selectedWorkOrderIdRef.current[department] != null) return
+    const match = workOrders.find((wo) => wo.id === pendingId)
+    if (match) setSelected(match)
+    else clearForm()
+  }
+
+  // Floor Printing page: work orders with a Printing job card, including ones
+  // already marked printed, until every required stage on the track is done.
   useEffect(() => {
     if (!isFloorUser || floorView !== "printing") return
     let cancelled = false
     const run = async () => {
-      setPrintingLoading(true)
+      const silent = printingListLoadedRef.current
+      if (!silent) setPrintingLoading(true)
       setPrintingError(null)
       try {
         const cards = await getAllJobCards(0, 500, undefined, "Printing")
@@ -1943,15 +2011,23 @@ export default function Home() {
         const filtered = allWos.filter(
           (wo) =>
             printingWorkOrderIds.has(wo.id) &&
-            wo.status !== "printed" &&
             wo.status !== "completed" &&
             wo.status !== "cancelled"
         )
-        if (!cancelled) setPrintingWorkOrders(filtered)
+        const tracks = await getWorkOrderTracks(filtered.map((wo) => wo.id))
+        if (cancelled) return
+        const visiblePrinting = filtered.filter((wo) => !isTrackFullyComplete(tracks[wo.id]))
+        setPrintingTracks(tracks)
+        setPrintingWorkOrders(visiblePrinting)
+        printingListLoadedRef.current = true
+        restorePendingWorkOrder("printing", visiblePrinting, setPrintingSelectedWo, () =>
+          setPrintingAddRollForm(null)
+        )
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && !silent) {
           setPrintingError("Failed to load work orders.")
           setPrintingWorkOrders([])
+          setPrintingTracks({})
         }
       } finally {
         if (!cancelled) setPrintingLoading(false)
@@ -1961,7 +2037,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [isFloorUser, floorView])
+  }, [isFloorUser, floorView, printingListRefreshKey])
 
   // Floor Inspection page: WOs with available WIP Printing rolls to load,
   // plus WOs that already have an Inspection job card with a loaded roll.
@@ -1999,8 +2075,15 @@ export default function Home() {
 
         const allWos = await getAllWorkOrders(0, 500)
         if (!cancelled) {
-          setInspectionWorkOrders(
-            filterDepartmentWorkOrders(allWos, "Inspection", stagesByWo, loadedWorkOrderIds)
+          const visibleInspection = filterDepartmentWorkOrders(
+            allWos,
+            "Inspection",
+            stagesByWo,
+            loadedWorkOrderIds
+          )
+          setInspectionWorkOrders(visibleInspection)
+          restorePendingWorkOrder("inspection", visibleInspection, setInspectionSelectedWo, () =>
+            setInspectionAddRollForm(null)
           )
         }
       } catch (err) {
@@ -2057,7 +2140,9 @@ export default function Home() {
 
         const allWos = await getAllWorkOrders(0, 500)
         if (!cancelled) {
-          setEclWorkOrders(filterDepartmentWorkOrders(allWos, "ECL", stagesByWo, loadedWorkOrderIds))
+          const visibleEcl = filterDepartmentWorkOrders(allWos, "ECL", stagesByWo, loadedWorkOrderIds)
+          setEclWorkOrders(visibleEcl)
+          restorePendingWorkOrder("ecl", visibleEcl, setEclSelectedWo, () => setEclAddRollForm(null))
         }
       } catch (err) {
         if (!cancelled) {
@@ -2113,8 +2198,15 @@ export default function Home() {
 
         const allWos = await getAllWorkOrders(0, 500)
         if (!cancelled) {
-          setLaminationWorkOrders(
-            filterDepartmentWorkOrders(allWos, "Lamination", stagesByWo, loadedWorkOrderIds)
+          const visibleLamination = filterDepartmentWorkOrders(
+            allWos,
+            "Lamination",
+            stagesByWo,
+            loadedWorkOrderIds
+          )
+          setLaminationWorkOrders(visibleLamination)
+          restorePendingWorkOrder("lamination", visibleLamination, setLaminationSelectedWo, () =>
+            setLaminationAddRollForm(null)
           )
         }
       } catch (err) {
@@ -2171,8 +2263,15 @@ export default function Home() {
 
         const allWos = await getAllWorkOrders(0, 500)
         if (!cancelled) {
-          setSlittingWorkOrders(
-            filterDepartmentWorkOrders(allWos, "Slitting", stagesByWo, loadedWorkOrderIds)
+          const visibleSlitting = filterDepartmentWorkOrders(
+            allWos,
+            "Slitting",
+            stagesByWo,
+            loadedWorkOrderIds
+          )
+          setSlittingWorkOrders(visibleSlitting)
+          restorePendingWorkOrder("slitting", visibleSlitting, setSlittingSelectedWo, () =>
+            setSlittingAddRollForm(null)
           )
         }
       } catch (err) {
@@ -2193,6 +2292,7 @@ export default function Home() {
   // When Floor user selects a work order in Printing section, fetch current loaded roll(s) and show form for first roll
   useEffect(() => {
     if (!printingSelectedWo) {
+      if (pendingWorkOrderIds.current.printing != null) return
       setPrintingLoadedRolls([])
       setPrintingAddRollForm(null)
       setPrintingAddRollEditingField(null)
@@ -2206,21 +2306,25 @@ export default function Home() {
         const results = await Promise.all(
           cards.map(async (c) => {
             try {
-              const roll = await getCurrentRoll(c.id)
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll }
+              const rolls = await getLoadedRolls(c.id)
+              return rolls.map((roll) => ({
+                jobCardNumber: c.jobCardNumber,
+                jobCardId: c.id,
+                roll,
+              }))
             } catch {
-              return { jobCardNumber: c.jobCardNumber, jobCardId: c.id, roll: null }
+              return [] as { jobCardNumber: string; jobCardId: number; roll: CurrentRoll }[]
             }
           })
         )
         if (!cancelled) {
-          const loaded = results.filter((r): r is { jobCardNumber: string; jobCardId: number; roll: CurrentRoll } => r.roll != null)
+          const loaded = results.flat()
           setPrintingLoadedRolls(loaded)
           if (loaded.length > 0) {
             const first = loaded[0]
             const grossFromScale = scaleWeight != null ? String(scaleWeight) : ""
             setPrintingAddRollForm((prev) => {
-              if (prev?.roll.id === first.roll.id) return prev
+              if (prev?.roll.id === first.roll.id) return withFreshLoadedRoll(prev, first)
               return {
                 jobCardNumber: first.jobCardNumber,
                 jobCardId: first.jobCardId,
@@ -2228,9 +2332,9 @@ export default function Home() {
                 parent: { gradeId: undefined },
                 size: first.roll.size != null ? String(first.roll.size) : "",
                 micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                netweight: first.roll.netweight != null ? String(first.roll.netweight) : "",
+                netweight: "",
                 meter: "",
-                grossweight: grossFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : ""),
+                grossweight: grossFromScale,
                 wastage: "0",
                 plainWastage: "0",
                 printedWastage: "0",
@@ -2288,6 +2392,7 @@ export default function Home() {
   // When Floor user selects a work order in Inspection section, fetch current loaded roll(s) and show form for first roll
   useEffect(() => {
     if (!inspectionSelectedWo) {
+      if (pendingWorkOrderIds.current.inspection != null) return
       setInspectionLoadedRolls([])
       setInspectionAddRollForm(null)
       setInspectionAddRollEditingField(null)
@@ -2323,12 +2428,9 @@ export default function Home() {
           if (loaded.length > 0) {
             const first = loaded[0]
             const firstCard = cards.find((c) => c.id === first.jobCardId)
-            const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
-            const outputWeight =
-              outputFromScale || (first.roll.netweight != null ? String(first.roll.netweight) : "")
             const wastage = "0"
             setInspectionAddRollForm((prev) => {
-              if (prev?.roll.id === first.roll.id) return prev
+              if (prev?.roll.id === first.roll.id) return withFreshLoadedRoll(prev, first)
               return {
                 jobCardNumber: first.jobCardNumber,
                 jobCardId: first.jobCardId,
@@ -2336,7 +2438,7 @@ export default function Home() {
                 parent: { gradeId: undefined },
                 size: first.roll.size != null ? String(first.roll.size) : "",
                 micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                netweight: outputWeight,
+                netweight: "",
                 wastage,
                 wastageReason: "",
                 noOfTag: "",
@@ -2394,6 +2496,7 @@ export default function Home() {
   // When Floor user selects a work order in ECL section, fetch loaded roll(s) and show form
   useEffect(() => {
     if (!eclSelectedWo) {
+      if (pendingWorkOrderIds.current.ecl != null) return
       setEclLoadedRolls([])
       setEclAddRollForm(null)
       setEclAddRollEditingField(null)
@@ -2445,10 +2548,12 @@ export default function Home() {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
               setEclAddRollEditingField(null)
-              const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
               setEclAddRollForm((prev) => {
                 if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
-                  return prev
+                  return {
+                    ...withFreshLoadedRoll(prev, formSource),
+                    parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                  }
                 }
                 return {
                   jobCardNumber: formSource.jobCardNumber,
@@ -2457,7 +2562,7 @@ export default function Home() {
                   parent: { gradeId: parent.gradeId },
                   size: formSource.roll.size != null ? String(formSource.roll.size) : "",
                   micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
-                  netweight: outputFromScale,
+                  netweight: "",
                   extrusionKg: "",
                   trimWastage: "0",
                   lumpsWastage: "0",
@@ -2501,6 +2606,7 @@ export default function Home() {
   // When Floor user selects a work order in Lamination section, fetch loaded roll(s) and show form
   useEffect(() => {
     if (!laminationSelectedWo) {
+      if (pendingWorkOrderIds.current.lamination != null) return
       setLaminationLoadedRolls([])
       setLaminationAddRollForm(null)
       return
@@ -2549,16 +2655,12 @@ export default function Home() {
           try {
             const parent = await getRollsStockById(formSource.roll.id)
             if (!cancelled) {
-              const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
-              const parentKg = Number(formSource.roll.netweight)
-              const parentMeter = Number(formSource.roll.meter)
-              const outputMeter =
-                scaleWeight != null && parentKg > 0 && parentMeter > 0
-                  ? String(Math.round(parentMeter * (scaleWeight / parentKg)))
-                  : ""
               setLaminationAddRollForm((prev) => {
                 if (prev?.jobCardId === formSource.jobCardId && prev.roll.id === formSource.roll.id) {
-                  return prev
+                  return {
+                    ...withFreshLoadedRoll(prev, formSource),
+                    parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                  }
                 }
                 return {
                   jobCardNumber: formSource.jobCardNumber,
@@ -2567,7 +2669,7 @@ export default function Home() {
                   parent: { gradeId: parent.gradeId },
                   size: formSource.roll.size != null ? String(formSource.roll.size) : "",
                   micron: formSource.roll.micron != null ? String(formSource.roll.micron) : "",
-                  netweight: outputFromScale,
+                  netweight: "",
                   wipWastage: "0",
                   rmWastage: "0",
                   wipBalance: "",
@@ -2577,7 +2679,7 @@ export default function Home() {
                   operatorName: "",
                   shift: "A",
                   remark: "",
-                  meter: outputMeter,
+                  meter: "",
                   adhesiveOh: "",
                   adhesiveNco: "",
                   ohPercent: "",
@@ -2608,6 +2710,7 @@ export default function Home() {
   // When Floor user selects a work order in Slitting section, fetch loaded parent and show output form
   useEffect(() => {
     if (!slittingSelectedWo) {
+      if (pendingWorkOrderIds.current.slitting != null) return
       setSlittingLoadedRolls([])
       setSlittingAddRollForm(null)
       return
@@ -2639,24 +2742,32 @@ export default function Home() {
             try {
               const parent = await getRollsStockById(first.roll.id)
               if (!cancelled) {
-                setSlittingAddRollForm({
-                  jobCardNumber: first.jobCardNumber,
-                  jobCardId: first.jobCardId,
-                  roll: first.roll,
-                  parent: { gradeId: parent.gradeId },
-                  micron: first.roll.micron != null ? String(first.roll.micron) : "",
-                  trimWastage: "0",
-                  eclWastage: "0",
-                  printedWastage: "0",
-                  laminationWastage: "0",
-                  slitterWastage: "0",
-                  wastage: "0",
-                  coilRewinding: "",
-                  slitDirection: "",
-                  coreSize: "",
-                  coilDia: "",
-                  size: "",
-                  jobRepeat: "",
+                setSlittingAddRollForm((prev) => {
+                  if (prev?.roll.id === first.roll.id) {
+                    return {
+                      ...withFreshLoadedRoll(prev, first),
+                      parent: { gradeId: parent.gradeId ?? prev.parent.gradeId },
+                    }
+                  }
+                  return {
+                    jobCardNumber: first.jobCardNumber,
+                    jobCardId: first.jobCardId,
+                    roll: first.roll,
+                    parent: { gradeId: parent.gradeId },
+                    micron: first.roll.micron != null ? String(first.roll.micron) : "",
+                    trimWastage: "0",
+                    eclWastage: "0",
+                    printedWastage: "0",
+                    laminationWastage: "0",
+                    slitterWastage: "0",
+                    wastage: "0",
+                    coilRewinding: "",
+                    slitDirection: "",
+                    coreSize: "",
+                    coilDia: "",
+                    size: "",
+                    jobRepeat: "",
+                  }
                 })
               }
             } catch {
@@ -2857,46 +2968,50 @@ export default function Home() {
       .catch(() => setWipPrintingTemplate(null))
   }, [isFloorUser, floorView])
 
-  // When scale (serial) weight updates and add-roll form is open, use it for gross weight
+  // Scale reading stays in the header. Output weight is entered by the operator.
   useEffect(() => {
     if (printingAddRollForm && scaleWeight != null) {
       setPrintingAddRollForm((prev) =>
         prev ? { ...prev, grossweight: String(scaleWeight) } : null
       )
     }
-    if (inspectionAddRollForm && scaleWeight != null) {
-      setInspectionAddRollForm((prev) => {
-        if (!prev) return null
-        if (prev.semiConsumed) {
-          return { ...prev, netweight: String(scaleWeight) }
-        }
-        const inputWeight = Number(prev.roll.netweight || 0)
-        const wastageKg = Number(prev.wastage || 0)
-        const balanceweight = String(
-          Math.max(
-            0,
-            Number((inputWeight - scaleWeight - (Number.isNaN(wastageKg) ? 0 : wastageKg)).toFixed(2))
-          )
-        )
-        return { ...prev, netweight: String(scaleWeight), balanceweight, semiConsumed: false }
-      })
-    }
-    if (eclAddRollForm && scaleWeight != null) {
-      setEclAddRollForm((prev) => (prev ? { ...prev, netweight: String(scaleWeight) } : null))
-    }
-    if (laminationAddRollForm && scaleWeight != null) {
-      setLaminationAddRollForm((prev) => {
-        if (!prev) return null
-        const parentKg = Number(prev.roll.netweight)
-        const parentMeter = Number(prev.roll.meter)
-        const meter =
-          parentKg > 0 && parentMeter > 0
-            ? String(Math.round(parentMeter * (scaleWeight / parentKg)))
-            : prev.meter
-        return { ...prev, netweight: String(scaleWeight), meter }
-      })
-    }
   }, [scaleWeight])
+
+  useEffect(() => {
+    if (!isFloorUser) return
+    const selectedId = (department: FloorDepartmentId, selected: { id: number } | null) =>
+      selected?.id ?? pendingWorkOrderIds.current[department] ?? null
+    writeFloorDrafts({
+      floorView,
+      selectedWorkOrderIds: {
+        printing: selectedId("printing", printingSelectedWo),
+        inspection: selectedId("inspection", inspectionSelectedWo),
+        ecl: selectedId("ecl", eclSelectedWo),
+        lamination: selectedId("lamination", laminationSelectedWo),
+        slitting: selectedId("slitting", slittingSelectedWo),
+      },
+      forms: {
+        printing: printingAddRollForm,
+        inspection: inspectionAddRollForm,
+        ecl: eclAddRollForm,
+        lamination: laminationAddRollForm,
+        slitting: slittingAddRollForm,
+      },
+    })
+  }, [
+    isFloorUser,
+    floorView,
+    printingSelectedWo,
+    inspectionSelectedWo,
+    eclSelectedWo,
+    laminationSelectedWo,
+    slittingSelectedWo,
+    printingAddRollForm,
+    inspectionAddRollForm,
+    eclAddRollForm,
+    laminationAddRollForm,
+    slittingAddRollForm,
+  ])
 
   // Printing department: home screen is the Work Order screen
   if (isPrintingUser) {
@@ -3035,6 +3150,8 @@ export default function Home() {
                     setPrintingSelectedWo={setPrintingSelectedWo}
                     updateWorkOrder={updateWorkOrder}
                     setPrintingWorkOrders={setPrintingWorkOrders}
+                    printingTracks={printingTracks}
+                    setPrintingTracks={setPrintingTracks}
                     printingCreateChildMessage={printingCreateChildMessage}
                     printingLoading={printingLoading}
                     printingError={printingError}

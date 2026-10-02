@@ -4,6 +4,8 @@ import { MoreVertical } from "lucide-react"
 import { ColumnHeader } from "@/components/column-header"
 import { ColumnHeaderSelect } from "@/components/column-header-select"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
+import type { WorkOrderTrack } from "@/lib/work-order-api"
+import { WorkOrderTrackCell } from "./work-order-track"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,6 +22,8 @@ const statusClassName = (status: string) => {
 
 type FloorWorkOrderColumnOptions = {
   onSkip?: (workOrder: WorkOrderMaster) => void
+  showTrack?: boolean
+  tracks?: Record<number, WorkOrderTrack>
 }
 
 /** Searchable/filterable columns for Floor dashboard work-order lists. */
@@ -59,29 +63,45 @@ export const getFloorWorkOrderColumns = (
       </div>
     ),
   },
-  {
-    accessorKey: "status",
-    filterFn: (row, columnId, filterValue: string[]) => {
-      if (!Array.isArray(filterValue) || filterValue.length === 0) return true
-      const rowValue = String(row.getValue(columnId) ?? "")
-      return filterValue.includes(rowValue)
-    },
-    header: ({ column }) => (
-      <ColumnHeaderSelect
-        title="STATUS"
-        column={column}
-        options={["planned", "in_progress", "printed", "completed", "cancelled"]}
-      />
-    ),
-    cell: ({ row }) => {
-      const status = row.original.status ?? ""
-      return (
-        <span className={statusClassName(status)}>
-          {status.replace(/_/g, " ") || "-"}
-        </span>
-      )
-    },
-  },
+  ...(options?.showTrack
+    ? [
+        {
+          id: "track",
+          enableSorting: false,
+          enableColumnFilter: false,
+          header: () => (
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">TRACK</span>
+          ),
+          cell: ({ row }: { row: { original: WorkOrderMaster } }) => (
+            <WorkOrderTrackCell track={options.tracks?.[row.original.id]} />
+          ),
+        } satisfies ColumnDef<WorkOrderMaster>,
+      ]
+    : [
+        {
+          accessorKey: "status",
+          filterFn: (row, columnId, filterValue: string[]) => {
+            if (!Array.isArray(filterValue) || filterValue.length === 0) return true
+            const rowValue = String(row.getValue(columnId) ?? "")
+            return filterValue.includes(rowValue)
+          },
+          header: ({ column }) => (
+            <ColumnHeaderSelect
+              title="STATUS"
+              column={column}
+              options={["planned", "in_progress", "printed", "completed", "cancelled"]}
+            />
+          ),
+          cell: ({ row }) => {
+            const status = row.original.status ?? ""
+            return (
+              <span className={statusClassName(status)}>
+                {status.replace(/_/g, " ") || "-"}
+              </span>
+            )
+          },
+        } satisfies ColumnDef<WorkOrderMaster>,
+      ]),
   ...(options?.onSkip
     ? [
         {

@@ -60,9 +60,9 @@ export function CloseWithoutOutputDialog({
     <Dialog open={target != null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Close without output</DialogTitle>
+          <DialogTitle>Consume film</DialogTitle>
           <DialogDescription>
-            This roll will be marked consumed. No output roll and no balance roll will be created. It will not return to stock.
+            This film is used now. No output roll is created yet, and it does not return to stock. It stays on this job card and becomes a parent when the output roll is created.
           </DialogDescription>
         </DialogHeader>
         {target && (
@@ -139,7 +139,7 @@ export function CloseWithoutOutputDialog({
               }
             }}
           >
-            {saving ? "Closing…" : "Close roll"}
+            {saving ? "Consuming…" : "Consume film"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -161,9 +161,9 @@ export function ClosedWithoutOutputList({ rows }: { rows: ClosedWithoutOutputRow
   if (rows.length === 0) return null
   return (
     <div>
-      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Closed without output</h4>
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Consumed films</h4>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        These films were consumed on this work order. No output roll was created.
+        These films are used. They will be parents of the next output roll.
       </p>
       <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
         <table className="w-full text-xs">

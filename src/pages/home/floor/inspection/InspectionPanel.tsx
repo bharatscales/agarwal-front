@@ -83,7 +83,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
     setInspectionCreateChildLoading,
     setInspectionCreateChildMessage,
     getRollsStockById,
-    scaleWeight,
     setInspectionAddRollForm,
     inspectionChildRollsLoading,
     inspectionChildRollsFromDb,
@@ -531,9 +530,6 @@ export function InspectionPanel(props: InspectionPanelProps) {
       setInspectionCreateChildMessage("Work order has no item.")
       return
     }
-    const outputFromScale = scaleWeight != null ? String(scaleWeight) : ""
-    const outputWeight =
-      outputFromScale || (roll.netweight != null ? String(roll.netweight) : "")
     const wastage = "0"
     const jobOperator = extras?.operatorName?.trim() ?? ""
     setInspectionAddRollForm({
@@ -543,7 +539,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
       parent: { gradeId: undefined },
       size: roll.size != null ? String(roll.size) : "",
       micron: roll.micron != null ? String(roll.micron) : "",
-      netweight: outputWeight,
+      netweight: "",
       wastage,
       wastageReason: "",
       noOfTag: "",
@@ -749,7 +745,7 @@ export function InspectionPanel(props: InspectionPanelProps) {
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <NonNegativeDecimalInput
                               disabled={!isSelected}
-                              value={form ? form.netweight : (roll.netweight != null && Number(roll.netweight) >= 0 ? String(roll.netweight) : "")}
+                              value={form ? form.netweight : ""}
                               onValueChange={(netweight) => {
                                 setInspectionAddRollForm((prev: any) => {
                                   if (!prev || prev.roll.id !== roll.id) return prev

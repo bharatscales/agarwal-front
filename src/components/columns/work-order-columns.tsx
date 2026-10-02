@@ -20,9 +20,9 @@ export type WorkOrderMaster = {
   itemId?: number | null
   itemCode?: string | null
   itemName?: string | null
-  plannedQty: number
-  producedQty: number
-  status: string
+  plannedQty: number | null
+  producedQty: number | null
+  status: string | null
   priority?: string | null
   createdBy?: number
   createdAt?: string
@@ -119,8 +119,12 @@ export const getWorkOrderColumns = ({
       <ColumnHeader title="PLANNED QTY (KG)" column={column} placeholder="Filter planned qty..." />
     ),
     cell: ({ row }) => {
-      const plannedQty = row.getValue("plannedQty") as number
-      return <div className="text-sm">{plannedQty.toFixed(2)}</div>
+      const plannedQty = row.getValue("plannedQty") as number | null
+      return (
+        <div className="text-sm">
+          {plannedQty != null ? Number(plannedQty).toFixed(2) : <span className="text-gray-400">-</span>}
+        </div>
+      )
     },
     filterFn: includesStringFilterFn,
   },
@@ -130,8 +134,12 @@ export const getWorkOrderColumns = ({
       <ColumnHeader title="PRODUCED QTY (KG)" column={column} placeholder="Filter produced qty..." />
     ),
     cell: ({ row }) => {
-      const producedQty = row.getValue("producedQty") as number
-      return <div className="text-sm">{producedQty.toFixed(2)}</div>
+      const producedQty = row.getValue("producedQty") as number | null
+      return (
+        <div className="text-sm">
+          {producedQty != null ? Number(producedQty).toFixed(2) : <span className="text-gray-400">-</span>}
+        </div>
+      )
     },
     filterFn: includesStringFilterFn,
   },
@@ -141,7 +149,8 @@ export const getWorkOrderColumns = ({
       <ColumnHeader title="STATUS" column={column} placeholder="Filter status..." />
     ),
     cell: ({ row }) => {
-      const status = row.getValue("status") as string
+      const status = (row.getValue("status") as string | null) ?? ""
+      if (!status) return <span className="text-gray-400">-</span>
       return (
         <div className="text-sm">
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>

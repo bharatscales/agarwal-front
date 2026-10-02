@@ -163,11 +163,7 @@ function notifySessionExpired(): void {
 
 function isAuthExemptUrl(url: string | undefined): boolean {
   if (!url) return false;
-  return (
-    url.includes('/login/') ||
-    url.includes('/logout/') ||
-    url.includes('/impersonate')
-  );
+  return url.includes('/login/') || url.includes('/logout/');
 }
 
 const api = axios.create({
@@ -193,6 +189,7 @@ async function reapplyImpersonation(adminToken: string): Promise<string> {
       {},
       {
         headers: { Authorization: `Bearer ${adminToken}` },
+        skipAuth: true,
         skipAuthRefresh: true,
       } as AgaarwalAxiosRequestConfig
     );
@@ -210,10 +207,15 @@ export function refreshAccessToken(): Promise<string | null> {
   if (blockRefresh) return Promise.resolve(null);
   if (!refreshPromise) {
     const storedRefreshToken = getRefreshToken();
+    const currentAccess = getAccessToken();
+    const preserveImpersonation = Boolean(getImpersonationTargetId() && currentAccess);
     refreshPromise = api
       .post<TokenResponse>(
         '/login/refresh',
-        storedRefreshToken ? { refresh_token: storedRefreshToken } : {},
+        {
+          ...(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
+          ...(preserveImpersonation ? { access_token: currentAccess } : {}),
+        },
         { skipAuth: true, skipAuthRefresh: true } as AgaarwalAxiosRequestConfig
       )
       .then(async (res: AxiosResponse<TokenResponse>) => {
@@ -221,8 +223,17 @@ export function refreshAccessToken(): Promise<string | null> {
         if (res.data.refresh_token) {
           setRefreshToken(res.data.refresh_token);
         }
-        setAccessToken(res.data.access_token);
-        return reapplyImpersonation(res.data.access_token);
+        const issued = res.data.access_token;
+        const claims = decodeJwtPayload(issued);
+        if (typeof claims?.imp_by === 'string') {
+          setAccessToken(issued);
+          return issued;
+        }
+        if (getImpersonationTargetId()) {
+          return reapplyImpersonation(issued);
+        }
+        setAccessToken(issued);
+        return issued;
       })
       .catch((error: unknown) => {
         const rejected =
