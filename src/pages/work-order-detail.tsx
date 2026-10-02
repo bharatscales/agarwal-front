@@ -341,9 +341,13 @@ export default function WorkOrderDetail() {
                 <h1 className="text-base sm:text-lg font-bold">
                   Work Order: {workOrder.woNumber || `#${workOrder.id}`}
                 </h1>
-                <Badge className={getStatusColor(workOrder.status)}>
-                  {workOrder.status.replace("_", " ").toUpperCase()}
-                </Badge>
+                {workOrder.status ? (
+                  <Badge className={getStatusColor(workOrder.status)}>
+                    {workOrder.status.replace("_", " ").toUpperCase()}
+                  </Badge>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
                 <Badge className={getPriorityColor(workOrder.priority)}>
                   {(workOrder.priority || "normal").toUpperCase()}
                 </Badge>
@@ -387,7 +391,9 @@ export default function WorkOrderDetail() {
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Produced Quantity</p>
               <p className="text-sm font-semibold mt-1">
-                {workOrder.producedQty.toFixed(2)} KG
+                {workOrder.producedQty != null
+                  ? `${workOrder.producedQty.toFixed(2)} KG`
+                  : <span className="text-gray-400">-</span>}
               </p>
             </div>
             {workOrder.startedAt && (

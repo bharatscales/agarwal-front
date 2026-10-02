@@ -453,9 +453,13 @@ export default function OrderBookDetail() {
                         {wo.woNumber || `#${wo.id}`}
                       </td>
                       <td className="py-1.5 pr-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${woStatusClass(wo.status)}`}>
-                          {wo.status.replace("_", " ").toUpperCase()}
-                        </span>
+                        {wo.status ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${woStatusClass(wo.status)}`}>
+                            {wo.status.replace("_", " ").toUpperCase()}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="py-1.5 pr-4">{formatQty(wo.plannedQty)}</td>
                       <td className="py-1.5">{formatQty(wo.producedQty)}</td>
