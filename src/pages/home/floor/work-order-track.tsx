@@ -63,7 +63,7 @@ export function WorkOrderTrackCell({ track }: { track?: WorkOrderTrack }) {
   const title = stages.map(stageTitle).join("\n")
 
   return (
-    <div className="flex shrink-0 items-start pt-3.5 pb-1" title={title}>
+    <div className="flex shrink-0 items-start pt-2.5" title={title}>
       {stages.map((stage, index) => {
         const showStock = stage.state !== "skipped" && index < stages.length - 1 && stage.rolls > 0
         return (
@@ -71,7 +71,7 @@ export function WorkOrderTrackCell({ track }: { track?: WorkOrderTrack }) {
             <div className="flex w-11 flex-col items-center" title={stageTitle(stage)}>
               <TrackDot stage={stage} />
               <span
-                className={`mt-1 text-[10px] leading-none ${
+                className={`mt-0.5 text-[10px] leading-none ${
                   stage.state === "skipped"
                     ? "text-zinc-400"
                     : "text-gray-600 dark:text-gray-300"
@@ -83,13 +83,13 @@ export function WorkOrderTrackCell({ track }: { track?: WorkOrderTrack }) {
             {index < stages.length - 1 ? (
               <div className="relative flex h-3.5 w-12 items-center">
                 {showStock ? (
-                  <span className="absolute inset-x-0 bottom-full mb-0.5 text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
+                  <span className="absolute inset-x-0 bottom-1/2 mb-px text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
                     {formatWeightKg(stage.weight)}
                   </span>
                 ) : null}
                 <span className="h-px w-full bg-gray-400 dark:bg-gray-500" />
                 {showStock ? (
-                  <span className="absolute inset-x-0 top-full mt-0.5 text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
+                  <span className="absolute inset-x-0 top-1/2 mt-px text-center text-[10px] font-medium leading-none text-gray-800 dark:text-gray-100">
                     {stage.rolls}
                   </span>
                 ) : null}
