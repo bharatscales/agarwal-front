@@ -270,6 +270,7 @@ function loadedFilmCells(
     onUnload: (jobCardId: number, rollId: number) => void
     onCloseWithoutOutput: () => void
     unloadDisabled: boolean
+    consumeOpen: boolean
   }
 ) {
   const roll = entry?.roll
@@ -318,9 +319,13 @@ function loadedFilmCells(
       <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
         <Checkbox
           checked={opts.semiConsumed}
-          disabled={!opts.canEdit || opts.unloadDisabled}
+          disabled={!opts.canEdit || opts.unloadDisabled || opts.consumeOpen}
           aria-label="Roll continue"
-          title="Keep this roll loaded; do not create a balance roll"
+          title={
+            opts.consumeOpen
+              ? "This film is being consumed"
+              : "Keep this roll loaded; do not create a balance roll"
+          }
           onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
       </td>
@@ -330,8 +335,12 @@ function loadedFilmCells(
           variant="ghost"
           size="sm"
           className="h-6 px-1.5 text-xs"
-          title="Use this film now. It becomes a parent when the output roll is created"
-          disabled={opts.unloadDisabled}
+          title={
+            opts.semiConsumed
+              ? "Uncheck Roll continue to consume this film"
+              : "Use this film now. It becomes a parent when the output roll is created"
+          }
+          disabled={opts.unloadDisabled || opts.semiConsumed}
           onClick={opts.onCloseWithoutOutput}
         >
           Consume
@@ -585,8 +594,14 @@ export function EclPanel(props: EclPanelProps) {
     }
   }, [eclSelectedWo?.id, eclClosedRefreshKey])
 
-  const openEclCloseWithoutOutput = (entry: { jobCardId: number; roll: any }, label: string) => {
+  const openEclCloseWithoutOutput = (
+    entry: { jobCardId: number; roll: any },
+    label: string,
+    fields: { wastage: string; balance: string }
+  ) => {
     const roll = entry.roll
+    const wastageKg = parseNonNegativeDecimal(fields.wastage || "")
+    const balanceKg = parseNonNegativeDecimal(fields.balance || "")
     setEclCloseTarget({
       jobCardId: entry.jobCardId,
       rollId: roll.id,
@@ -594,10 +609,12 @@ export function EclPanel(props: EclPanelProps) {
       barcode: roll.barcode ?? "",
       structure: roll.item_name ?? roll.itemName ?? "",
       weightKg: roll.netweight != null ? Number(roll.netweight) : null,
+      balanceKg,
+      wastageKg,
     })
   }
 
-  const handleEclCloseWithoutOutput = async (values: { wastage: number; reason: string; remark: string }) => {
+  const handleEclCloseWithoutOutput = async () => {
     const target = eclCloseTarget
     if (!target) return
     try {
@@ -605,9 +622,8 @@ export function EclPanel(props: EclPanelProps) {
       setEclCreateChildMessage(null)
       await closeRollWithoutOutput(target.jobCardId, {
         rollId: target.rollId,
-        wastage: values.wastage,
-        wastageReason: values.reason,
-        remark: values.remark,
+        wastage: target.wastageKg,
+        balanceWeight: target.balanceKg != null && target.balanceKg > 0 ? target.balanceKg : undefined,
       })
       const role = getEclParentRole(
         eclLoadedRolls.find((entry: { roll: { id: number } }) => entry.roll.id === target.rollId)?.roll.stage
@@ -885,7 +901,7 @@ export function EclPanel(props: EclPanelProps) {
         structure: roll.itemName || "—",
         weightLabel: roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—",
         wastageLabel: roll.wastage != null ? `${Number(roll.wastage).toFixed(2)} kg` : "—",
-        reason: roll.wastageReason || "—",
+        balanceLabel: roll.balanceWeight != null ? `${Number(roll.balanceWeight).toFixed(2)} kg` : "—",
       }
     })
   }, [eclClosedRolls, getEclParentRole, input1Label, input2Label])
@@ -1236,9 +1252,15 @@ export function EclPanel(props: EclPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadEclRoll,
-                              onCloseWithoutOutput: () =>
-                                row.input1 && openEclCloseWithoutOutput(row.input1, input1Label),
+                              onCloseWithoutOutput: () => {
+                                if (!row.input1 || eclAddRollForm?.wipSemiConsumed) return
+                                openEclCloseWithoutOutput(row.input1, input1Label, {
+                                  wastage: eclAddRollForm?.wipWastage ?? "0",
+                                  balance: eclAddRollForm?.wipBalance ?? "",
+                                })
+                              },
                               unloadDisabled: eclCreateChildLoading,
+                              consumeOpen: eclCloseTarget?.rollId === row.input1?.roll?.id,
                             })}
                             {loadedFilmCells(row.input2, {
                               canEdit: canEditRow,
@@ -1271,9 +1293,15 @@ export function EclPanel(props: EclPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadEclRoll,
-                              onCloseWithoutOutput: () =>
-                                row.input2 && openEclCloseWithoutOutput(row.input2, input2Label),
+                              onCloseWithoutOutput: () => {
+                                if (!row.input2 || eclAddRollForm?.rmSemiConsumed) return
+                                openEclCloseWithoutOutput(row.input2, input2Label, {
+                                  wastage: eclAddRollForm?.rmWastage ?? "0",
+                                  balance: eclAddRollForm?.rmBalance ?? "",
+                                })
+                              },
                               unloadDisabled: eclCreateChildLoading,
+                              consumeOpen: eclCloseTarget?.rollId === row.input2?.roll?.id,
                             })}
                           </tr>
                         )

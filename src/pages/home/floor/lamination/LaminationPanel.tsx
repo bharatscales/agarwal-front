@@ -324,6 +324,7 @@ function loadedFilmCells(
     onUnload: (jobCardId: number, rollId: number) => void
     onCloseWithoutOutput: () => void
     unloadDisabled: boolean
+    consumeOpen: boolean
   }
 ) {
   const roll = entry?.roll
@@ -372,9 +373,13 @@ function loadedFilmCells(
       <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
         <Checkbox
           checked={opts.semiConsumed}
-          disabled={!opts.canEdit || opts.unloadDisabled}
+          disabled={!opts.canEdit || opts.unloadDisabled || opts.consumeOpen}
           aria-label="Roll continue"
-          title="Keep this roll loaded; do not create a balance roll"
+          title={
+            opts.consumeOpen
+              ? "This film is being consumed"
+              : "Keep this roll loaded; do not create a balance roll"
+          }
           onCheckedChange={(checked) => opts.onSemiConsumed(checked === true)}
         />
       </td>
@@ -384,8 +389,12 @@ function loadedFilmCells(
           variant="ghost"
           size="sm"
           className="h-6 px-1.5 text-xs"
-          title="Use this film now. It becomes a parent when the output roll is created"
-          disabled={opts.unloadDisabled}
+          title={
+            opts.semiConsumed
+              ? "Uncheck Roll continue to consume this film"
+              : "Use this film now. It becomes a parent when the output roll is created"
+          }
+          disabled={opts.unloadDisabled || opts.semiConsumed}
           onClick={opts.onCloseWithoutOutput}
         >
           Consume
@@ -639,8 +648,14 @@ export function LaminationPanel(props: LaminationPanelProps) {
     }
   }, [laminationSelectedWo?.id, laminationClosedRefreshKey])
 
-  const openLaminationCloseWithoutOutput = (entry: { jobCardId: number; roll: any }, label: string) => {
+  const openLaminationCloseWithoutOutput = (
+    entry: { jobCardId: number; roll: any },
+    label: string,
+    fields: { wastage: string; balance: string }
+  ) => {
     const roll = entry.roll
+    const wastageKg = parseNonNegativeDecimal(fields.wastage || "")
+    const balanceKg = parseNonNegativeDecimal(fields.balance || "")
     setLaminationCloseTarget({
       jobCardId: entry.jobCardId,
       rollId: roll.id,
@@ -648,14 +663,12 @@ export function LaminationPanel(props: LaminationPanelProps) {
       barcode: roll.barcode ?? "",
       structure: roll.item_name ?? roll.itemName ?? "",
       weightKg: roll.netweight != null ? Number(roll.netweight) : null,
+      balanceKg,
+      wastageKg,
     })
   }
 
-  const handleLaminationCloseWithoutOutput = async (values: {
-    wastage: number
-    reason: string
-    remark: string
-  }) => {
+  const handleLaminationCloseWithoutOutput = async () => {
     const target = laminationCloseTarget
     if (!target) return
     try {
@@ -663,9 +676,8 @@ export function LaminationPanel(props: LaminationPanelProps) {
       setLaminationCreateChildMessage(null)
       await closeRollWithoutOutput(target.jobCardId, {
         rollId: target.rollId,
-        wastage: values.wastage,
-        wastageReason: values.reason,
-        remark: values.remark,
+        wastage: target.wastageKg,
+        balanceWeight: target.balanceKg != null && target.balanceKg > 0 ? target.balanceKg : undefined,
       })
       const role = getLaminationParentRole(
         laminationLoadedRolls.find((entry: { roll: { id: number } }) => entry.roll.id === target.rollId)?.roll.stage
@@ -929,7 +941,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
         structure: roll.itemName || "—",
         weightLabel: roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—",
         wastageLabel: roll.wastage != null ? `${Number(roll.wastage).toFixed(2)} kg` : "—",
-        reason: roll.wastageReason || "—",
+        balanceLabel: roll.balanceWeight != null ? `${Number(roll.balanceWeight).toFixed(2)} kg` : "—",
       }
     })
   }, [laminationClosedRolls, getLaminationParentRole, input1Label, input2Label])
@@ -1282,9 +1294,15 @@ export function LaminationPanel(props: LaminationPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadLaminationRoll,
-                              onCloseWithoutOutput: () =>
-                                row.input1 && openLaminationCloseWithoutOutput(row.input1, input1Label),
+                              onCloseWithoutOutput: () => {
+                                if (!row.input1 || laminationAddRollForm?.wipSemiConsumed) return
+                                openLaminationCloseWithoutOutput(row.input1, input1Label, {
+                                  wastage: laminationAddRollForm?.wipWastage ?? "0",
+                                  balance: laminationAddRollForm?.wipBalance ?? "",
+                                })
+                              },
                               unloadDisabled: laminationCreateChildLoading,
+                              consumeOpen: laminationCloseTarget?.rollId === row.input1?.roll?.id,
                             })}
                             {loadedFilmCells(row.input2, {
                               canEdit: canEditRow,
@@ -1317,9 +1335,15 @@ export function LaminationPanel(props: LaminationPanelProps) {
                                     : prev
                                 ),
                               onUnload: handleUnloadLaminationRoll,
-                              onCloseWithoutOutput: () =>
-                                row.input2 && openLaminationCloseWithoutOutput(row.input2, input2Label),
+                              onCloseWithoutOutput: () => {
+                                if (!row.input2 || laminationAddRollForm?.rmSemiConsumed) return
+                                openLaminationCloseWithoutOutput(row.input2, input2Label, {
+                                  wastage: laminationAddRollForm?.rmWastage ?? "0",
+                                  balance: laminationAddRollForm?.rmBalance ?? "",
+                                })
+                              },
                               unloadDisabled: laminationCreateChildLoading,
+                              consumeOpen: laminationCloseTarget?.rollId === row.input2?.roll?.id,
                             })}
                           </tr>
                         )

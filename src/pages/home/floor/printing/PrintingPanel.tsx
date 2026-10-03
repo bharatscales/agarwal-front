@@ -307,12 +307,29 @@ export function PrintingPanel(props: PrintingPanelProps) {
       structure: roll.itemName || "—",
       weightLabel: roll.netweight != null ? `${Number(roll.netweight).toFixed(2)} kg` : "—",
       wastageLabel: roll.wastage != null ? `${Number(roll.wastage).toFixed(2)} kg` : "—",
-      reason: roll.wastageReason || "—",
+      balanceLabel: roll.balanceWeight != null ? `${Number(roll.balanceWeight).toFixed(2)} kg` : "—",
     }))
   }, [printingConsumedRolls])
 
   const openPrintingConsume = (entry: { jobCardId: number; roll: any }) => {
     const roll = entry.roll
+    const form = printingAddRollForm
+    const selected = form?.roll?.id === roll.id
+    if (selected && form.semiConsumed) return
+    const plainWastageKg = selected ? parseNonNegativeDecimal(form.plainWastage || "") : null
+    const printedWastageKg = selected ? parseNonNegativeDecimal(form.printedWastage || "") : null
+    const balanceKg = selected ? parseNonNegativeDecimal(form.balanceweight || "") : loadedRollBalance(roll)
+    const inkByWt = selected
+      ? inkGsmByInkWt({
+          inputKg: roll.netweight,
+          outputKg: null,
+          plainWastageKg: plainWastageKg ?? 0,
+          printedWastageKg: printedWastageKg ?? 0,
+          balanceKg: balanceKg ?? 0,
+          density: form.parent?.density,
+          micron: roll.micron,
+        })
+      : null
     setPrintingConsumeTarget({
       jobCardId: entry.jobCardId,
       rollId: roll.id,
@@ -320,10 +337,17 @@ export function PrintingPanel(props: PrintingPanelProps) {
       barcode: roll.barcode ?? "",
       structure: roll.item_name ?? roll.itemName ?? "",
       weightKg: roll.netweight != null ? Number(roll.netweight) : null,
+      balanceKg,
+      wastageKg:
+        plainWastageKg != null || printedWastageKg != null ? (plainWastageKg || 0) + (printedWastageKg || 0) : null,
+      plainWastageKg,
+      printedWastageKg,
+      inkGsm: selected ? parseNonNegativeDecimal(form.inkGsm || "") : null,
+      inkGsmByInkWt: inkByWt,
     })
   }
 
-  const handlePrintingConsume = async (values: { wastage: number; reason: string; remark: string }) => {
+  const handlePrintingConsume = async () => {
     const target = printingConsumeTarget
     if (!target) return
     try {
@@ -331,10 +355,14 @@ export function PrintingPanel(props: PrintingPanelProps) {
       setPrintingCreateChildMessage(null)
       await closeRollWithoutOutput(target.jobCardId, {
         rollId: target.rollId,
-        wastage: values.wastage,
-        wastageReason: values.reason,
-        remark: values.remark,
+        wastage: target.wastageKg,
+        plainWastage: target.plainWastageKg,
+        printedWastage: target.printedWastageKg,
+        inkGsm: target.inkGsm,
+        inkGsmByInkWt: target.inkGsmByInkWt,
+        balanceWeight: target.balanceKg != null && target.balanceKg > 0 ? target.balanceKg : undefined,
       })
+      setPrintingAddRollForm((prev: any) => (prev?.roll?.id === target.rollId ? null : prev))
       setPrintingConsumeTarget(null)
       setPrintingCreateChildMessage(`${target.label} consumed. It will be a parent of the next printed roll.`)
       setPrintingConsumedRefreshKey((key) => key + 1)
@@ -743,9 +771,17 @@ export function PrintingPanel(props: PrintingPanelProps) {
                           <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={Boolean(isSelected && printingAddRollForm.semiConsumed)}
-                              disabled={!isSelected || printingCreateChildLoading}
+                              disabled={
+                                !isSelected ||
+                                printingCreateChildLoading ||
+                                printingConsumeTarget?.rollId === roll.id
+                              }
                               aria-label="Roll continue"
-                              title="Keep this roll loaded; do not create a balance roll"
+                              title={
+                                printingConsumeTarget?.rollId === roll.id
+                                  ? "This roll is being consumed"
+                                  : "Keep this roll loaded; do not create a balance roll"
+                              }
                               onCheckedChange={(checked) => {
                                 const isChecked = checked === true
                                 setPrintingAddRollForm((prev: any) =>
@@ -795,8 +831,12 @@ export function PrintingPanel(props: PrintingPanelProps) {
                               variant="ghost"
                               size="sm"
                               className="h-6 px-1.5 text-xs"
-                              title="Use this roll now. It becomes a parent when the printed roll is created"
-                              disabled={printingCreateChildLoading}
+                              title={
+                                isSelected && printingAddRollForm.semiConsumed
+                                  ? "Uncheck Roll continue to consume this roll"
+                                  : "Use this roll now. It becomes a parent when the printed roll is created"
+                              }
+                              disabled={printingCreateChildLoading || Boolean(isSelected && printingAddRollForm.semiConsumed)}
                               onClick={() => openPrintingConsume({ jobCardId, roll })}
                             >
                               Consume

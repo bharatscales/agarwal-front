@@ -196,8 +196,6 @@ export const unloadRoll = async (jobCardId: number, rollId: number): Promise<voi
   await api.post(`/job-card/${jobCardId}/unload-roll`, { roll_id: rollId })
 }
 
-export const CLOSE_WITHOUT_OUTPUT_REASONS = ["Web break", "Damaged", "Quality reject", "Other"] as const
-
 export type ClosedWithoutOutputRoll = {
   id: number
   barcode: string
@@ -207,6 +205,7 @@ export type ClosedWithoutOutputRoll = {
   netweight: number | null
   meter: number | null
   wastage: number | null
+  balanceWeight: number | null
   wastageReason: string | null
   stage: string | null
 }
@@ -220,6 +219,7 @@ type ClosedWithoutOutputRollResponse = {
   netweight?: number | null
   meter?: number | null
   wastage?: number | null
+  balance_weight?: number | null
   wastage_reason?: string | null
   stage?: string | null
 }
@@ -238,22 +238,33 @@ export const getClosedWithoutOutput = async (jobCardId: number): Promise<ClosedW
     netweight: roll.netweight ?? null,
     meter: roll.meter ?? null,
     wastage: roll.wastage ?? null,
+    balanceWeight: roll.balance_weight ?? null,
     wastageReason: roll.wastage_reason ?? null,
     stage: roll.stage ?? null,
   }))
 }
 
-/** Consume one loaded ECL or lamination film without creating an output roll. */
+/** Consume one loaded film without creating an output roll. Balance weight creates a balance roll. */
 export const closeRollWithoutOutput = async (
   jobCardId: number,
-  payload: { rollId: number; wastage: number; wastageReason: string; remark?: string }
+  payload: {
+    rollId: number
+    wastage?: number | null
+    plainWastage?: number | null
+    printedWastage?: number | null
+    inkGsm?: number | null
+    inkGsmByInkWt?: number | null
+    balanceWeight?: number | null
+  }
 ): Promise<void> => {
-  await api.post(`/job-card/${jobCardId}/close-roll-without-output`, {
-    roll_id: payload.rollId,
-    wastage: payload.wastage,
-    wastage_reason: payload.wastageReason,
-    remark: payload.remark?.trim() || undefined,
-  })
+  const body: Record<string, number> = { roll_id: payload.rollId }
+  if (payload.wastage != null) body.wastage = payload.wastage
+  if (payload.plainWastage != null) body.plain_wastage = payload.plainWastage
+  if (payload.printedWastage != null) body.printed_wastage = payload.printedWastage
+  if (payload.inkGsm != null) body.ink_gsm = payload.inkGsm
+  if (payload.inkGsmByInkWt != null) body.ink_gsm_by_ink_wt = payload.inkGsmByInkWt
+  if (payload.balanceWeight != null) body.balance_weight = payload.balanceWeight
+  await api.post(`/job-card/${jobCardId}/close-roll-without-output`, body)
 }
 
 /** Record roll job movement with direction 'out' (e.g. after creating WIP printed roll). */
