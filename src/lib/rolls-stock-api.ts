@@ -449,3 +449,25 @@ export const exportRollsStockSummaryXlsx = async (
   return response.data as Blob
 }
 
+/**
+ * Size wise report 2: one row per grade, size, and micron.
+ * Issued and received are for reportDate; roll weights and closing are current stock.
+ */
+export const exportRollsStockSizeWise2Xlsx = async (
+  reportDate: string,
+  itemCode?: string | null,
+  stage?: string
+): Promise<Blob> => {
+  const params: { report_date: string; item_code?: string; stage?: string } = {
+    report_date: reportDate,
+  }
+  if (itemCode != null && itemCode.trim() !== "") params.item_code = itemCode.trim()
+  if (stage != null && stage !== "") params.stage = stage
+  const response = await api.get("/rolls-stock/export/size-wise-2", {
+    params,
+    responseType: "blob",
+    timeout: 120000,
+  })
+  return response.data as Blob
+}
+

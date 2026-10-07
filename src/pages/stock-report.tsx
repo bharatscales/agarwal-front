@@ -3,8 +3,9 @@ import { useLocation, useSearchParams } from "react-router-dom"
 import { RefreshCw, ChevronDown, FileSpreadsheet, Send } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
-import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx, bulkIssueRollsStock } from "@/lib/rolls-stock-api"
+import { getAllRollsStock, exportRollsStockItemWiseXlsx, exportRollsStockSummaryXlsx, exportRollsStockSizeWise2Xlsx, bulkIssueRollsStock } from "@/lib/rolls-stock-api"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { getItems, type Item } from "@/lib/item-api"
 import {
   DropdownMenu,
@@ -12,8 +13,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 const PAGE_SIZE = 100
+
+function todayInIndia(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date())
+}
 
 function getStockReportConfig(pathname: string) {
   if (pathname.endsWith("/rm-balance")) {
@@ -47,6 +60,9 @@ export default function StockReport() {
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isIssuing, setIsIssuing] = useState(false)
+  const [sizeWiseOpen, setSizeWiseOpen] = useState(false)
+  const [sizeWiseDate, setSizeWiseDate] = useState(todayInIndia)
+  const [sizeWiseError, setSizeWiseError] = useState<string | null>(null)
   const [tableKey, setTableKey] = useState(0)
   const nextSkipRef = useRef(0)
   const itemCustomerMap = useMemo(() => {
@@ -156,6 +172,38 @@ export default function StockReport() {
     }
   }
 
+  const openSizeWiseDialog = () => {
+    setSizeWiseDate(todayInIndia())
+    setSizeWiseError(null)
+    setSizeWiseOpen(true)
+  }
+
+  const handleSizeWiseExportXlsx = async () => {
+    if (!sizeWiseDate) {
+      setSizeWiseError("Choose a report date.")
+      return
+    }
+    try {
+      setIsExporting(true)
+      setSizeWiseError(null)
+      const blob = await exportRollsStockSizeWise2Xlsx(sizeWiseDate, itemCodeFilter, config.stage)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${config.exportPrefix}-SizeWise2-${sizeWiseDate}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setSizeWiseOpen(false)
+    } catch (err) {
+      console.error("Export failed:", err)
+      setSizeWiseError("Export failed. Please try again.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const handleSummaryExportXlsx = async () => {
     try {
       setIsExporting(true)
@@ -241,8 +289,54 @@ export default function StockReport() {
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                 {isExporting ? "Exporting..." : "Summary .xlsx"}
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.setTimeout(() => openSizeWiseDialog(), 0)
+                }}
+                disabled={isExporting}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Size wise report 2
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Dialog open={sizeWiseOpen} onOpenChange={setSizeWiseOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Size wise report 2</DialogTitle>
+                <DialogDescription>
+                  Issued and received weights use this date. Roll weights and closing are the rolls currently in stock.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-2">
+                <label htmlFor="size-wise-report-date" className="text-sm font-medium">
+                  Report date
+                </label>
+                <Input
+                  id="size-wise-report-date"
+                  type="date"
+                  value={sizeWiseDate}
+                  onChange={(e) => setSizeWiseDate(e.target.value)}
+                  disabled={isExporting}
+                />
+                {sizeWiseError && (
+                  <p className="text-sm text-red-600 dark:text-red-300">{sizeWiseError}</p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setSizeWiseOpen(false)}
+                  disabled={isExporting}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSizeWiseExportXlsx} disabled={isExporting || !sizeWiseDate}>
+                  {isExporting ? "Exporting..." : "Download"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button onClick={handleRefresh} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Refresh</span>
