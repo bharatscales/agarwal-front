@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import { getItemBom, type BomLine } from "@/lib/item-api"
 import { getAllJobCards, scanRoll, mapJobCard, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
-import { getAllRollsStock } from "@/lib/rolls-stock-api"
+import { getEveryRollsStock } from "@/lib/rolls-stock-api"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import { FgStageBomReadonly } from "@/components/fg-stage-bom-readonly"
@@ -247,8 +247,8 @@ export default function WorkOrderDetail() {
 
     try {
       const results = await Promise.allSettled([
-        getAllRollsStock(0, 500, false, "virgin_rm"),
-        getAllRollsStock(0, 500, false, "rm_balance"),
+        getEveryRollsStock(false, "virgin_rm"),
+        getEveryRollsStock(false, "rm_balance"),
       ])
       const filtered = results
         .flatMap((result) => (result.status === "fulfilled" ? result.value : []))

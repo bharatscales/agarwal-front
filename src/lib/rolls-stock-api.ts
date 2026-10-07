@@ -207,6 +207,20 @@ export const getAllRollsStock = async (
   return response.data.map(mapRollsStock)
 }
 
+/** Walk every page so a picker is not cut off at the first request. */
+export const getEveryRollsStock = async (issued?: boolean, stage?: string) => {
+  const pageSize = 1000
+  const all: Awaited<ReturnType<typeof getAllRollsStock>> = []
+  let skip = 0
+  for (;;) {
+    const page = await getAllRollsStock(skip, pageSize, issued, stage)
+    all.push(...page)
+    if (page.length < pageSize) break
+    skip += page.length
+  }
+  return all
+}
+
 export const createRollsStock = async (payload: RollsStockPayload) => {
   const body: Record<string, unknown> = {
     item_id: payload.itemId,

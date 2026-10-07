@@ -47,6 +47,7 @@ import {
   getRollByBarcode,
   getWorkOrderByRollBarcode,
   getAllRollsStock,
+  getEveryRollsStock,
 } from "@/lib/rolls-stock-api"
 import { getAllMachines } from "@/lib/machine-api"
 import { getAllOperators } from "@/lib/operator-api"
@@ -94,8 +95,8 @@ function rmFilmStageLabel(stage: string | null | undefined) {
 
 async function fetchAvailableRmFilmRolls() {
   const results = await Promise.allSettled([
-    getAllRollsStock(0, 500, false, "virgin_rm"),
-    getAllRollsStock(0, 500, false, "rm_balance"),
+    getEveryRollsStock(false, "virgin_rm"),
+    getEveryRollsStock(false, "rm_balance"),
   ])
   const rolls = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
   return rolls.filter((r) => !r.consumed && !r.issued)
