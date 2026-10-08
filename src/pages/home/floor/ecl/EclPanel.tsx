@@ -31,6 +31,7 @@ import {
   deleteProducedRoll,
   getAllJobCards,
   getClosedWithoutOutput,
+  undoCloseWithoutOutput,
   jobCardApiErrorMessage,
   updateProducedRoll,
   type ClosedWithoutOutputRoll,
@@ -896,6 +897,7 @@ export function EclPanel(props: EclPanelProps) {
       const label = role === "wip" ? input1Label : role === "rm" ? input2Label : "Film"
       return {
         id: roll.id,
+        jobCardId: roll.jobCardId,
         jobCardNumber: roll.jobCardNumber,
         label,
         structure: roll.itemName || "—",
@@ -905,6 +907,21 @@ export function EclPanel(props: EclPanelProps) {
       }
     })
   }, [eclClosedRolls, getEclParentRole, input1Label, input2Label])
+
+  const handleEclUndoConsumed = async (row: ClosedWithoutOutputRow) => {
+    try {
+      setEclCreateChildLoading(true)
+      setEclCreateChildMessage(null)
+      await undoCloseWithoutOutput(row.jobCardId, row.id)
+      setEclCreateChildMessage("Consume undone. The film is back in stock.")
+      setEclClosedRefreshKey((key) => key + 1)
+      setEclRollsRefreshKey((key: number) => key + 1)
+    } catch (error) {
+      setEclCreateChildMessage(jobCardApiErrorMessage(error, "Could not undo this consume."))
+    } finally {
+      setEclCreateChildLoading(false)
+    }
+  }
 
   const renderLoadSlot = (
     role: "wip" | "rm",
@@ -1459,7 +1476,11 @@ export function EclPanel(props: EclPanelProps) {
           )}
         </div>
 
-        <ClosedWithoutOutputList rows={eclClosedWithoutOutputRows} />
+        <ClosedWithoutOutputList
+          rows={eclClosedWithoutOutputRows}
+          undoing={eclCreateChildLoading}
+          onUndo={(row) => void handleEclUndoConsumed(row)}
+        />
 
         <div>
           <div className="flex items-center justify-between gap-3 mb-1">

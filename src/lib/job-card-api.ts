@@ -267,6 +267,11 @@ export const closeRollWithoutOutput = async (
   await api.post(`/job-card/${jobCardId}/close-roll-without-output`, body)
 }
 
+/** Undo a film consumed before an output roll. Clears wastage and returns the film to stock. */
+export const undoCloseWithoutOutput = async (jobCardId: number, rollId: number): Promise<void> => {
+  await api.post(`/job-card/${jobCardId}/undo-close-without-output`, { roll_id: rollId })
+}
+
 /** Record roll job movement with direction 'out' (e.g. after creating WIP printed roll). */
 export const addRollMovementOut = async (
   jobCardId: number,

@@ -103,6 +103,7 @@ export function CloseWithoutOutputDialog({
 
 export type ClosedWithoutOutputRow = {
   id: number
+  jobCardId: number
   jobCardNumber: string
   label: string
   structure: string
@@ -111,7 +112,15 @@ export type ClosedWithoutOutputRow = {
   balanceLabel: string
 }
 
-export function ClosedWithoutOutputList({ rows }: { rows: ClosedWithoutOutputRow[] }) {
+export function ClosedWithoutOutputList({
+  rows,
+  undoing,
+  onUndo,
+}: {
+  rows: ClosedWithoutOutputRow[]
+  undoing?: boolean
+  onUndo?: (row: ClosedWithoutOutputRow) => void
+}) {
   if (rows.length === 0) return null
   return (
     <div>
@@ -123,8 +132,8 @@ export function ClosedWithoutOutputList({ rows }: { rows: ClosedWithoutOutputRow
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-              {["Job card", "Film", "Structure", "Loaded weight", "Wastage", "Balance"].map((title) => (
-                <th key={title} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
+              {["Job card", "Film", "Structure", "Loaded weight", "Wastage", "Balance", ""].map((title) => (
+                <th key={title || "undo"} className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
                   {title}
                 </th>
               ))}
@@ -139,6 +148,29 @@ export function ClosedWithoutOutputList({ rows }: { rows: ClosedWithoutOutputRow
                 <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{row.weightLabel}</td>
                 <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{row.wastageLabel}</td>
                 <td className="py-1.5 px-2 text-gray-600 dark:text-gray-400">{row.balanceLabel}</td>
+                <td className="py-1.5 px-2 text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-xs"
+                    title="Undo this consume, clear wastage, and return the film to stock"
+                    disabled={undoing || !onUndo}
+                    onClick={() => {
+                      if (!onUndo) return
+                      if (
+                        !window.confirm(
+                          `Undo consume for ${row.label}? Wastage will be cleared, the balance roll will be removed, and the film will return to stock.`
+                        )
+                      ) {
+                        return
+                      }
+                      onUndo(row)
+                    }}
+                  >
+                    Undo
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>

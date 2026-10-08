@@ -31,6 +31,7 @@ import {
   deleteProducedRoll,
   getAllJobCards,
   getClosedWithoutOutput,
+  undoCloseWithoutOutput,
   jobCardApiErrorMessage,
   updateProducedRoll,
   type ClosedWithoutOutputRoll,
@@ -936,6 +937,7 @@ export function LaminationPanel(props: LaminationPanelProps) {
       const label = role === "wip" ? input1Label : role === "rm" ? input2Label : "Film"
       return {
         id: roll.id,
+        jobCardId: roll.jobCardId,
         jobCardNumber: roll.jobCardNumber,
         label,
         structure: roll.itemName || "—",
@@ -945,6 +947,21 @@ export function LaminationPanel(props: LaminationPanelProps) {
       }
     })
   }, [laminationClosedRolls, getLaminationParentRole, input1Label, input2Label])
+
+  const handleLaminationUndoConsumed = async (row: ClosedWithoutOutputRow) => {
+    try {
+      setLaminationCreateChildLoading(true)
+      setLaminationCreateChildMessage(null)
+      await undoCloseWithoutOutput(row.jobCardId, row.id)
+      setLaminationCreateChildMessage("Consume undone. The film is back in stock.")
+      setLaminationClosedRefreshKey((key) => key + 1)
+      setLaminationRollsRefreshKey((key: number) => key + 1)
+    } catch (error) {
+      setLaminationCreateChildMessage(jobCardApiErrorMessage(error, "Could not undo this consume."))
+    } finally {
+      setLaminationCreateChildLoading(false)
+    }
+  }
 
   const renderLoadSlot = (
     role: "wip" | "rm",
@@ -1525,7 +1542,11 @@ export function LaminationPanel(props: LaminationPanelProps) {
           )}
         </div>
 
-        <ClosedWithoutOutputList rows={laminationClosedWithoutOutputRows} />
+        <ClosedWithoutOutputList
+          rows={laminationClosedWithoutOutputRows}
+          undoing={laminationCreateChildLoading}
+          onUndo={(row) => void handleLaminationUndoConsumed(row)}
+        />
 
         <div>
           <div className="flex items-center justify-between gap-3 mb-1">

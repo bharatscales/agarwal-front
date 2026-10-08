@@ -23,6 +23,7 @@ import {
   closeRollWithoutOutput,
   getAllJobCards,
   getClosedWithoutOutput,
+  undoCloseWithoutOutput,
   jobCardApiErrorMessage,
   updateProducedRoll,
   type ClosedWithoutOutputRoll,
@@ -302,6 +303,7 @@ export function PrintingPanel(props: PrintingPanelProps) {
   const printingConsumedRows = useMemo<ClosedWithoutOutputRow[]>(() => {
     return printingConsumedRolls.map((roll) => ({
       id: roll.id,
+      jobCardId: roll.jobCardId,
       jobCardNumber: roll.jobCardNumber,
       label: "RM film",
       structure: roll.itemName || "—",
@@ -310,6 +312,21 @@ export function PrintingPanel(props: PrintingPanelProps) {
       balanceLabel: roll.balanceWeight != null ? `${Number(roll.balanceWeight).toFixed(2)} kg` : "—",
     }))
   }, [printingConsumedRolls])
+
+  const handlePrintingUndoConsumed = async (row: ClosedWithoutOutputRow) => {
+    try {
+      setPrintingCreateChildLoading(true)
+      setPrintingCreateChildMessage(null)
+      await undoCloseWithoutOutput(row.jobCardId, row.id)
+      setPrintingCreateChildMessage("Consume undone. The film is back in stock.")
+      setPrintingConsumedRefreshKey((key) => key + 1)
+      setPrintingRollsRefreshKey((key: number) => key + 1)
+    } catch (error) {
+      setPrintingCreateChildMessage(jobCardApiErrorMessage(error, "Could not undo this consume."))
+    } finally {
+      setPrintingCreateChildLoading(false)
+    }
+  }
 
   const openPrintingConsume = (entry: { jobCardId: number; roll: any }) => {
     const roll = entry.roll
@@ -862,7 +879,11 @@ export function PrintingPanel(props: PrintingPanelProps) {
             )}
           </div>
 
-          <ClosedWithoutOutputList rows={printingConsumedRows} />
+          <ClosedWithoutOutputList
+            rows={printingConsumedRows}
+            undoing={printingCreateChildLoading}
+            onUndo={(row) => void handlePrintingUndoConsumed(row)}
+          />
 
           <div>
             <div className="flex items-center justify-between gap-3 mb-1">
