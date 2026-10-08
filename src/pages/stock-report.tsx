@@ -305,7 +305,7 @@ export default function StockReport() {
               <DialogHeader>
                 <DialogTitle>Size wise report 2</DialogTitle>
                 <DialogDescription>
-                  Issued and received weights use this date. Roll weights and closing are the rolls currently in stock.
+                  Issued and received weights use this date. Roll weights and closing are the rolls currently in stock. Balance lists leftover RM rolls of the same size.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-2">
