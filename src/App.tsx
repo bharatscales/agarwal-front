@@ -4,7 +4,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LoginRoute } from "./components/LoginRoute";
-
 function App() {
   return (
     <AuthProvider>

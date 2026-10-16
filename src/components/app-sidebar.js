@@ -1,0 +1,354 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { Home, Building2, User2, LucidePower, UserCheck, Sun, Moon, ChevronDown, ChevronRight, PanelLeftClose, X, PersonStanding, Factory, Box, BarChart3, BookOpen, } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getItemsByGroupForMenu } from "@/lib/item-api";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator, useSidebar, } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
+import logo from "../assets/logo.svg";
+const items = [
+    {
+        title: "Home",
+        icon: Home,
+        path: "/home",
+    },
+];
+const manufacturingItems = [
+    {
+        title: "Stock Entry",
+        icon: Box,
+        path: "/manufacturing/stock-entry",
+    },
+    {
+        title: "Order Book",
+        icon: BookOpen,
+        path: "/manufacturing/order-book",
+        adminOnly: true,
+    },
+    {
+        title: "Work Order",
+        icon: Factory,
+        path: "/manufacturing/work-order",
+    },
+    {
+        title: "Job Card",
+        icon: PersonStanding,
+        path: "/manufacturing/job-card",
+    },
+];
+// Rm Film Stock is rendered as expandable with sub-items from item table (item group: rm film)
+const masterItems = [
+    {
+        title: "Users",
+        icon: UserCheck,
+        path: "/users",
+    },
+    {
+        title: "Item",
+        icon: Building2,
+        path: "/masters/item",
+    },
+    {
+        title: "Party",
+        icon: Building2,
+        path: "/masters/party",
+    },
+    {
+        title: "Templates",
+        icon: Building2,
+        path: "/masters/template",
+    },
+    {
+        title: "Machine",
+        icon: Building2,
+        path: "/masters/machine",
+    },
+    {
+        title: "Operator",
+        icon: Building2,
+        path: "/masters/operator",
+    },
+];
+const RM_FILM_GROUP = "rm film";
+const RM_INK_GROUP = "ink";
+const RM_ADHESIVE_GROUP = "adhesive";
+const RM_CHEMICAL_GROUP = "chemical";
+export function AppSidebar() {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const { user, logout, isLoading: authLoading } = useAuth();
+    const { theme, toggleTheme } = useTheme();
+    const { setOpenMobile, state, toggleSidebar } = useSidebar();
+    const currentUser = user
+        ? {
+            username: user.username,
+            role: user.role ?? "user",
+            department: user.department,
+        }
+        : null;
+    const [isMastersOpen, setIsMastersOpen] = useState(false);
+    const [isPartyOpen, setIsPartyOpen] = useState(false);
+    const [isReportsOpen, setIsReportsOpen] = useState(false);
+    const [isRmReportsOpen, setIsRmReportsOpen] = useState(false);
+    const [isWipReportsOpen, setIsWipReportsOpen] = useState(false);
+    const [isRmRollsStockOpen, setIsRmRollsStockOpen] = useState(false);
+    const [isRmInkStockOpen, setIsRmInkStockOpen] = useState(false);
+    const [isRmAdhesiveStockOpen, setIsRmAdhesiveStockOpen] = useState(false);
+    const [isRmChemicalStockOpen, setIsRmChemicalStockOpen] = useState(false);
+    const [rmFilmMenuItems, setRmFilmMenuItems] = useState([]);
+    const [rmInkMenuItems, setRmInkMenuItems] = useState([]);
+    const [rmAdhesiveMenuItems, setRmAdhesiveMenuItems] = useState([]);
+    const [rmChemicalMenuItems, setRmChemicalMenuItems] = useState([]);
+    const isLoading = authLoading;
+    const handleNavigation = (path) => {
+        navigate(path);
+    };
+    const isActive = (path) => {
+        if (location.pathname === path)
+            return true;
+        if (path !== "/home" && location.pathname.startsWith(`${path}/`))
+            return true;
+        return false;
+    };
+    // Stock department user: can access Item/Party masters, Stock Entry, and all stock reports only; no Work Order / Job Card
+    const isStockUser = currentUser?.role === "user" &&
+        (currentUser?.department?.toLowerCase() === "stock" || currentUser?.department === "Stock");
+    // Printing department user: hide Stock Entry and RM stock reports
+    const isPrintingUser = currentUser?.role === "user" &&
+        (currentUser?.department?.toLowerCase() === "printing" || currentUser?.department === "Printing");
+    // Floor department user: Work Order only (no Stock Entry / Job Card / Reports)
+    const isFloorUser = currentUser?.role === "user" &&
+        (currentUser?.department?.toLowerCase() === "floor" || currentUser?.department === "Floor");
+    // Inspection department user: only Job Card and Work Order; no Home, Stock Entry, or Reports
+    const isInspectUser = currentUser?.role === "user" &&
+        (currentUser?.department?.toLowerCase() === "inspection" || currentUser?.department === "Inspection");
+    const toggleMasters = () => {
+        setIsMastersOpen(!isMastersOpen);
+    };
+    const toggleReports = () => {
+        setIsReportsOpen(!isReportsOpen);
+    };
+    const toggleRmReports = () => {
+        setIsRmReportsOpen(!isRmReportsOpen);
+    };
+    const toggleWipReports = () => {
+        setIsWipReportsOpen(!isWipReportsOpen);
+    };
+    const toggleRmRollsStock = () => {
+        setIsRmRollsStockOpen(!isRmRollsStockOpen);
+    };
+    const toggleRmInkStock = () => {
+        setIsRmInkStockOpen(!isRmInkStockOpen);
+    };
+    const toggleRmAdhesiveStock = () => {
+        setIsRmAdhesiveStockOpen(!isRmAdhesiveStockOpen);
+    };
+    const toggleRmChemicalStock = () => {
+        setIsRmChemicalStockOpen(!isRmChemicalStockOpen);
+    };
+    useEffect(() => {
+        if (state === "collapsed") {
+            setIsMastersOpen(false);
+            setIsReportsOpen(false);
+            setIsRmReportsOpen(false);
+            setIsWipReportsOpen(false);
+            setIsRmRollsStockOpen(false);
+            setIsRmInkStockOpen(false);
+            setIsRmAdhesiveStockOpen(false);
+            setIsRmChemicalStockOpen(false);
+            setIsPartyOpen(false);
+        }
+    }, [state]);
+    useEffect(() => {
+        if (location.pathname.startsWith("/masters/") && location.pathname !== "/masters/enum") {
+            setIsMastersOpen(true);
+        }
+        if (location.pathname.startsWith("/masters/party")) {
+            setIsPartyOpen(true);
+        }
+    }, [location.pathname]);
+    // Auto-expand Reports when on a report subpage
+    useEffect(() => {
+        if (location.pathname.startsWith("/manufacturing/reports/")) {
+            setIsReportsOpen(true);
+            setIsRmReportsOpen(true);
+            setIsWipReportsOpen(true);
+        }
+    }, [location.pathname]);
+    // Auto-expand Rm Film Stock when on stock report page
+    useEffect(() => {
+        if (location.pathname === "/manufacturing/reports/stock") {
+            setIsRmRollsStockOpen(true);
+        }
+    }, [location.pathname]);
+    // Auto-expand Rm Ink Stock when on ink stock report page
+    useEffect(() => {
+        if (location.pathname === "/manufacturing/reports/ink-stock") {
+            setIsRmInkStockOpen(true);
+        }
+    }, [location.pathname]);
+    // Auto-expand Rm Adhesive Stock when on adhesive stock report page
+    useEffect(() => {
+        if (location.pathname === "/manufacturing/reports/adhesive-stock") {
+            setIsRmAdhesiveStockOpen(true);
+        }
+    }, [location.pathname]);
+    // Auto-expand Rm Chemical Stock when on chemical stock report page
+    useEffect(() => {
+        if (location.pathname === "/manufacturing/reports/chemical-stock") {
+            setIsRmChemicalStockOpen(true);
+        }
+    }, [location.pathname]);
+    // Fetch RM film items for Rm Film Stock sub-menu
+    useEffect(() => {
+        const fetchRmFilmItems = async () => {
+            try {
+                const items = await getItemsByGroupForMenu(RM_FILM_GROUP);
+                setRmFilmMenuItems(items);
+            }
+            catch (err) {
+                console.error("Failed to load item codes for Rm Film Stock menu:", err);
+                setRmFilmMenuItems([]);
+            }
+        };
+        if (isReportsOpen) {
+            fetchRmFilmItems();
+        }
+    }, [isReportsOpen]);
+    // Fetch RM ink items for Rm Ink Stock sub-menu
+    useEffect(() => {
+        const fetchRmInkItems = async () => {
+            try {
+                const items = await getItemsByGroupForMenu(RM_INK_GROUP);
+                setRmInkMenuItems(items);
+            }
+            catch (err) {
+                console.error("Failed to load item codes for Rm Ink Stock menu:", err);
+                setRmInkMenuItems([]);
+            }
+        };
+        if (isReportsOpen) {
+            fetchRmInkItems();
+        }
+    }, [isReportsOpen]);
+    // Fetch RM adhesive items for Rm Adhesive Stock sub-menu
+    useEffect(() => {
+        const fetchRmAdhesiveItems = async () => {
+            try {
+                const items = await getItemsByGroupForMenu(RM_ADHESIVE_GROUP);
+                setRmAdhesiveMenuItems(items);
+            }
+            catch (err) {
+                console.error("Failed to load item codes for Rm Adhesive Stock menu:", err);
+                setRmAdhesiveMenuItems([]);
+            }
+        };
+        if (isReportsOpen) {
+            fetchRmAdhesiveItems();
+        }
+    }, [isReportsOpen]);
+    // Fetch RM chemical items for Rm Chemical Stock sub-menu
+    useEffect(() => {
+        const fetchRmChemicalItems = async () => {
+            try {
+                const items = await getItemsByGroupForMenu(RM_CHEMICAL_GROUP);
+                setRmChemicalMenuItems(items);
+            }
+            catch (err) {
+                console.error("Failed to load item codes for Rm Chemical Stock menu:", err);
+                setRmChemicalMenuItems([]);
+            }
+        };
+        if (isReportsOpen) {
+            fetchRmChemicalItems();
+        }
+    }, [isReportsOpen]);
+    // Show loading state while determining user role
+    if (isLoading) {
+        return (_jsxs(Sidebar, { collapsible: "icon", className: "border-r border-gray-200 dark:border-gray-800", children: [_jsxs(SidebarHeader, { children: [_jsx(SidebarMenu, { children: _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { asChild: true, className: "min-h-15", children: _jsxs("a", { children: [_jsx("img", { src: logo, alt: "Production ERP Logo", className: "h-8 w-8" }), _jsx("div", { children: _jsx("h1", { className: "text-sm font-bold text-gray-900 dark:text-white", children: "PRODUCTION ERP" }) })] }) }) }) }), _jsx("div", { className: "md:hidden absolute top-4 right-4", children: _jsx(Button, { variant: "ghost", size: "sm", onClick: () => setOpenMobile(false), className: "h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800", children: _jsx(X, { className: "h-4 w-4" }) }) })] }), _jsx("div", { className: "flex items-center justify-center p-4", children: _jsx("div", { className: "animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-white" }) })] }));
+    }
+    return (_jsxs(Sidebar, { collapsible: "icon", className: "border-r border-gray-200 dark:border-gray-800", children: [_jsxs(SidebarHeader, { children: [_jsx(SidebarMenu, { children: _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { asChild: true, className: "min-h-15", children: _jsxs("a", { children: [_jsx("img", { src: logo, alt: "Production ERP Logo", className: "h-8 w-8" }), _jsx("div", { children: _jsx("h1", { className: "text-sm font-bold text-gray-900 dark:text-white", children: "PRODUCTION ERP" }) })] }) }) }) }), _jsx("div", { className: "md:hidden absolute top-4 right-4", children: _jsx(Button, { variant: "ghost", size: "sm", onClick: () => setOpenMobile(false), className: "h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800", children: _jsx(X, { className: "h-4 w-4" }) }) })] }), _jsxs(SidebarContent, { children: [_jsxs(SidebarGroup, { children: [_jsx(SidebarGroupLabel, { children: "Application" }), _jsx(SidebarGroupContent, { children: _jsx(SidebarMenu, { children: items
+                                        .filter(item => {
+                                        if (isInspectUser && item.path === "/home")
+                                            return false;
+                                        // Hide admin-only items for non-admin users
+                                        if (item.adminOnly && currentUser?.role !== 'admin' && currentUser?.role !== 'superuser') {
+                                            return false;
+                                        }
+                                        return true;
+                                    })
+                                        .map((item) => (_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { isActive: isActive(item.path), onClick: () => handleNavigation(item.path), children: [item.path === "/home" && _jsx(Home, { className: "mr-2 h-4 w-4" }), _jsx("span", { children: item.title })] }) }, item.title))) }) })] }), _jsx("div", { className: "px-4 py-2", children: _jsx("div", { className: "h-px bg-gray-200 dark:bg-gray-700" }) }), _jsxs(SidebarGroup, { children: [_jsx(SidebarGroupLabel, { children: "Manufacturing" }), _jsx(SidebarGroupContent, { children: _jsxs(SidebarMenu, { children: [manufacturingItems
+                                            .filter((item) => {
+                                            if (item.adminOnly) {
+                                                return currentUser?.role === "admin" || currentUser?.role === "superuser";
+                                            }
+                                            // Stock user: only Stock Entry; hide Work Order and Job Card
+                                            if (isStockUser) {
+                                                return item.title === "Stock Entry";
+                                            }
+                                            // Floor user: only Work Order
+                                            if (isFloorUser) {
+                                                return item.title === "Work Order";
+                                            }
+                                            // Printing user: hide Stock Entry
+                                            if (isPrintingUser && item.title === "Stock Entry") {
+                                                return false;
+                                            }
+                                            // Inspection user: only Work Order and Job Card
+                                            if (isInspectUser) {
+                                                return item.title === "Work Order" || item.title === "Job Card";
+                                            }
+                                            return true;
+                                        })
+                                            .map((item) => (_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { isActive: isActive(item.path), onClick: () => handleNavigation(item.path), children: [_jsx(item.icon, {}), _jsx("span", { children: item.title })] }) }, item.title))), !isPrintingUser && !isInspectUser && !isFloorUser && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleReports, className: "w-full justify-between", children: [_jsxs("div", { className: "flex items-center", children: [_jsx(BarChart3, { className: "h-4 w-4 mr-2" }), _jsx("span", { children: "Reports" })] }), isReportsOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isReportsOpen && (_jsxs("div", { className: "ml-4 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleRmReports, className: "w-full justify-between pl-6", children: [_jsxs("div", { className: "flex items-center", children: [_jsx(BarChart3, { className: "h-4 w-4 mr-2" }), _jsx("span", { children: "RM Reports" })] }), isRmReportsOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isRmReportsOpen && (_jsxs("div", { className: "ml-2 space-y-1", children: [!isPrintingUser && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleRmRollsStock, className: "w-full justify-between pl-8", children: [_jsx("span", { children: "Rm Film Stock" }), isRmRollsStockOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isRmRollsStockOpen && (_jsxs("div", { className: "ml-4 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/stock" &&
+                                                                                            !searchParams.get("itemCode"), onClick: () => handleNavigation("/manufacturing/reports/stock"), className: "w-full pl-10", children: _jsx("span", { children: "All" }) }) }, "stock-all"), rmFilmMenuItems.map((item) => {
+                                                                                    const itemPath = `/manufacturing/reports/stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                                                                                    const isItemActive = location.pathname === "/manufacturing/reports/stock" &&
+                                                                                        searchParams.get("itemCode") === item.item_code;
+                                                                                    return (_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: isItemActive, onClick: () => handleNavigation(itemPath), className: "w-full pl-10", children: _jsx("span", { children: item.item_code }) }) }, item.id));
+                                                                                })] }))] })), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/rm-balance", onClick: () => handleNavigation("/manufacturing/reports/rm-balance"), className: "w-full pl-8", children: _jsx("span", { children: "RM Balance" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/roll-issues", onClick: () => handleNavigation("/manufacturing/reports/roll-issues"), className: "w-full pl-8", children: _jsx("span", { children: "Rm Film Issued" }) }) }), _jsx(SidebarSeparator, { className: "my-2" }), !isPrintingUser && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleRmInkStock, className: "w-full justify-between pl-8", children: [_jsx("span", { children: "Rm Ink Stock" }), isRmInkStockOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isRmInkStockOpen && (_jsxs("div", { className: "ml-4 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/ink-stock" &&
+                                                                                            !searchParams.get("itemCode"), onClick: () => handleNavigation("/manufacturing/reports/ink-stock"), className: "w-full pl-10", children: _jsx("span", { children: "All" }) }) }, "ink-stock-all"), rmInkMenuItems.map((item) => {
+                                                                                    const itemPath = `/manufacturing/reports/ink-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                                                                                    const isItemActive = location.pathname === "/manufacturing/reports/ink-stock" &&
+                                                                                        searchParams.get("itemCode") === item.item_code;
+                                                                                    return (_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: isItemActive, onClick: () => handleNavigation(itemPath), className: "w-full pl-10", children: _jsx("span", { children: item.item_code }) }) }, item.id));
+                                                                                })] }))] })), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/ink-issues", onClick: () => handleNavigation("/manufacturing/reports/ink-issues"), className: "w-full pl-8", children: _jsx("span", { children: "Rm Ink Issued" }) }) }), _jsx(SidebarSeparator, { className: "my-2" }), !isPrintingUser && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleRmAdhesiveStock, className: "w-full justify-between pl-8", children: [_jsx("span", { children: "Rm Adhesive Stock" }), isRmAdhesiveStockOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isRmAdhesiveStockOpen && (_jsxs("div", { className: "ml-4 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                                                                                            !searchParams.get("itemCode"), onClick: () => handleNavigation("/manufacturing/reports/adhesive-stock"), className: "w-full pl-10", children: _jsx("span", { children: "All" }) }) }, "adhesive-stock-all"), rmAdhesiveMenuItems.map((item) => {
+                                                                                    const itemPath = `/manufacturing/reports/adhesive-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                                                                                    const isItemActive = location.pathname === "/manufacturing/reports/adhesive-stock" &&
+                                                                                        searchParams.get("itemCode") === item.item_code;
+                                                                                    return (_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: isItemActive, onClick: () => handleNavigation(itemPath), className: "w-full pl-10", children: _jsx("span", { children: item.item_code }) }) }, item.id));
+                                                                                })] }))] })), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/adhesive-issues", onClick: () => handleNavigation("/manufacturing/reports/adhesive-issues"), className: "w-full pl-8", children: _jsx("span", { children: "Rm Adhesive Issued" }) }) }), _jsx(SidebarSeparator, { className: "my-2" }), !isPrintingUser && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleRmChemicalStock, className: "w-full justify-between pl-8", children: [_jsx("span", { children: "Rm Chemical Stock" }), isRmChemicalStockOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isRmChemicalStockOpen && (_jsxs("div", { className: "ml-4 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/chemical-stock" &&
+                                                                                            !searchParams.get("itemCode"), onClick: () => handleNavigation("/manufacturing/reports/chemical-stock"), className: "w-full pl-10", children: _jsx("span", { children: "All" }) }) }, "chemical-stock-all"), rmChemicalMenuItems.map((item) => {
+                                                                                    const itemPath = `/manufacturing/reports/chemical-stock?itemCode=${encodeURIComponent(item.item_code)}`;
+                                                                                    const isItemActive = location.pathname === "/manufacturing/reports/chemical-stock" &&
+                                                                                        searchParams.get("itemCode") === item.item_code;
+                                                                                    return (_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: isItemActive, onClick: () => handleNavigation(itemPath), className: "w-full pl-10", children: _jsx("span", { children: item.item_code }) }) }, item.id));
+                                                                                })] }))] })), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/chemical-issues", onClick: () => handleNavigation("/manufacturing/reports/chemical-issues"), className: "w-full pl-8", children: _jsx("span", { children: "Rm Chemical Issued" }) }) })] })), _jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleWipReports, className: "w-full justify-between pl-6", children: [_jsxs("div", { className: "flex items-center", children: [_jsx(BarChart3, { className: "h-4 w-4 mr-2" }), _jsx("span", { children: "WIP Reports" })] }), isWipReportsOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isWipReportsOpen && (_jsxs("div", { className: "ml-2 space-y-1", children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/wip-all", onClick: () => handleNavigation("/manufacturing/reports/wip-all"), className: "w-full pl-8", children: _jsx("span", { children: "ALL" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/wip-printing", onClick: () => handleNavigation("/manufacturing/reports/wip-printing"), className: "w-full pl-8", children: _jsx("span", { children: "WIP Printing" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/wip-inspection", onClick: () => handleNavigation("/manufacturing/reports/wip-inspection"), className: "w-full pl-8", children: _jsx("span", { children: "WIP Inspection" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/wip-ecl", onClick: () => handleNavigation("/manufacturing/reports/wip-ecl"), className: "w-full pl-8", children: _jsx("span", { children: "WIP ECL" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/manufacturing/reports/wip-lamination", onClick: () => handleNavigation("/manufacturing/reports/wip-lamination"), className: "w-full pl-8", children: _jsx("span", { children: "WIP Lamination" }) }) })] }))] }))] }))] }) })] }), _jsx("div", { className: "px-4 py-2", children: _jsx("div", { className: "h-px bg-gray-200 dark:bg-gray-700" }) }), (currentUser?.role === 'admin' || currentUser?.role === 'superuser' || isStockUser) && (_jsxs(SidebarGroup, { children: [_jsx(SidebarGroupLabel, { children: "Masters" }), _jsx(SidebarGroupContent, { children: _jsxs(SidebarMenu, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleMasters, className: "w-full justify-between", children: [_jsxs("div", { className: "flex items-center", children: [_jsx(Building2, { className: "h-4 w-4 mr-2" }), _jsx("span", { children: "Masters" })] }), isMastersOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isMastersOpen && (_jsx("div", { className: "ml-4 space-y-1", children: masterItems
+                                                .filter(item => {
+                                                // Stock user: only Item and Party master
+                                                if (isStockUser) {
+                                                    return item.title === 'Item' || item.title === 'Party';
+                                                }
+                                                // Hide Users and Templates for admin users - only show for superuser
+                                                if (currentUser?.role === 'admin' && (item.title === 'Users' || item.title === 'Templates')) {
+                                                    return false;
+                                                }
+                                                // Hide Users for regular users
+                                                if (currentUser?.role === 'user' && item.title === 'Users') {
+                                                    return false;
+                                                }
+                                                return true;
+                                            })
+                                                .map((item) => (item.title === "Party" ? (_jsxs("div", { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: () => setIsPartyOpen((open) => !open), className: "w-full justify-between pl-8", children: [_jsx("span", { children: "Party" }), isPartyOpen ? (_jsx(ChevronDown, { className: "h-4 w-4" })) : (_jsx(ChevronRight, { className: "h-4 w-4" }))] }) }), isPartyOpen && (_jsxs(_Fragment, { children: [_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/masters/party/supplier", onClick: () => handleNavigation("/masters/party/supplier"), className: "w-full pl-12", children: _jsx("span", { children: "Supplier" }) }) }), _jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: location.pathname === "/masters/party/customer", onClick: () => handleNavigation("/masters/party/customer"), className: "w-full pl-12", children: _jsx("span", { children: "Customer" }) }) })] }))] }, item.title)) : (_jsx(SidebarMenuItem, { children: _jsx(SidebarMenuButton, { isActive: isActive(item.path), onClick: () => handleNavigation(item.path), className: "w-full pl-8", children: _jsx("span", { children: item.title }) }) }, item.title)))) })), !isStockUser && (_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { isActive: isActive("/masters/enum"), onClick: () => handleNavigation("/masters/enum"), children: [_jsx(Building2, {}), _jsx("span", { children: "Enum Master" })] }) }))] }) })] }))] }), _jsx(SidebarFooter, { children: _jsxs(SidebarMenu, { children: [_jsx(SidebarMenuItem, { children: _jsxs(SidebarMenuButton, { onClick: toggleSidebar, className: `w-full ${state === "collapsed" ? "justify-center" : ""}`, children: [_jsx(PanelLeftClose, { className: "h-4 w-4" }), state !== "collapsed" && _jsx("span", { children: "Collapse" })] }) }), _jsx(SidebarMenuItem, { children: _jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { asChild: true, children: _jsxs(SidebarMenuButton, { className: "min-h-15", children: [_jsx(User2, {}), _jsxs("div", { children: [_jsx("div", { children: _jsx("span", { children: currentUser?.username || "Loading..." }) }), _jsx("div", { children: _jsx("span", { className: "text-zinc-400 capitalize", children: currentUser?.role || "Loading..." }) })] })] }) }), _jsxs(DropdownMenuContent, { side: "top", align: "start", children: [_jsxs(DropdownMenuItem, { onSelect: (event) => {
+                                                    event.preventDefault();
+                                                    toggleTheme();
+                                                }, children: [theme === "dark" ? (_jsx(Sun, { className: "h-4 w-4" })) : (_jsx(Moon, { className: "h-4 w-4" })), _jsxs("span", { children: ["Switch to ", theme === "dark" ? "light" : "dark", " mode"] })] }), _jsxs(DropdownMenuItem, { onSelect: (event) => {
+                                                    event.preventDefault();
+                                                    logout();
+                                                }, children: [_jsx(LucidePower, { className: "h-4 w-4" }), _jsx("span", { children: "Logout" })] })] })] }) })] }) })] }));
+}

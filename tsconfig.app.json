@@ -25,7 +25,8 @@
     
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@relation-graph/react": ["./src/types/relation-graph-react.d.ts"]
     }
     
   },

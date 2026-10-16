@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, RefreshCw, ScanBarcode, X } from "lucide-react"
+import { ArrowLeft, RefreshCw, ScanBarcode, Table2, Waypoints, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DataTable } from "@/components/data-table"
 import { ColumnHeader } from "@/components/column-header"
 import { useAuth } from "@/contexts/AuthContext"
@@ -22,6 +23,7 @@ import {
   UndoLastOutputButton,
   type ProducedRoll,
 } from "@/pages/work-order-produced-rolls"
+import { WorkOrderRelationshipGraph } from "@/pages/work-order-relationship-graph"
 
 type JobCard = {
   id: number
@@ -111,6 +113,7 @@ export default function WorkOrderDetail() {
 
   const isPrintingUser = user?.role === "user" && (user?.department ?? "").toLowerCase() === "printing"
   const isAdminViewer = user?.role === "admin" || user?.role === "superuser"
+  const [jobCardView, setJobCardView] = useState<"table" | "relationship">("table")
 
   const [stockSelectOpen, setStockSelectOpen] = useState(false)
   const [stockSelectCard, setStockSelectCard] = useState<JobCard | null>(null)
@@ -480,8 +483,54 @@ export default function WorkOrderDetail() {
         </Card>
       )}
 
+      {isAdminViewer && (
+        <div className="mb-2 flex items-center justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant={jobCardView === "table" ? "default" : "outline"}
+                aria-label="Table view"
+                aria-pressed={jobCardView === "table"}
+                onClick={() => setJobCardView("table")}
+              >
+                <Table2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Table view</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant={jobCardView === "relationship" ? "default" : "outline"}
+                aria-label="Relationship view"
+                aria-pressed={jobCardView === "relationship"}
+                onClick={() => setJobCardView("relationship")}
+              >
+                <Waypoints className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Relationship view</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
       {/* Job Cards by Operation */}
-      {operations.length > 0 ? (
+      {isAdminViewer && jobCardView === "relationship" ? (
+        <div className="space-y-1">
+          {producedRollsError && (
+            <p className="text-sm text-red-500 px-1">{producedRollsError}</p>
+          )}
+          <WorkOrderRelationshipGraph
+            rollsByStage={producedRollsByStage}
+            skippedOperations={workOrder.skippedOperations}
+            loading={producedRollsLoading}
+          />
+        </div>
+      ) : operations.length > 0 ? (
         <div className="space-y-1">
           {producedRollsError && (
             <p className="text-sm text-red-500 px-1">{producedRollsError}</p>
