@@ -130,6 +130,29 @@ export const isTrackFullyComplete = (track: WorkOrderTrack | undefined): boolean
   return required.every((stage) => stage.state === "completed")
 }
 
+export type FloorAvailability = {
+  available: { workOrderId: number; stages: string[] }[]
+  loadedWorkOrderIds: number[]
+}
+
+type FloorAvailabilityResponse = {
+  available: { work_order_id: number; stages: string[] }[]
+  loaded_work_order_ids: number[]
+}
+
+export const getFloorAvailability = async (operation: string): Promise<FloorAvailability> => {
+  const response = await api.get<FloorAvailabilityResponse>("/work-order/floor-availability", {
+    params: { operation },
+  })
+  return {
+    available: (response.data.available ?? []).map((row) => ({
+      workOrderId: row.work_order_id,
+      stages: row.stages ?? [],
+    })),
+    loadedWorkOrderIds: response.data.loaded_work_order_ids ?? [],
+  }
+}
+
 export const getWorkOrderTracks = async (ids: number[]): Promise<Record<number, WorkOrderTrack>> => {
   if (ids.length === 0) return {}
   const response = await api.get<WorkOrderTrackResponse[]>("/work-order/track", {

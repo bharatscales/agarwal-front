@@ -25,6 +25,7 @@ import {
 } from "@/lib/job-card-api"
 import {
   getAllWorkOrders,
+  getFloorAvailability,
   getWorkOrderTracks,
   isTrackFullyComplete,
   skipWorkOrderOperation,
@@ -132,40 +133,21 @@ async function fetchAvailableWipRollsForWorkOrder(workOrderId: number, stages: s
   return [...byId.values()].filter((r) => !r.consumed && !r.issued)
 }
 
-async function workOrderStagesFromAvailableRolls(
-  stages: string[],
-  isCancelled: () => boolean
-): Promise<Map<number, Set<string>>> {
-  const byWo = new Map<number, Set<string>>()
-  const BATCH = 15
-  for (const stage of stages) {
-    const rolls = await getAllRollsStock(0, 500, false, stage)
-    for (let i = 0; i < rolls.length; i += BATCH) {
-      if (isCancelled()) return byWo
-      const batch = rolls.slice(i, i + BATCH)
-      const results = await Promise.all(
-        batch.map(async (roll) => {
-          try {
-            if (roll.consumed) return null
-            const barcode = roll.barcode?.trim()
-            if (!barcode) return null
-            const woInfo = await getWorkOrderByRollBarcode(barcode)
-            if (woInfo?.workOrderId == null) return null
-            return { workOrderId: woInfo.workOrderId as number, stage }
-          } catch {
-            return null
-          }
-        })
-      )
-      results.forEach((row) => {
-        if (!row) return
-        const set = byWo.get(row.workOrderId) ?? new Set<string>()
-        set.add(row.stage)
-        byWo.set(row.workOrderId, set)
-      })
-    }
+async function loadVisibleDepartmentWorkOrders(operation: FloorSkipOperation) {
+  const [availability, allWos] = await Promise.all([
+    getFloorAvailability(operation),
+    getAllWorkOrders(0, 500),
+  ])
+  const stagesByWo = new Map<number, Set<string>>()
+  for (const row of availability.available) {
+    stagesByWo.set(row.workOrderId, new Set(row.stages))
   }
-  return byWo
+  return filterDepartmentWorkOrders(
+    allWos,
+    operation,
+    stagesByWo,
+    new Set(availability.loadedWorkOrderIds)
+  )
 }
 
 function filterDepartmentWorkOrders(
@@ -2049,44 +2031,12 @@ export default function Home() {
       setInspectionLoading(true)
       setInspectionError(null)
       try {
-        const BATCH = 15
-        const stagesByWo = await workOrderStagesFromAvailableRolls(["wip_printed"], () => cancelled)
+        const visibleInspection = await loadVisibleDepartmentWorkOrders("Inspection")
         if (cancelled) return
-
-        const loadedWorkOrderIds = new Set<number>()
-        const inspectionCards = await getAllJobCards(0, 500, undefined, "Inspection")
-        for (let i = 0; i < inspectionCards.length; i += BATCH) {
-          if (cancelled) return
-          const batch = inspectionCards.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (c) => {
-              try {
-                const roll = await getCurrentRoll(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: roll != null }
-              } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
-          })
-        }
-        if (cancelled) return
-
-        const allWos = await getAllWorkOrders(0, 500)
-        if (!cancelled) {
-          const visibleInspection = filterDepartmentWorkOrders(
-            allWos,
-            "Inspection",
-            stagesByWo,
-            loadedWorkOrderIds
-          )
-          setInspectionWorkOrders(visibleInspection)
-          restorePendingWorkOrder("inspection", visibleInspection, setInspectionSelectedWo, () =>
-            setInspectionAddRollForm(null)
-          )
-        }
+        setInspectionWorkOrders(visibleInspection)
+        restorePendingWorkOrder("inspection", visibleInspection, setInspectionSelectedWo, () =>
+          setInspectionAddRollForm(null)
+        )
       } catch (err) {
         if (!cancelled) {
           setInspectionError("Failed to load work orders.")
@@ -2111,40 +2061,10 @@ export default function Home() {
       setEclLoading(true)
       setEclError(null)
       try {
-        const BATCH = 15
-        const stagesByWo = await workOrderStagesFromAvailableRolls(
-          ["wip_inspection", "wip_printed"],
-          () => cancelled
-        )
+        const visibleEcl = await loadVisibleDepartmentWorkOrders("ECL")
         if (cancelled) return
-
-        const loadedWorkOrderIds = new Set<number>()
-        const eclCards = await getAllJobCards(0, 500, undefined, "ECL")
-        for (let i = 0; i < eclCards.length; i += BATCH) {
-          if (cancelled) return
-          const batch = eclCards.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (c) => {
-              try {
-                const rolls = await getLoadedRolls(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: rolls.length > 0 }
-              } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
-          })
-        }
-        if (cancelled) return
-
-        const allWos = await getAllWorkOrders(0, 500)
-        if (!cancelled) {
-          const visibleEcl = filterDepartmentWorkOrders(allWos, "ECL", stagesByWo, loadedWorkOrderIds)
-          setEclWorkOrders(visibleEcl)
-          restorePendingWorkOrder("ecl", visibleEcl, setEclSelectedWo, () => setEclAddRollForm(null))
-        }
+        setEclWorkOrders(visibleEcl)
+        restorePendingWorkOrder("ecl", visibleEcl, setEclSelectedWo, () => setEclAddRollForm(null))
       } catch (err) {
         if (!cancelled) {
           setEclError("Failed to load work orders.")
@@ -2169,47 +2089,12 @@ export default function Home() {
       setLaminationLoading(true)
       setLaminationError(null)
       try {
-        const BATCH = 15
-        const stagesByWo = await workOrderStagesFromAvailableRolls(
-          ["wip_ecl", "wip_inspection", "wip_printed"],
-          () => cancelled
+        const visibleLamination = await loadVisibleDepartmentWorkOrders("Lamination")
+        if (cancelled) return
+        setLaminationWorkOrders(visibleLamination)
+        restorePendingWorkOrder("lamination", visibleLamination, setLaminationSelectedWo, () =>
+          setLaminationAddRollForm(null)
         )
-        if (cancelled) return
-
-        const loadedWorkOrderIds = new Set<number>()
-        const laminationCards = await getAllJobCards(0, 500, undefined, "Lamination")
-        for (let i = 0; i < laminationCards.length; i += BATCH) {
-          if (cancelled) return
-          const batch = laminationCards.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (c) => {
-              try {
-                const rolls = await getLoadedRolls(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: rolls.length > 0 }
-              } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
-          })
-        }
-        if (cancelled) return
-
-        const allWos = await getAllWorkOrders(0, 500)
-        if (!cancelled) {
-          const visibleLamination = filterDepartmentWorkOrders(
-            allWos,
-            "Lamination",
-            stagesByWo,
-            loadedWorkOrderIds
-          )
-          setLaminationWorkOrders(visibleLamination)
-          restorePendingWorkOrder("lamination", visibleLamination, setLaminationSelectedWo, () =>
-            setLaminationAddRollForm(null)
-          )
-        }
       } catch (err) {
         if (!cancelled) {
           setLaminationError("Failed to load work orders.")
@@ -2234,47 +2119,12 @@ export default function Home() {
       setSlittingLoading(true)
       setSlittingError(null)
       try {
-        const BATCH = 15
-        const stagesByWo = await workOrderStagesFromAvailableRolls(
-          ["wip_lamination", "wip_ecl", "wip_inspection", "wip_printed"],
-          () => cancelled
+        const visibleSlitting = await loadVisibleDepartmentWorkOrders("Slitting")
+        if (cancelled) return
+        setSlittingWorkOrders(visibleSlitting)
+        restorePendingWorkOrder("slitting", visibleSlitting, setSlittingSelectedWo, () =>
+          setSlittingAddRollForm(null)
         )
-        if (cancelled) return
-
-        const loadedWorkOrderIds = new Set<number>()
-        const slittingCards = await getAllJobCards(0, 500, undefined, "Slitting")
-        for (let i = 0; i < slittingCards.length; i += BATCH) {
-          if (cancelled) return
-          const batch = slittingCards.slice(i, i + BATCH)
-          const results = await Promise.all(
-            batch.map(async (c) => {
-              try {
-                const rolls = await getLoadedRolls(c.id)
-                return { workOrderId: c.workOrderId, hasRoll: rolls.length > 0 }
-              } catch {
-                return { workOrderId: c.workOrderId, hasRoll: false }
-              }
-            })
-          )
-          results.forEach((r) => {
-            if (r.hasRoll) loadedWorkOrderIds.add(r.workOrderId)
-          })
-        }
-        if (cancelled) return
-
-        const allWos = await getAllWorkOrders(0, 500)
-        if (!cancelled) {
-          const visibleSlitting = filterDepartmentWorkOrders(
-            allWos,
-            "Slitting",
-            stagesByWo,
-            loadedWorkOrderIds
-          )
-          setSlittingWorkOrders(visibleSlitting)
-          restorePendingWorkOrder("slitting", visibleSlitting, setSlittingSelectedWo, () =>
-            setSlittingAddRollForm(null)
-          )
-        }
       } catch (err) {
         if (!cancelled) {
           setSlittingError("Failed to load work orders.")
