@@ -589,3 +589,11 @@ export const deleteProducedRoll = async (rollId: number) => {
   await api.delete(`/job-card/produced-rolls/${rollId}`)
 }
 
+export const undoLastOutput = async (jobCardId: number) => {
+  const response = await api.post<{ ok: boolean; roll_id: number; barcode?: string | null }>(
+    `/job-card/${jobCardId}/undo-last-output`,
+    { confirm: "undo" }
+  )
+  return response.data
+}
+

@@ -564,6 +564,11 @@ export default function WorkOrderDetail() {
                             skippedOperations={workOrder.skippedOperations}
                             loadedRoll={card.operation === "Slitting" ? currentRollByCard[card.id] : null}
                             loading={producedRollsLoading}
+                            jobCardId={card.id}
+                            jobCardNumber={card.jobCardNumber}
+                            onUndone={() => {
+                              void fetchData()
+                            }}
                           />
                         ) : (card.operation === "Printing" ||
                           card.operation === "Inspection" ||
