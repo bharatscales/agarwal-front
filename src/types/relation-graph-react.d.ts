@@ -69,6 +69,8 @@ type GraphInstance = {
   setJsonData: (data: { rootId?: string; nodes: JsonNode[]; lines: JsonLine[] }) => Promise<void>
   moveToCenter: () => void
   zoomToFit: () => void
+  zoom: (delta: number, point?: { x: number; y: number }) => void
+  scrollView: (x: number, y: number) => void
   setDom: (element: HTMLElement | null) => void
   updateOptions: (options: RGOptions & { viewSize?: { width: number; height: number } }) => void
 }

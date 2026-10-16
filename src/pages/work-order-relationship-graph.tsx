@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   RGHooks,
   RGJunctionPoint,
@@ -67,6 +67,7 @@ const COL_GAP = 72
 const ROW_GAP = 32
 const PAD = 16
 const PITCH = MAIN_W + 12 + SAT_W + COL_GAP
+const INPUT_KIND = new Set<NodeKind>(["ink", "adhesive", "extrusion"])
 
 const KIND_CLASS: Record<NodeKind, string> = {
   roll: "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900",
@@ -511,21 +512,34 @@ function buildFlow(
       const satellites = [...nodes.values()]
         .filter((node) => node.anchorId === anchor.id)
         .sort((a, b) => a.id.localeCompare(b.id))
+      const inputs = satellites.filter((node) => INPUT_KIND.has(node.kind))
+      const outputs = satellites.filter((node) => !INPUT_KIND.has(node.kind))
+      const stackHeight = (items: FlowNode[]) =>
+        items.reduce((sum, node, itemIndex) => sum + node.height + (itemIndex > 0 ? 8 : 0), 0)
+      const inputStack = stackHeight(inputs)
+      const outputStack = stackHeight(outputs)
+      const overhead = inputs.length > 0 ? inputStack + 8 : 0
       const parentY = primaryY(anchor.id, nodes, edges, placedY, columnIndex)
-      const y = parentY != null && parentY >= cursor ? parentY : cursor
+      const minRollY = cursor + overhead
+      const rollY = parentY != null && parentY >= minRollY ? parentY : minRollY
       anchor.width = MAIN_W
-      const satStack = satellites.reduce((sum, node, satIndex) => sum + node.height + (satIndex > 0 ? 8 : 0), 0)
       const x = PAD + index * PITCH
       anchor.x = x
-      anchor.y = y
-      placedY.set(anchor.id, y)
-      satellites.forEach((node, satIndex) => {
-        const satY = y + satellites.slice(0, satIndex).reduce((sum, item) => sum + item.height + 8, 0)
-        node.x = x + MAIN_W + 12
-        node.y = satY
-        placedY.set(node.id, satY)
+      anchor.y = rollY
+      placedY.set(anchor.id, rollY)
+      inputs.forEach((node, itemIndex) => {
+        const offset = inputs.slice(0, itemIndex).reduce((sum, item) => sum + item.height + 8, 0)
+        node.x = x + (MAIN_W - node.width) / 2
+        node.y = rollY - overhead + offset
+        placedY.set(node.id, node.y)
       })
-      cursor = y + Math.max(anchor.height, satStack) + ROW_GAP
+      outputs.forEach((node, itemIndex) => {
+        const offset = outputs.slice(0, itemIndex).reduce((sum, item) => sum + item.height + 8, 0)
+        node.x = x + MAIN_W + 12
+        node.y = rollY + offset
+        placedY.set(node.id, node.y)
+      })
+      cursor = rollY + Math.max(anchor.height, outputStack) + ROW_GAP
     }
   })
 
@@ -627,6 +641,11 @@ function FlowCard({ node }: RGNodeSlotProps) {
   )
 }
 
+function bindGraphSurface(host: HTMLElement, graphInstance: ReturnType<typeof RGHooks.useGraphInstance>) {
+  const surface = host.querySelector(".relation-graph")
+  if (surface instanceof HTMLElement) graphInstance.setDom(surface)
+}
+
 function FlowCanvas({
   nodes,
   lines,
@@ -634,6 +653,7 @@ function FlowCanvas({
   nodes: JsonNode[]
   lines: JsonLine[]
 }) {
+  const hostRef = useRef<HTMLDivElement>(null)
   const graphInstance = RGHooks.useGraphInstance()
   const signature = useMemo(
     () => `${nodes.map((node) => `${node.id}:${node.x}:${node.y}`).join("|")}::${lines.map((line) => line.id).join("|")}`,
@@ -660,7 +680,8 @@ function FlowCanvas({
           window.setTimeout(() => fit(attempt + 1), 200)
           return
         }
-        const surface = box.querySelector(".relation-graph")
+        const host = hostRef.current
+        const surface = host?.querySelector(".relation-graph") ?? box.querySelector(".relation-graph")
         if (surface instanceof HTMLElement) graphInstance.setDom(surface)
         try {
           graphInstance.updateOptions({
@@ -679,10 +700,58 @@ function FlowCanvas({
     }
   }, [graphInstance, signature, nodes, lines])
 
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      bindGraphSurface(host, graphInstance)
+      const step = Math.max(-20, Math.min(20, -event.deltaY / 8))
+      if (step === 0) return
+      try {
+        graphInstance.zoom(step, { x: event.clientX, y: event.clientY })
+      } catch {
+        // Ignore a zoom that runs before the canvas has a size.
+      }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      bindGraphSurface(host, graphInstance)
+      host.setPointerCapture(event.pointerId)
+      let lastX = event.clientX
+      let lastY = event.clientY
+      const onPointerMove = (move: PointerEvent) => {
+        const dx = move.clientX - lastX
+        const dy = move.clientY - lastY
+        lastX = move.clientX
+        lastY = move.clientY
+        if (dx === 0 && dy === 0) return
+        graphInstance.scrollView(dx, dy)
+      }
+      const onPointerUp = (up: PointerEvent) => {
+        host.removeEventListener("pointermove", onPointerMove)
+        host.removeEventListener("pointerup", onPointerUp)
+        host.removeEventListener("pointercancel", onPointerUp)
+        if (host.hasPointerCapture(up.pointerId)) host.releasePointerCapture(up.pointerId)
+      }
+      host.addEventListener("pointermove", onPointerMove)
+      host.addEventListener("pointerup", onPointerUp)
+      host.addEventListener("pointercancel", onPointerUp)
+    }
+    host.addEventListener("wheel", onWheel, { passive: false })
+    host.addEventListener("pointerdown", onPointerDown)
+    return () => {
+      host.removeEventListener("wheel", onWheel)
+      host.removeEventListener("pointerdown", onPointerDown)
+    }
+  }, [graphInstance])
+
   return (
-    <RelationGraph options={GRAPH_OPTIONS}>
-      <RGSlotOnNode>{(props) => <FlowCard {...props} />}</RGSlotOnNode>
-    </RelationGraph>
+    <div ref={hostRef} className="h-full w-full cursor-grab touch-none active:cursor-grabbing">
+      <RelationGraph options={GRAPH_OPTIONS}>
+        <RGSlotOnNode>{(props) => <FlowCard {...props} />}</RGSlotOnNode>
+      </RelationGraph>
+    </div>
   )
 }
 
@@ -764,6 +833,13 @@ export function WorkOrderRelationshipGraph({
             background: transparent;
             border: none;
             box-shadow: none;
+          }
+          .wo-flow-graph .relation-graph,
+          .wo-flow-graph .rg-map,
+          .wo-flow-graph .rg-node,
+          .wo-flow-graph .rg-node-peel,
+          .wo-flow-graph svg {
+            pointer-events: none;
           }
           .wo-flow-graph .rg-toolbar {
             display: none;
