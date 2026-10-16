@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
+import { Undo2 } from "lucide-react"
 
 import { DataTable } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -470,9 +472,6 @@ type JobCardProducedRollsProps = {
   skippedOperations?: string[] | null
   loadedRoll?: CurrentRoll | null
   loading?: boolean
-  jobCardId?: number
-  jobCardNumber?: string
-  onUndone?: () => void
 }
 
 export function JobCardProducedRolls({
@@ -481,9 +480,6 @@ export function JobCardProducedRolls({
   skippedOperations,
   loadedRoll,
   loading = false,
-  jobCardId,
-  jobCardNumber,
-  onUndone,
 }: JobCardProducedRollsProps) {
   const dualOperation = operation === "ECL" || operation === "Lamination" ? operation : null
   const dualInput = dualOperation
@@ -502,33 +498,13 @@ export function JobCardProducedRolls({
     return []
   }, [operation, dualInput?.input1, dualInput?.input2])
 
-  const canUndo = jobCardId != null && Boolean(onUndone) && !loading && rolls.length > 0
-  const [undoOpen, setUndoOpen] = useState(false)
-  const [undoText, setUndoText] = useState("")
-  const [undoError, setUndoError] = useState<string | null>(null)
-  const [undoSaving, setUndoSaving] = useState(false)
-
-  const closeUndo = () => {
-    if (undoSaving) return
-    setUndoOpen(false)
-    setUndoText("")
-    setUndoError(null)
-  }
-
   if (columns.length === 0) return null
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Produced rolls</p>
-        <div className="flex flex-wrap items-center gap-3">
-          {!loading && rolls.length > 0 && <ProducedRollTotals operation={operation} rows={rolls} />}
-          {canUndo && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setUndoOpen(true)}>
-              Undo last output
-            </Button>
-          )}
-        </div>
+        {!loading && rolls.length > 0 && <ProducedRollTotals operation={operation} rows={rolls} />}
       </div>
       {operation === "Slitting" && loadedRoll && (
         <p className="text-xs text-gray-700 dark:text-gray-300">
@@ -551,12 +527,54 @@ export function JobCardProducedRolls({
           scrollHeight="320px"
         />
       )}
+    </div>
+  )
+}
+
+export function UndoLastOutputButton({
+  jobCardId,
+  jobCardNumber,
+  onUndone,
+}: {
+  jobCardId: number
+  jobCardNumber: string
+  onUndone: () => void
+}) {
+  const [undoOpen, setUndoOpen] = useState(false)
+  const [undoText, setUndoText] = useState("")
+  const [undoError, setUndoError] = useState<string | null>(null)
+  const [undoSaving, setUndoSaving] = useState(false)
+
+  const closeUndo = () => {
+    if (undoSaving) return
+    setUndoOpen(false)
+    setUndoText("")
+    setUndoError(null)
+  }
+
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute top-1 right-1 size-8 text-gray-500 hover:text-red-600"
+            aria-label="Undo last output"
+            onClick={() => setUndoOpen(true)}
+          >
+            <Undo2 className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Undo last output</TooltipContent>
+      </Tooltip>
       <Dialog open={undoOpen} onOpenChange={(open) => { if (!open) closeUndo() }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Undo last output</DialogTitle>
             <DialogDescription>
-              This deletes the latest output on {jobCardNumber || "this job card"}, removes its balance rolls, and returns the input films to the job card.
+              This deletes the latest output on {jobCardNumber}, removes its balance rolls, and returns the input films to the job card.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -579,16 +597,15 @@ export function JobCardProducedRolls({
             <Button
               type="button"
               variant="destructive"
-              disabled={undoSaving || undoText !== "undo" || jobCardId == null}
+              disabled={undoSaving || undoText !== "undo"}
               onClick={() => {
-                if (jobCardId == null) return
                 setUndoSaving(true)
                 setUndoError(null)
                 void undoLastOutput(jobCardId)
                   .then(() => {
                     setUndoOpen(false)
                     setUndoText("")
-                    onUndone?.()
+                    onUndone()
                   })
                   .catch((error: unknown) => {
                     setUndoError(jobCardApiErrorMessage(error, "Could not undo the last output."))
@@ -601,6 +618,6 @@ export function JobCardProducedRolls({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

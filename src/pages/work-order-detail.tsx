@@ -19,6 +19,7 @@ import {
   assignProducedRolls,
   JobCardProducedRolls,
   PRODUCED_ROLL_STAGE_BY_OPERATION,
+  UndoLastOutputButton,
   type ProducedRoll,
 } from "@/pages/work-order-produced-rolls"
 
@@ -493,9 +494,18 @@ export default function WorkOrderDetail() {
                 </p>
                 <div className="space-y-2">
                   {jobCardsByOperation[operation].map((card) => (
-                    <Card key={card.id} className="bg-gray-50 dark:bg-gray-900/50 py-1">
+                    <Card key={card.id} className="relative bg-gray-50 dark:bg-gray-900/50 py-1">
                       <CardContent className="pt-1 space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {isAdminViewer && (producedRollAssignment.byCardId[card.id]?.length ?? 0) > 0 && (
+                          <UndoLastOutputButton
+                            jobCardId={card.id}
+                            jobCardNumber={card.jobCardNumber}
+                            onUndone={() => {
+                              void fetchData()
+                            }}
+                          />
+                        )}
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 pr-8">
                           <div>
                             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Job Card Number</p>
                             <p className="text-sm font-semibold mt-1">{card.jobCardNumber}</p>
@@ -564,11 +574,6 @@ export default function WorkOrderDetail() {
                             skippedOperations={workOrder.skippedOperations}
                             loadedRoll={card.operation === "Slitting" ? currentRollByCard[card.id] : null}
                             loading={producedRollsLoading}
-                            jobCardId={card.id}
-                            jobCardNumber={card.jobCardNumber}
-                            onUndone={() => {
-                              void fetchData()
-                            }}
                           />
                         ) : (card.operation === "Printing" ||
                           card.operation === "Inspection" ||
