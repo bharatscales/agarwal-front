@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { ArrowLeft, RefreshCw, ScanBarcode, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,16 @@ import { useAuth } from "@/contexts/AuthContext"
 import { getAllWorkOrders } from "@/lib/work-order-api"
 import { getItemBom, type BomLine } from "@/lib/item-api"
 import { getAllJobCards, scanRoll, mapJobCard, getCurrentRoll, type CurrentRoll } from "@/lib/job-card-api"
-import { getEveryRollsStock } from "@/lib/rolls-stock-api"
+import { getEveryRollsStock, getRollsStockByWorkOrder } from "@/lib/rolls-stock-api"
 import { getRollsStockColumns, type RollsStockRow } from "@/components/columns/rolls-stock-columns"
 import type { WorkOrderMaster } from "@/components/columns/work-order-columns"
 import { FgStageBomReadonly } from "@/components/fg-stage-bom-readonly"
+import {
+  assignProducedRolls,
+  JobCardProducedRolls,
+  PRODUCED_ROLL_STAGE_BY_OPERATION,
+  type ProducedRoll,
+} from "@/pages/work-order-produced-rolls"
 
 type JobCard = {
   id: number
@@ -98,8 +104,12 @@ export default function WorkOrderDetail() {
   const [scanMessage, setScanMessage] = useState<Record<number, { type: "success" | "error"; text: string }>>({})
   const [scanningCardId, setScanningCardId] = useState<number | null>(null)
   const [currentRollByCard, setCurrentRollByCard] = useState<Record<number, CurrentRoll | null>>({})
+  const [producedRollsByStage, setProducedRollsByStage] = useState<Record<string, ProducedRoll[]>>({})
+  const [producedRollsLoading, setProducedRollsLoading] = useState(false)
+  const [producedRollsError, setProducedRollsError] = useState<string | null>(null)
 
   const isPrintingUser = user?.role === "user" && (user?.department ?? "").toLowerCase() === "printing"
+  const isAdminViewer = user?.role === "admin" || user?.role === "superuser"
 
   const [stockSelectOpen, setStockSelectOpen] = useState(false)
   const [stockSelectCard, setStockSelectCard] = useState<JobCard | null>(null)
@@ -137,6 +147,40 @@ export default function WorkOrderDetail() {
       const cards = await getAllJobCards(0, 1000, parseInt(id))
       setJobCards(cards)
 
+      const adminViewer = user?.role === "admin" || user?.role === "superuser"
+      if (adminViewer) {
+        setProducedRollsLoading(true)
+        setProducedRollsError(null)
+        const stages = [...new Set(Object.values(PRODUCED_ROLL_STAGE_BY_OPERATION))]
+        const entries = await Promise.all(
+          stages.map(async (stage) => {
+            try {
+              const rows = await getRollsStockByWorkOrder(parseInt(id), stage)
+              return [stage, rows] as const
+            } catch {
+              return [stage, null] as const
+            }
+          })
+        )
+        const next: Record<string, ProducedRoll[]> = {}
+        let failed = false
+        for (const [stage, rows] of entries) {
+          if (rows == null) {
+            failed = true
+            next[stage] = []
+          } else {
+            next[stage] = rows
+          }
+        }
+        setProducedRollsByStage(next)
+        setProducedRollsError(failed ? "Some produced rolls could not be loaded." : null)
+        setProducedRollsLoading(false)
+      } else {
+        setProducedRollsByStage({})
+        setProducedRollsError(null)
+        setProducedRollsLoading(false)
+      }
+
       // Fetch current loaded roll for job cards that support scanning (Printing, Inspection, ECL, Lamination, Slitting)
       const scanOps = ["Printing", "Inspection", "ECL", "Lamination", "Slitting"]
       const cardsWithRoll = cards.filter((c) => scanOps.includes(c.operation))
@@ -162,6 +206,7 @@ export default function WorkOrderDetail() {
     } catch (err: any) {
       console.error("Error fetching data:", err)
       setError("Failed to load work order details. Please try again.")
+      setProducedRollsLoading(false)
     } finally {
       setIsLoading(false)
     }
@@ -169,7 +214,7 @@ export default function WorkOrderDetail() {
 
   useEffect(() => {
     fetchData()
-  }, [id])
+  }, [id, user?.role])
 
   const handleScanRoll = async (card: JobCard, barcode: string): Promise<boolean> => {
     const trimmed = barcode.trim()
@@ -275,6 +320,10 @@ export default function WorkOrderDetail() {
   }, {} as Record<string, JobCard[]>)
 
   const operations = Object.keys(jobCardsByOperation).sort()
+  const producedRollAssignment = useMemo(
+    () => assignProducedRolls(jobCards, producedRollsByStage),
+    [jobCards, producedRollsByStage]
+  )
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const stockColumns = [
@@ -433,9 +482,15 @@ export default function WorkOrderDetail() {
       {/* Job Cards by Operation */}
       {operations.length > 0 ? (
         <div className="space-y-1">
+          {producedRollsError && (
+            <p className="text-sm text-red-500 px-1">{producedRollsError}</p>
+          )}
           {operations.map((operation) => (
             <Card key={operation} className="py-1">
               <CardContent className="pt-1">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 px-1 pt-1">
+                  {operation}
+                </p>
                 <div className="space-y-2">
                   {jobCardsByOperation[operation].map((card) => (
                     <Card key={card.id} className="bg-gray-50 dark:bg-gray-900/50 py-1">
@@ -465,13 +520,13 @@ export default function WorkOrderDetail() {
                               <p className="text-sm font-semibold mt-1">{card.inputQty.toFixed(2)}</p>
                             </div>
                           )}
-                          {card.outputQty !== null && card.outputQty !== undefined && (
+                          {!isAdminViewer && card.outputQty !== null && card.outputQty !== undefined && (
                             <div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Output Qty (KG)</p>
                               <p className="text-sm font-semibold mt-1">{card.outputQty.toFixed(2)}</p>
                             </div>
                           )}
-                          {card.wastageQty !== null && card.wastageQty !== undefined && (
+                          {!isAdminViewer && card.wastageQty !== null && card.wastageQty !== undefined && (
                             <div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Wastage Qty (KG)</p>
                               <p className="text-sm font-semibold mt-1">{card.wastageQty.toFixed(2)}</p>
@@ -483,7 +538,7 @@ export default function WorkOrderDetail() {
                               <p className="text-sm font-semibold mt-1">{card.inputRollCount}</p>
                             </div>
                           )}
-                          {card.outputRollCount !== null && card.outputRollCount !== undefined && (
+                          {!isAdminViewer && card.outputRollCount !== null && card.outputRollCount !== undefined && (
                             <div>
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Output Roll Count</p>
                               <p className="text-sm font-semibold mt-1">{card.outputRollCount}</p>
@@ -502,7 +557,15 @@ export default function WorkOrderDetail() {
                             </div>
                           )}
                         </div>
-                        {(card.operation === "Printing" ||
+                        {isAdminViewer ? (
+                          <JobCardProducedRolls
+                            operation={card.operation}
+                            rolls={producedRollAssignment.byCardId[card.id] ?? []}
+                            skippedOperations={workOrder.skippedOperations}
+                            loadedRoll={card.operation === "Slitting" ? currentRollByCard[card.id] : null}
+                            loading={producedRollsLoading}
+                          />
+                        ) : (card.operation === "Printing" ||
                           card.operation === "Inspection" ||
                           card.operation === "ECL" ||
                           card.operation === "Lamination" ||
@@ -644,6 +707,19 @@ export default function WorkOrderDetail() {
                       </CardContent>
                     </Card>
                   ))}
+                  {isAdminViewer && (producedRollAssignment.unassignedByOperation[operation]?.length ?? 0) > 0 && (
+                    <Card className="bg-gray-50 dark:bg-gray-900/50 py-1">
+                      <CardContent className="pt-1 space-y-3">
+                        <p className="text-sm font-semibold">Unassigned</p>
+                        <JobCardProducedRolls
+                          operation={operation}
+                          rolls={producedRollAssignment.unassignedByOperation[operation]}
+                          skippedOperations={workOrder.skippedOperations}
+                          loading={producedRollsLoading}
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </CardContent>
             </Card>
