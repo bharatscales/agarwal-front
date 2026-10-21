@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Plus, RefreshCw, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
@@ -20,6 +20,8 @@ import {
   validateBomStages,
   type BomStageEditor,
 } from "@/components/fg-stage-bom-editor"
+
+const PAGE_SIZE = 100
 
 type ItemForm = {
   itemCode: string
@@ -75,23 +77,46 @@ export default function Item() {
   const [uomOptions, setUomOptions] = useState<CreatableOption[]>(fallbackUoms)
   const [uomMap, setUomMap] = useState<Map<string, number>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [itemGroupFilter, setItemGroupFilter] = useState("all")
+  const nextSkipRef = useRef(0)
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async (reset = true) => {
     try {
-      setIsLoading(true)
+      if (reset) {
+        setIsLoading(true)
+        setHasMore(true)
+        nextSkipRef.current = 0
+      }
       setError(null)
-      const data = await getItems()
-      setItems(data)
+      const start = reset ? 0 : nextSkipRef.current
+      const data = await getItems(start, PAGE_SIZE)
+      if (reset) {
+        setItems(data)
+        nextSkipRef.current = data.length
+      } else {
+        setItems((prev) => [...prev, ...data])
+        nextSkipRef.current = start + data.length
+      }
+      setHasMore(data.length === PAGE_SIZE)
     } catch (err: any) {
       console.error("Error fetching items:", err)
       setError("Failed to load items. Please try again.")
+      if (reset) setItems([])
     } finally {
       setIsLoading(false)
+      setIsLoadingMore(false)
     }
-  }
+  }, [])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return
+    setIsLoadingMore(true)
+    fetchItems(false)
+  }, [hasMore, isLoadingMore, isLoading, fetchItems])
 
   const fetchUomsWithIds = async () => {
     try {
@@ -112,7 +137,7 @@ export default function Item() {
   }
 
   const handleRefresh = () => {
-    fetchItems()
+    fetchItems(true)
   }
 
   const handleAddItem = () => {
@@ -319,10 +344,10 @@ export default function Item() {
   }
 
   useEffect(() => {
-    fetchItems()
+    fetchItems(true)
     fetchUomsWithIds()
     fetchParties()
-  }, [])
+  }, [fetchItems])
 
   const handleCloseEditModal = () => {
     setIsEditItemOpen(false)
@@ -413,17 +438,21 @@ export default function Item() {
           </div>
         </div>
       ) : (
-        <div>
-          <DataTable
-            key={`item-list-${itemGroupFilter}`}
-            columns={getItemColumns({
-              onEdit: handleEditItemOpen,
-              onDelete: handleDeleteItem,
-              canEdit,
-            })}
-            data={filteredItems}
-          />
-        </div>
+        <DataTable
+          key={`item-list-${itemGroupFilter}`}
+          columns={getItemColumns({
+            onEdit: handleEditItemOpen,
+            onDelete: handleDeleteItem,
+            canEdit,
+          })}
+          data={filteredItems}
+          getRowId={(row) => String(row.id)}
+          scrollable
+          scrollHeight="80vh"
+          onLoadMore={loadMore}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+        />
       )}
 
       {items.length === 0 && !isLoading && (

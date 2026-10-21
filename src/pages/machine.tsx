@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowRight, Plus, RefreshCw, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getMachineMasterColumns, type MachineMaster } from "@/components/columns/machine-master-columns"
@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+const PAGE_SIZE = 100
 
 type MachineForm = {
   machineCode: string
@@ -38,6 +40,8 @@ export default function Machine() {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof MachineForm, string>>>({})
   const [machines, setMachines] = useState<MachineMaster[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<MachineForm>({
     machineCode: "",
@@ -47,9 +51,44 @@ export default function Machine() {
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof MachineForm, string>>>({})
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
+  const nextSkipRef = useRef(0)
+
+  const fetchMachines = useCallback(async (reset = true) => {
+    try {
+      if (reset) {
+        setIsLoading(true)
+        setHasMore(true)
+        nextSkipRef.current = 0
+      }
+      setError(null)
+      const start = reset ? 0 : nextSkipRef.current
+      const data = await getAllMachines(start, PAGE_SIZE)
+      if (reset) {
+        setMachines(data)
+        nextSkipRef.current = data.length
+      } else {
+        setMachines((prev) => [...prev, ...data])
+        nextSkipRef.current = start + data.length
+      }
+      setHasMore(data.length === PAGE_SIZE)
+    } catch (err: any) {
+      console.error("Error fetching machines:", err)
+      setError("Failed to fetch machines. Please try again.")
+      if (reset) setMachines([])
+    } finally {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+    }
+  }, [])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return
+    setIsLoadingMore(true)
+    fetchMachines(false)
+  }, [hasMore, isLoadingMore, isLoading, fetchMachines])
 
   const handleRefresh = () => {
-    fetchMachines()
+    fetchMachines(true)
   }
 
   const handleAddMachine = () => {
@@ -272,23 +311,9 @@ export default function Machine() {
     fetchOperations()
   }, [])
 
-  const fetchMachines = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-      const data = await getAllMachines()
-      setMachines(data)
-    } catch (err: any) {
-      console.error("Error fetching machines:", err)
-      setError("Failed to fetch machines. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
-    fetchMachines()
-  }, [])
+    fetchMachines(true)
+  }, [fetchMachines])
 
   return (
     <div className="px-6 pt-2 pb-6">
@@ -334,15 +359,19 @@ export default function Machine() {
           </div>
         </div>
       ) : (
-        <div>
-          <DataTable
-            columns={getMachineMasterColumns({
-              onEdit: handleEditMachineOpen,
-              onDelete: handleDeleteMachine,
-            })}
-            data={machines}
-          />
-        </div>
+        <DataTable
+          columns={getMachineMasterColumns({
+            onEdit: handleEditMachineOpen,
+            onDelete: handleDeleteMachine,
+          })}
+          data={machines}
+          getRowId={(row) => String(row.id)}
+          scrollable
+          scrollHeight="80vh"
+          onLoadMore={loadMore}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+        />
       )}
 
       {machines.length === 0 && !isLoading && !error && (

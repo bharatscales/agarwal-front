@@ -9,6 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type PartyMaster = {
   id: number
@@ -38,6 +39,7 @@ export const getPartyMasterColumns = ({
       const partyCode = row.getValue("partyCode") as string
       return <div className="font-medium">{partyCode}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "partyName",
@@ -48,6 +50,7 @@ export const getPartyMasterColumns = ({
       const partyName = row.getValue("partyName") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{partyName}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "partyType",
@@ -58,6 +61,7 @@ export const getPartyMasterColumns = ({
       const partyType = row.getValue("partyType") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{partyType}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   ...(canEdit
     ? [

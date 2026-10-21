@@ -9,6 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type MachineMaster = {
   id: number
@@ -36,6 +37,7 @@ export const getMachineMasterColumns = ({
       const machineCode = row.getValue("machineCode") as string
       return <div className="font-medium">{machineCode}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "machineName",
@@ -46,6 +48,7 @@ export const getMachineMasterColumns = ({
       const machineName = row.getValue("machineName") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{machineName}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "operation",
@@ -56,6 +59,7 @@ export const getMachineMasterColumns = ({
       const operation = row.getValue("operation") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{operation}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "status",
@@ -78,6 +82,7 @@ export const getMachineMasterColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   {
     id: "actions",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowRight, Plus, RefreshCw, X } from "lucide-react"
 import { DataTable } from "@/components/data-table"
 import { getPartyMasterColumns, type PartyMaster } from "@/components/columns/party-master-columns"
@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+const PAGE_SIZE = 100
 
 type PartyForm = {
   partyCode: string
@@ -53,6 +55,8 @@ export default function Party({ partyKind }: { partyKind: PartyKind }) {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof PartyForm, string>>>({})
   const [parties, setParties] = useState<PartyMaster[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<PartyForm>({
     partyCode: "",
@@ -61,10 +65,45 @@ export default function Party({ partyKind }: { partyKind: PartyKind }) {
   })
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof PartyForm, string>>>({})
   const addFieldRefs = useRef<Array<HTMLInputElement | HTMLButtonElement | null>>([])
+  const nextSkipRef = useRef(0)
   const visibleParties = parties.filter((party) => matchesPartyKind(party.partyType, partyKind))
 
+  const fetchParties = useCallback(async (reset = true) => {
+    try {
+      if (reset) {
+        setIsLoading(true)
+        setHasMore(true)
+        nextSkipRef.current = 0
+      }
+      setError(null)
+      const start = reset ? 0 : nextSkipRef.current
+      const data = await getAllParties(start, PAGE_SIZE)
+      if (reset) {
+        setParties(data)
+        nextSkipRef.current = data.length
+      } else {
+        setParties((prev) => [...prev, ...data])
+        nextSkipRef.current = start + data.length
+      }
+      setHasMore(data.length === PAGE_SIZE)
+    } catch (err: any) {
+      console.error("Error fetching parties:", err)
+      setError("Failed to fetch parties. Please try again.")
+      if (reset) setParties([])
+    } finally {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+    }
+  }, [])
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return
+    setIsLoadingMore(true)
+    fetchParties(false)
+  }, [hasMore, isLoadingMore, isLoading, fetchParties])
+
   const handleRefresh = () => {
-    fetchParties()
+    fetchParties(true)
   }
 
   const handleAddParty = () => {
@@ -288,23 +327,9 @@ export default function Party({ partyKind }: { partyKind: PartyKind }) {
     fetchPartyTypes()
   }, [])
 
-  const fetchParties = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-      const data = await getAllParties()
-      setParties(data)
-    } catch (err: any) {
-      console.error("Error fetching parties:", err)
-      setError("Failed to fetch parties. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
-    fetchParties()
-  }, [])
+    fetchParties(true)
+  }, [fetchParties])
 
   return (
     <div className="px-6 pt-2 pb-6">
@@ -352,16 +377,20 @@ export default function Party({ partyKind }: { partyKind: PartyKind }) {
           </div>
         </div>
       ) : (
-        <div>
-          <DataTable
-            columns={getPartyMasterColumns({
-              onEdit: handleEditPartyOpen,
-              onDelete: handleDeleteParty,
-              canEdit,
-            })}
-            data={visibleParties}
-          />
-        </div>
+        <DataTable
+          columns={getPartyMasterColumns({
+            onEdit: handleEditPartyOpen,
+            onDelete: handleDeleteParty,
+            canEdit,
+          })}
+          data={visibleParties}
+          getRowId={(row) => String(row.id)}
+          scrollable
+          scrollHeight="80vh"
+          onLoadMore={loadMore}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+        />
       )}
 
       {visibleParties.length === 0 && !isLoading && !error && (

@@ -9,6 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { includesStringFilterFn } from "@/lib/table-filter-utils"
 
 export type Item = {
   id: number
@@ -45,6 +46,7 @@ export const getItemColumns = ({
       const itemCode = row.getValue("itemCode") as string
       return <div className="font-medium">{itemCode}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "itemName",
@@ -55,6 +57,7 @@ export const getItemColumns = ({
       const itemName = row.getValue("itemName") as string
       return <div className="text-sm text-gray-600 dark:text-gray-400">{itemName || "-"}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "abv",
@@ -65,12 +68,14 @@ export const getItemColumns = ({
       const abv = row.original.abv
       return <div className="text-sm text-gray-600 dark:text-gray-400">{abv || "-"}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "itemGroup",
     header: ({ column }) => (
       <ColumnHeader title="ITEM GROUP" column={column} placeholder="Filter item group..." />
     ),
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "partyCode",
@@ -81,12 +86,14 @@ export const getItemColumns = ({
       const partyCode = row.original.partyCode
       return <div className="text-sm text-gray-600 dark:text-gray-400">{partyCode || "-"}</div>
     },
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "uom",
     header: ({ column }) => (
       <ColumnHeader title="UOM" column={column} placeholder="Filter UOM..." />
     ),
+    filterFn: includesStringFilterFn,
   },
   {
     accessorKey: "density",
@@ -101,6 +108,7 @@ export const getItemColumns = ({
         </div>
       )
     },
+    filterFn: includesStringFilterFn,
   },
   ...(canEdit
     ? [
@@ -135,4 +143,3 @@ export const getItemColumns = ({
       ]
     : []),
 ]
-
