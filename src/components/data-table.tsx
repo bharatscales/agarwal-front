@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useCallback, type MouseEvent, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, type MouseEvent, type ReactNode } from "react";
 
 import {
   type ColumnDef,
@@ -46,7 +46,7 @@ interface DataTableProps<TData, TValue> {
   singleRowSelection?: boolean;
   /** When true, table body is scrollable and pagination is hidden. */
   scrollable?: boolean;
-  /** Height of the scrollable area (e.g. "60vh" or "500px"). Used when scrollable is true. */
+  /** Height of the scrollable area (e.g. "calc(100dvh - 12rem)" or "500px"). Used when scrollable is true. */
   scrollHeight?: string;
   /** Called when user scrolls near bottom (for lazy loading). */
   onLoadMore?: () => void;
@@ -166,7 +166,8 @@ export function DataTable<TData, TValue>({
   bulkActions,
   singleRowSelection = false,
   scrollable = false,
-  scrollHeight = "80vh",
+  /** Fits remaining viewport so the table scrolls, not the page. */
+  scrollHeight = "calc(100dvh - 12rem)",
   onLoadMore,
   isLoadingMore = false,
   hasMore = false,
@@ -219,6 +220,16 @@ export function DataTable<TData, TValue>({
       onLoadMore();
     }
   }, [scrollable, onLoadMore, isLoadingMore, hasMore]);
+
+  // When rows don't fill the fixed-height pane, keep loading until they do (or no more data).
+  useEffect(() => {
+    if (!scrollable || !onLoadMore || isLoadingMore || !hasMore) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    if (el.scrollHeight <= el.clientHeight + LOAD_MORE_THRESHOLD_PX) {
+      onLoadMore();
+    }
+  }, [scrollable, onLoadMore, isLoadingMore, hasMore, data.length]);
 
   const rows = table.getRowModel().rows;
   const showPagination = !scrollable;
@@ -335,8 +346,8 @@ export function DataTable<TData, TValue>({
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="overflow-auto"
-            style={{ maxHeight: scrollHeight }}
+            className="overflow-y-scroll overflow-x-auto overscroll-contain"
+            style={{ height: scrollHeight, maxHeight: scrollHeight }}
           >
             <table className={`w-full caption-bottom border-collapse ${textSize}`}>
               <TableHeader className="sticky top-0 z-20 bg-sidebar [&_tr]:border-b-0">

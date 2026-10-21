@@ -448,7 +448,7 @@ export default function Item() {
           data={filteredItems}
           getRowId={(row) => String(row.id)}
           scrollable
-          scrollHeight="80vh"
+          scrollHeight="calc(100dvh - 14rem)"
           onLoadMore={loadMore}
           isLoadingMore={isLoadingMore}
           hasMore={hasMore}

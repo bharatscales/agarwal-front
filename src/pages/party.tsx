@@ -386,7 +386,7 @@ export default function Party({ partyKind }: { partyKind: PartyKind }) {
           data={visibleParties}
           getRowId={(row) => String(row.id)}
           scrollable
-          scrollHeight="80vh"
+          scrollHeight="calc(100dvh - 12rem)"
           onLoadMore={loadMore}
           isLoadingMore={isLoadingMore}
           hasMore={hasMore}
