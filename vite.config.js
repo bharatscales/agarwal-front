@@ -12,6 +12,8 @@ export default defineConfig({
         alias: {
             "@": path.resolve(__dirname, "./src"),
         },
+        // Prefer .tsx/.ts over committed companion .js files (Vite default puts .js first).
+        extensions: [".mjs", ".mts", ".ts", ".tsx", ".jsx", ".js", ".json"],
     },
     server: {
         allowedHosts: ['localhost', '127.0.0.1', 'app.agaarwalflexiblapackging.com'],

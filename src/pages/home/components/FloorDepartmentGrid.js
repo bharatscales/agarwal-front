@@ -1,5 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { floorDepartmentBlocks } from "../constants";
-export function FloorDepartmentGrid({ onSelect }) {
-    return (_jsxs("div", { className: "space-y-4", children: [_jsx("h2", { className: "text-base font-semibold text-gray-700 dark:text-gray-300", children: "Departments" }), _jsx("div", { className: "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 max-w-4xl", children: floorDepartmentBlocks.map(({ id, label, icon: Icon }) => (_jsxs("button", { type: "button", "data-floor-theme": id, onClick: () => onSelect(id), className: "relative h-28 sm:h-32 flex flex-col items-center justify-center gap-2 text-base rounded-lg overflow-hidden border-2 border-primary/35 bg-secondary/80 hover:bg-secondary hover:border-primary/70 transition-colors cursor-pointer", children: [_jsx("span", { className: "absolute inset-x-0 top-0 h-1.5 bg-primary", "aria-hidden": true }), _jsx(Icon, { className: "h-7 w-7 text-primary" }), _jsx("span", { className: "text-center leading-tight font-semibold text-secondary-foreground", children: label })] }, id))) })] }));
-}

@@ -1,3 +1,6 @@
+# Stale JS companions of .ts/.tsx (do not commit — Vite must use TypeScript sources)
+src/**/*.js
+
 # Logs
 logs
 *.log
