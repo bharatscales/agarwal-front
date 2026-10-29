@@ -1,5 +1,5 @@
-import { Printer, ScanBarcode, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { Plus, Printer, ScanBarcode, Trash2, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
 import { DataTable } from "@/components/data-table"
@@ -61,49 +61,37 @@ function displayKg(value: unknown) {
   return Number.isNaN(n) ? "-" : `${n.toFixed(2)} kg`
 }
 
-function sumSlittingWastages(form: {
-  trimWastage?: string
-  eclWastage?: string
-  printedWastage?: string
-  laminationWastage?: string
-  slitterWastage?: string
-}) {
-  const parts = [
-    parseNonNegativeDecimal(form.trimWastage || "") ?? 0,
-    parseNonNegativeDecimal(form.eclWastage || "") ?? 0,
-    parseNonNegativeDecimal(form.printedWastage || "") ?? 0,
-    parseNonNegativeDecimal(form.laminationWastage || "") ?? 0,
-    parseNonNegativeDecimal(form.slitterWastage || "") ?? 0,
-  ]
-  return String(Number(parts.reduce((a, b) => a + b, 0).toFixed(2)))
+type SlitDraft = {
+  key: string
+  size: string
+  netweight: string
+  coreSize: string
+  coilDia: string
+  slitDirection: string
+  jobRepeat: string
+  coilRewinding: string
 }
 
-function patchSlittingWastage(
-  prev: any,
-  key: "trimWastage" | "eclWastage" | "printedWastage" | "laminationWastage" | "slitterWastage",
-  value: string
-) {
-  if (!prev) return prev
-  const next = { ...prev, [key]: value }
-  return { ...next, wastage: sumSlittingWastages(next) }
+function newSlitKey() {
+  return `slit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function emptySlittingOutputFields(micron: string) {
+function emptySlit(seed?: Partial<SlitDraft>): SlitDraft {
   return {
-    micron,
-    trimWastage: "0",
-    eclWastage: "0",
-    printedWastage: "0",
-    laminationWastage: "0",
-    slitterWastage: "0",
-    wastage: "0",
-    coilRewinding: "",
-    slitDirection: "",
-    coreSize: "",
-    coilDia: "",
+    key: seed?.key || newSlitKey(),
     size: "",
-    jobRepeat: "",
+    netweight: "",
+    coreSize: seed?.coreSize ?? "",
+    coilDia: seed?.coilDia ?? "",
+    slitDirection: seed?.slitDirection ?? "",
+    jobRepeat: seed?.jobRepeat ?? "",
+    coilRewinding: seed?.coilRewinding ?? "",
   }
+}
+
+function trimWastageTotal(value?: string) {
+  const amount = parseNonNegativeDecimal(value || "") ?? 0
+  return String(Number(amount.toFixed(2)))
 }
 
 export function SlittingPanel(props: SlittingPanelProps) {
@@ -118,12 +106,11 @@ export function SlittingPanel(props: SlittingPanelProps) {
     setSlittingCreateChildMessage,
     slittingChildRollsLoading,
     slittingChildRollsFromDb,
-    setSlittingChildRollsFromDb,
     wipPrintingTemplate,
     createPrintJob,
     getPrintJob,
     setPrintingPrintStatus,
-    addSlittingRoll,
+    consumeSlittingRoll,
     slittingCreateChildMessage,
     floorSlittingBarcode,
     setFloorSlittingBarcode,
@@ -143,7 +130,6 @@ export function SlittingPanel(props: SlittingPanelProps) {
     slittingError,
     slittingWorkOrders,
     setSlittingSelectedWo,
-    getRollsStockByParentIds,
     unloadFloorLoadedRoll,
     onSkipWorkOrder,
     setSlittingRollsRefreshKey,
@@ -157,12 +143,8 @@ export function SlittingPanel(props: SlittingPanelProps) {
   const [slittingEditRoll, setSlittingEditRoll] = useState<any>(null)
   const [slittingEditSaving, setSlittingEditSaving] = useState(false)
   const [slittingEditForm, setSlittingEditForm] = useState({
+    netweight: "",
     trimWastage: "",
-    eclWastage: "",
-    printedWastage: "",
-    laminationWastage: "",
-    slitterWastage: "",
-    wastage: "",
     coilRewinding: "",
     slitDirection: "",
     coreSize: "",
@@ -174,7 +156,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
   const slittingProducedTotals = useMemo(() => {
     const rollCount = slittingChildRollsFromDb.length
     const totalWastage = slittingChildRollsFromDb.reduce(
-      (sum: number, r: any) => sum + (Number(r.wastage) || 0),
+      (sum: number, r: any) => sum + (Number(r.trimWastage) || 0),
       0
     )
     return { rollCount, totalWastage }
@@ -204,12 +186,6 @@ export function SlittingPanel(props: SlittingPanelProps) {
   }
 
   const refreshSlittingProducedRolls = () => {
-    const parentIds = slittingLoadedRolls.map((r: any) => r.roll.id)
-    if (parentIds.length > 0) {
-      getRollsStockByParentIds(parentIds, "finished_goods").then(setSlittingChildRollsFromDb)
-    } else {
-      setSlittingChildRollsFromDb([])
-    }
     setSlittingRollsRefreshKey?.((key: number) => key + 1)
   }
 
@@ -229,17 +205,6 @@ export function SlittingPanel(props: SlittingPanelProps) {
     } finally {
       setSlittingCreateChildLoading(false)
     }
-  }
-
-  const resetFieldsForNextSlit = () => {
-    setSlittingAddRollForm((prev: any) =>
-      prev
-        ? {
-            ...prev,
-            ...emptySlittingOutputFields(prev.micron || ""),
-          }
-        : null
-    )
   }
 
   const handleSlittingProducedRollReprint = async (r: any) => {
@@ -269,12 +234,9 @@ export function SlittingPanel(props: SlittingPanelProps) {
           size: r.size,
           jobRepeat: r.jobRepeat,
           micron: r.micron,
-          wastage: r.wastage,
+          netweight: r.netweight,
+          wastage: r.trimWastage,
           trimWastage: r.trimWastage,
-          eclWastage: r.eclWastage,
-          printedWastage: r.printedWastage,
-          laminationWastage: r.laminationWastage,
-          slitterWastage: r.slitterWastage,
           coilRewinding: r.coilRewinding,
           slitDirection: r.slitDirection,
           coreSize: r.coreSize,
@@ -325,57 +287,19 @@ export function SlittingPanel(props: SlittingPanelProps) {
         filterFn: includesStringFilterFn,
       },
       {
+        accessorKey: "netweight",
+        header: ({ column }: { column: any }) => (
+          <ColumnHeader title="Output weight" column={column} placeholder="Filter weight..." />
+        ),
+        cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.netweight)}</div>,
+        filterFn: includesStringFilterFn,
+      },
+      {
         accessorKey: "trimWastage",
         header: ({ column }: { column: any }) => (
           <ColumnHeader title="Trim wastage" column={column} placeholder="Filter trim..." />
         ),
         cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.trimWastage)}</div>,
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "eclWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="ECL wastage" column={column} placeholder="Filter ECL..." />
-        ),
-        cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.eclWastage)}</div>,
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "printedWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Print wastage" column={column} placeholder="Filter print..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.printedWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "laminationWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Lamination wastage" column={column} placeholder="Filter lamination..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.laminationWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "slitterWastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Slitter wastage" column={column} placeholder="Filter slitter..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayKg(row.original.slitterWastage)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "wastage",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Total wastage" column={column} placeholder="Filter total..." />
-        ),
-        cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.wastage)}</div>,
         filterFn: includesStringFilterFn,
       },
       {
@@ -455,12 +379,8 @@ export function SlittingPanel(props: SlittingPanelProps) {
             onEdit={() => {
               const roll = row.original
               setSlittingEditForm({
+                netweight: roll.netweight != null ? String(roll.netweight) : "",
                 trimWastage: roll.trimWastage != null ? String(roll.trimWastage) : "",
-                eclWastage: roll.eclWastage != null ? String(roll.eclWastage) : "",
-                printedWastage: roll.printedWastage != null ? String(roll.printedWastage) : "",
-                laminationWastage: roll.laminationWastage != null ? String(roll.laminationWastage) : "",
-                slitterWastage: roll.slitterWastage != null ? String(roll.slitterWastage) : "",
-                wastage: roll.wastage != null ? String(roll.wastage) : "",
                 coilRewinding: roll.coilRewinding != null ? String(roll.coilRewinding) : "",
                 slitDirection: roll.slitDirection ?? "",
                 coreSize: roll.coreSize != null ? String(roll.coreSize) : "",
@@ -478,6 +398,230 @@ export function SlittingPanel(props: SlittingPanelProps) {
     [wipPrintingTemplate, slittingCreateChildLoading, slittingSelectedWo]
   )
 
+
+  const slitRows: SlitDraft[] =
+    Array.isArray(slittingAddRollForm?.slits) && slittingAddRollForm.slits.length > 0
+      ? slittingAddRollForm.slits
+      : []
+
+  useEffect(() => {
+    if (!slittingAddRollForm?.roll?.id) return
+    if (Array.isArray(slittingAddRollForm.slits) && slittingAddRollForm.slits.length > 0) return
+    setSlittingAddRollForm((prev: any) => {
+      if (!prev || (Array.isArray(prev.slits) && prev.slits.length > 0)) return prev
+      return {
+        ...prev,
+        slits: [emptySlit()],
+        balanceweight: prev.balanceweight ?? "",
+        trimWastage: prev.trimWastage ?? "0",
+        wastage: trimWastageTotal(prev.trimWastage ?? "0"),
+      }
+    })
+  }, [slittingAddRollForm, setSlittingAddRollForm])
+
+  const updateSlit = (key: string, patch: Partial<SlitDraft>) => {
+    setSlittingAddRollForm((prev: any) => {
+      if (!prev) return prev
+      const current: SlitDraft[] = Array.isArray(prev.slits) && prev.slits.length > 0 ? prev.slits : [emptySlit()]
+      return {
+        ...prev,
+        slits: current.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+      }
+    })
+  }
+
+  const addSlitRow = () => {
+    setSlittingAddRollForm((prev: any) => {
+      if (!prev) return prev
+      const current: SlitDraft[] = Array.isArray(prev.slits) ? prev.slits : []
+      const last = current[current.length - 1]
+      return { ...prev, slits: [...current, emptySlit(last)] }
+    })
+  }
+
+  const removeSlitRow = (key: string) => {
+    setSlittingAddRollForm((prev: any) => {
+      if (!prev) return prev
+      const current: SlitDraft[] = Array.isArray(prev.slits) ? prev.slits : []
+      const slits = current.filter((row) => row.key !== key)
+      return { ...prev, slits: slits.length > 0 ? slits : [emptySlit()] }
+    })
+  }
+
+  const handleConsumeSlittingRoll = async () => {
+    const form = slittingAddRollForm
+    const wo = slittingSelectedWo
+    if (!form || wo?.itemId == null) return
+    const rows: SlitDraft[] = Array.isArray(form.slits) ? form.slits : []
+    const children: Array<{
+      size: number
+      netweight: number
+      coilRewinding?: number
+      slitDirection?: string
+      coreSize?: number
+      coilDia?: number
+      jobRepeat?: number
+    }> = []
+    for (const row of rows) {
+      const touched = [row.size, row.netweight, row.coreSize, row.coilDia, row.slitDirection, row.jobRepeat, row.coilRewinding]
+        .some((value) => String(value || "").trim() !== "")
+      if (!touched) continue
+      const width = parseNonNegativeDecimal(row.size || "")
+      const weight = parseNonNegativeDecimal(row.netweight || "")
+      if (width == null || width <= 0 || weight == null || weight <= 0) {
+        setSlittingCreateChildMessage("Each slit needs a width and an output weight.")
+        return
+      }
+      children.push({
+        size: width,
+        netweight: weight,
+        coilRewinding: parseNonNegativeDecimal(row.coilRewinding || "") ?? undefined,
+        slitDirection: row.slitDirection.trim() || undefined,
+        coreSize: parseNonNegativeDecimal(row.coreSize || "") ?? undefined,
+        coilDia: parseNonNegativeDecimal(row.coilDia || "") ?? undefined,
+        jobRepeat: parseNonNegativeDecimal(row.jobRepeat || "") ?? undefined,
+      })
+    }
+    if (children.length === 0) {
+      setSlittingCreateChildMessage("Add at least one slit with a width and an output weight.")
+      return
+    }
+    const parentWidth = Number(form.roll?.size)
+    const widthTotal = children.reduce((sum, child) => sum + child.size, 0)
+    if (parentWidth > 0 && widthTotal > parentWidth + 0.5) {
+      setSlittingCreateChildMessage(
+        `Slit widths total ${widthTotal.toFixed(2)} mm, which is wider than the loaded roll (${parentWidth.toFixed(2)} mm).`
+      )
+      return
+    }
+    const trim = parseNonNegativeDecimal(form.trimWastage || "") ?? 0
+    const balance = parseNonNegativeDecimal(form.balanceweight || "") ?? 0
+    const inputWeight = Number(form.roll?.netweight) || 0
+    const outputWeight = children.reduce((sum, child) => sum + child.netweight, 0)
+    if (inputWeight > 0 && outputWeight + trim + balance > inputWeight + 0.05) {
+      setSlittingCreateChildMessage("Output weight, trim wastage, and balance are more than the loaded roll weight.")
+      return
+    }
+    try {
+      setSlittingCreateChildLoading(true)
+      setSlittingCreateChildMessage(null)
+      const result = await consumeSlittingRoll(form.jobCardId, {
+        parentRollId: form.roll.id,
+        itemId: wo.itemId,
+        micron: form.micron ? parseFloat(form.micron) : undefined,
+        gradeId: form.parent?.gradeId,
+        trimWastage: trim,
+        wastage: trim,
+        balanceWeight: balance,
+        children,
+      })
+      const created = result.rolls ?? []
+      if (wipPrintingTemplate && created.length > 0) {
+        try {
+          for (const roll of created) {
+            const job = await createPrintJob({
+              name: `Slitting - ${form.jobCardNumber}`,
+              template_id: wipPrintingTemplate.id,
+              copies: 1,
+              data: {
+                workOrder: {
+                  id: wo.id,
+                  woNumber: wo.woNumber,
+                  partyName: wo.partyName,
+                  partyCode: wo.partyCode,
+                  itemName: wo.itemName,
+                  itemCode: wo.itemCode,
+                  plannedQty: wo.plannedQty,
+                  producedQty: wo.producedQty,
+                  status: wo.status,
+                  priority: wo.priority,
+                  createdAt: wo.createdAt,
+                  startedAt: wo.startedAt,
+                  completedAt: wo.completedAt,
+                },
+                jobCard: { id: form.jobCardId, jobCardNumber: form.jobCardNumber },
+                roll: {
+                  id: roll.id,
+                  barcode: roll.barcode,
+                  size: roll.size,
+                  netweight: roll.netweight,
+                  micron: roll.micron,
+                  wastage: roll.wastage,
+                  trimWastage: trim,
+                  itemName: wo.itemName ?? null,
+                },
+              },
+            })
+            pollPrintJob(job.id)
+          }
+          setSlittingCreateChildMessage(
+            `Loaded roll consumed. ${created.length} finished roll${created.length === 1 ? "" : "s"} created and labels sent to the printer.`
+          )
+        } catch {
+          setSlittingCreateChildMessage(
+            `Loaded roll consumed. ${created.length} finished roll${created.length === 1 ? "" : "s"} created. Label printing failed; reprint from the list.`
+          )
+        }
+      } else {
+        const count = created.length || children.length
+        setSlittingCreateChildMessage(
+          `Loaded roll consumed. ${count} finished roll${count === 1 ? "" : "s"} created.`
+        )
+      }
+      setSlittingRollsRefreshKey?.((key: number) => key + 1)
+    } catch (error) {
+      setSlittingCreateChildMessage(jobCardApiErrorMessage(error, "Could not consume this roll."))
+    } finally {
+      setSlittingCreateChildLoading(false)
+    }
+  }
+
+  const slittingParentLoader = (
+          <div className="mb-4 space-y-1">
+            <Label htmlFor="floor-slitting-barcode" className="text-xs text-gray-600 dark:text-gray-400">
+              Barcode (parent roll)
+            </Label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              {slittingSelectedWo ? "Scan a roll from this work order, or pick one from stock, to load it on the slitter." : "Scan a WIP Printing, Inspection, ECL, or Lamination roll to open the work order and load it."}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 max-w-2xl">
+              <div className="relative min-w-[min(100%,18rem)] flex-1">
+                <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="floor-slitting-barcode"
+                  type="text"
+                  placeholder="Scan or enter parent roll barcode"
+                  value={floorSlittingBarcode}
+                  onChange={(e) => {
+                    setFloorSlittingBarcode(e.target.value)
+                    setFloorSlittingBarcodeError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      void handleFloorSlittingBarcodeSubmit()
+                    }
+                  }}
+                  disabled={floorSlittingBarcodeChecking}
+                  className="pl-9"
+                  autoComplete="off"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="whitespace-nowrap"
+                disabled={floorSlittingBarcodeChecking || floorSlittingParentRollsLoading}
+                onClick={() => void openFloorSlittingParentPicker()}
+              >
+                Select Stock
+              </Button>
+            </div>
+            {floorSlittingBarcodeError && <p className="text-sm text-red-500">{floorSlittingBarcodeError}</p>}
+          </div>
+  )
+
   return (
     <>
       {slittingSelectedWo ? (
@@ -486,15 +630,17 @@ export function SlittingPanel(props: SlittingPanelProps) {
             <div>
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded parent</h4>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Load one parent (WIP Printed, Inspection, ECL, or Lamination). Produce multiple finished rolls one by
-                one, then unload when done.
+                Load one roll. Enter each slit, then consume the roll. That creates every finished roll and records trim wastage once.
               </p>
               {slittingRollsLoading ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
               ) : !parent ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No roll currently loaded for this work order.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No roll currently loaded for this work order.
+                  </p>
+                  {slittingParentLoader}
+                </div>
               ) : (
                 <div className="space-y-3">
                   <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -567,209 +713,99 @@ export function SlittingPanel(props: SlittingPanelProps) {
                   </div>
 
                   {slittingAddRollForm && (
-                    <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                      <table className="w-full text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                            <th
-                              colSpan={6}
-                              className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300"
-                            >
-                              Wastage
-                            </th>
-                            <th
-                              colSpan={4}
-                              className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
-                            >
-                              Coil
-                            </th>
-                            <th
-                              colSpan={2}
-                              className="text-center py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700"
-                            >
-                              Job size
-                            </th>
-                          </tr>
-                          <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Trim wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              ECL wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Print wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Lamination wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Slitter wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Total wastage
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700">
-                              Coil rewinding
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Direction
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Core size
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Coil dia
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700">
-                              Width
-                            </th>
-                            <th className="text-left py-1.5 px-2 font-medium text-gray-700 dark:text-gray-300">
-                              Repeat
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.trimWastage}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    patchSlittingWastage(prev, "trimWastage", value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.eclWastage}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    patchSlittingWastage(prev, "eclWastage", value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.printedWastage}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    patchSlittingWastage(prev, "printedWastage", value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.laminationWastage}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    patchSlittingWastage(prev, "laminationWastage", value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.slitterWastage}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    patchSlittingWastage(prev, "slitterWastage", value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <span className="text-xs text-gray-900 dark:text-gray-100">
-                                {slittingAddRollForm.wastage || "0"}
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-20 px-1.5 text-xs"
-                                value={slittingAddRollForm.coilRewinding}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, coilRewinding: value } : prev
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <Select
-                                value={slittingAddRollForm.slitDirection || undefined}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, slitDirection: value } : prev
-                                  )
-                                }
-                              >
-                                <SelectTrigger size="sm" className="h-7 w-28 px-1.5 text-xs">
-                                  <SelectValue placeholder="Select" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {SLIT_DIRECTIONS.map((dir) => (
-                                    <SelectItem key={dir} value={dir}>
-                                      {dir}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-16 px-1.5 text-xs"
-                                value={slittingAddRollForm.coreSize}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, coreSize: value } : prev
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-16 px-1.5 text-xs"
-                                value={slittingAddRollForm.coilDia}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, coilDia: value } : prev
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2 border-l border-gray-200 dark:border-gray-700">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-16 px-1.5 text-xs"
-                                value={slittingAddRollForm.size}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, size: value } : prev
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <NonNegativeDecimalInput
-                                className="h-7 w-16 px-1.5 text-xs"
-                                value={slittingAddRollForm.jobRepeat}
-                                onValueChange={(value) =>
-                                  setSlittingAddRollForm((prev: any) =>
-                                    prev ? { ...prev, jobRepeat: value } : prev
-                                  )
-                                }
-                              />
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-end gap-4">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-gray-600 dark:text-gray-400">Trim wastage (kg)</Label>
+                          <NonNegativeDecimalInput
+                            className="h-8 w-28"
+                            value={slittingAddRollForm.trimWastage || ""}
+                            onValueChange={(trimWastage) =>
+                              setSlittingAddRollForm((prev: any) =>
+                                prev
+                                  ? { ...prev, trimWastage, wastage: trimWastageTotal(trimWastage) }
+                                  : prev
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-gray-600 dark:text-gray-400">Balance weight (kg)</Label>
+                          <NonNegativeDecimalInput
+                            className="h-8 w-28"
+                            value={slittingAddRollForm.balanceweight || ""}
+                            onValueChange={(balanceweight) =>
+                              setSlittingAddRollForm((prev: any) => (prev ? { ...prev, balanceweight } : prev))
+                            }
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 pb-2">
+                          {slitRows.length} slit{slitRows.length === 1 ? "" : "s"}
+                          {parent?.roll?.size != null ? ` · parent width ${parent.roll.size} mm` : ""}
+                          {parent?.roll?.netweight != null ? ` · loaded ${Number(parent.roll.netweight).toFixed(2)} kg` : ""}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                              <th className="text-left py-1.5 px-2 font-medium">Width (mm)</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Output weight (kg)</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Core size</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Coil dia</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Direction</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Repeat</th>
+                              <th className="text-left py-1.5 px-2 font-medium">Coil rewinding</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {slitRows.map((row, index) => (
+                              <tr key={row.key} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-20 px-1.5 text-xs" value={row.size} onValueChange={(size) => updateSlit(row.key, { size })} />
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-24 px-1.5 text-xs" value={row.netweight} onValueChange={(netweight) => updateSlit(row.key, { netweight })} />
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.coreSize} onValueChange={(coreSize) => updateSlit(row.key, { coreSize })} />
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.coilDia} onValueChange={(coilDia) => updateSlit(row.key, { coilDia })} />
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <Select value={row.slitDirection || undefined} onValueChange={(slitDirection) => updateSlit(row.key, { slitDirection })}>
+                                    <SelectTrigger size="sm" className="h-7 w-28 px-1.5 text-xs">
+                                      <SelectValue placeholder="Select" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {SLIT_DIRECTIONS.map((dir) => (
+                                        <SelectItem key={dir} value={dir}>{dir}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.jobRepeat} onValueChange={(jobRepeat) => updateSlit(row.key, { jobRepeat })} />
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <NonNegativeDecimalInput className="h-7 w-20 px-1.5 text-xs" value={row.coilRewinding} onValueChange={(coilRewinding) => updateSlit(row.key, { coilRewinding })} />
+                                </td>
+                                <td className="py-1.5 px-2 text-right">
+                                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={`Remove slit ${index + 1}`} onClick={() => removeSlitRow(row.key)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addSlitRow}>
+                        <Plus className="h-4 w-4" />
+                        Add slit
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -791,7 +827,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                             {slittingProducedTotals.rollCount}
                           </td>
                           <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
-                            Total wastage (kg)
+                            Trim wastage (kg)
                           </td>
                           <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">
                             {slittingProducedTotals.totalWastage.toFixed(2)} kg
@@ -806,7 +842,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Loading rolls…</p>
               ) : slittingChildRollsFromDb.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No produced rolls found for this parent. Print each slit roll below.
+                  No finished rolls yet. Consume the loaded roll to create them.
                 </p>
               ) : (
                 <DataTable
@@ -830,113 +866,10 @@ export function SlittingPanel(props: SlittingPanelProps) {
                 size="sm"
                 className="gap-2"
                 disabled={slittingCreateChildLoading}
-                onClick={async () => {
-                  const form = slittingAddRollForm
-                  const wo = slittingSelectedWo
-                  if (!form || wo?.itemId == null) return
-                  try {
-                    setSlittingCreateChildLoading(true)
-                    setSlittingCreateChildMessage(null)
-                    const parentIds = [form.roll.id]
-                    const trimWastage = parseNonNegativeDecimal(form.trimWastage || "") ?? 0
-                    const eclWastage = parseNonNegativeDecimal(form.eclWastage || "") ?? 0
-                    const printedWastage = parseNonNegativeDecimal(form.printedWastage || "") ?? 0
-                    const laminationWastage = parseNonNegativeDecimal(form.laminationWastage || "") ?? 0
-                    const slitterWastage = parseNonNegativeDecimal(form.slitterWastage || "") ?? 0
-                    const totalWastage =
-                      parseNonNegativeDecimal(form.wastage || "") ??
-                      trimWastage + eclWastage + printedWastage + laminationWastage + slitterWastage
-                    const width = parseNonNegativeDecimal(form.size || "") ?? undefined
-                    const jobRepeat = parseNonNegativeDecimal(form.jobRepeat || "") ?? undefined
-                    const coilRewinding = parseNonNegativeDecimal(form.coilRewinding || "") ?? undefined
-                    const coreSize = parseNonNegativeDecimal(form.coreSize || "") ?? undefined
-                    const coilDia = parseNonNegativeDecimal(form.coilDia || "") ?? undefined
-                    if (wipPrintingTemplate) {
-                      const printData = {
-                        workOrder: {
-                          id: wo.id,
-                          woNumber: wo.woNumber,
-                          partyName: wo.partyName,
-                          partyCode: wo.partyCode,
-                          itemName: wo.itemName,
-                          itemCode: wo.itemCode,
-                          plannedQty: wo.plannedQty,
-                          producedQty: wo.producedQty,
-                          status: wo.status,
-                          priority: wo.priority,
-                          createdAt: wo.createdAt,
-                          startedAt: wo.startedAt,
-                          completedAt: wo.completedAt,
-                        },
-                        jobCard: { id: form.jobCardId, jobCardNumber: form.jobCardNumber },
-                        roll: {
-                          size: width,
-                          jobRepeat,
-                          micron: form.micron ? parseFloat(form.micron) : undefined,
-                          wastage: totalWastage,
-                          trimWastage,
-                          eclWastage,
-                          printedWastage,
-                          laminationWastage,
-                          slitterWastage,
-                          coilRewinding,
-                          slitDirection: form.slitDirection || undefined,
-                          coreSize,
-                          coilDia,
-                          itemName: wo.itemName ?? null,
-                        },
-                      }
-                      const job = await createPrintJob({
-                        name: `Slitting - ${form.jobCardNumber}`,
-                        template_id: wipPrintingTemplate.id,
-                        data: printData,
-                        copies: 1,
-                      })
-                      pollPrintJob(job.id)
-                    }
-                    await addSlittingRoll(form.jobCardId, {
-                      itemId: wo.itemId,
-                      rollno: "",
-                      size: width,
-                      micron: form.micron ? parseFloat(form.micron) : undefined,
-                      wastage: totalWastage,
-                      trimWastage,
-                      eclWastage,
-                      printedWastage,
-                      laminationWastage,
-                      slitterWastage,
-                      coilRewinding,
-                      slitDirection: form.slitDirection.trim() || undefined,
-                      coreSize,
-                      coilDia,
-                      jobRepeat,
-                      gradeId: form.parent.gradeId,
-                      parentRollIds: parentIds,
-                    })
-                    const children = await getRollsStockByParentIds(parentIds, "finished_goods")
-                    setSlittingChildRollsFromDb(children)
-                    resetFieldsForNextSlit()
-                    setSlittingCreateChildMessage(
-                      wipPrintingTemplate
-                        ? "Roll added and label sent to printer. Enter the next slit when ready."
-                        : "Roll added. Enter the next slit when ready. No label template configured."
-                    )
-                  } catch (error) {
-                    setSlittingCreateChildMessage(
-                      jobCardApiErrorMessage(
-                        error,
-                        wipPrintingTemplate
-                          ? "Failed to print label. Roll not added or movement not recorded."
-                          : "Failed to add roll or record movement."
-                      )
-                    )
-                  } finally {
-                    setSlittingCreateChildLoading(false)
-                  }
-                }}
+                onClick={() => void handleConsumeSlittingRoll()}
               >
                 <Printer className="h-4 w-4" />
-                Print
+                Consume roll
               </Button>
             )}
             {slittingCreateChildMessage && (
@@ -946,50 +879,27 @@ export function SlittingPanel(props: SlittingPanelProps) {
         </div>
       ) : (
         <>
-          <div className="mb-4 space-y-1">
-            <Label htmlFor="floor-slitting-barcode" className="text-xs text-gray-600 dark:text-gray-400">
-              Barcode (parent roll)
-            </Label>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Scan WIP Printed, WIP Inspection, WIP ECL, or WIP Lamination to open the work order and load the parent.
-            </p>
-            <div className="flex flex-wrap items-center gap-2 max-w-2xl">
-              <div className="relative min-w-[min(100%,18rem)] flex-1">
-                <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="floor-slitting-barcode"
-                  type="text"
-                  placeholder="Scan or enter parent roll barcode"
-                  value={floorSlittingBarcode}
-                  onChange={(e) => {
-                    setFloorSlittingBarcode(e.target.value)
-                    setFloorSlittingBarcodeError(null)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      void handleFloorSlittingBarcodeSubmit()
-                    }
-                  }}
-                  disabled={floorSlittingBarcodeChecking}
-                  className="pl-9"
-                  autoComplete="off"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="whitespace-nowrap"
-                disabled={floorSlittingBarcodeChecking || floorSlittingParentRollsLoading}
-                onClick={() => void openFloorSlittingParentPicker()}
-              >
-                Select Stock
-              </Button>
-            </div>
-            {floorSlittingBarcodeError && <p className="text-sm text-red-500">{floorSlittingBarcodeError}</p>}
-          </div>
+          {slittingParentLoader}
 
+          {slittingLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+          ) : slittingError ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{slittingError}</p>
+          ) : slittingWorkOrders.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p>
+          ) : (
+            <DataTable
+              columns={floorWorkOrderColumns}
+              data={slittingWorkOrders}
+              getRowId={(row) => String(row.id)}
+              onRowClick={(wo) => setSlittingSelectedWo(wo)}
+              scrollable
+              scrollHeight="65vh"
+              showSelectionSummary={false}
+            />
+          )}
+        </>
+      )}
           {floorSlittingParentPickerOpen && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <Card className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -997,7 +907,9 @@ export function SlittingPanel(props: SlittingPanelProps) {
                   <div>
                     <CardTitle>Select parent roll</CardTitle>
                     <CardDescription>
-                      Pick a WIP Printed, WIP Inspection, WIP ECL, or WIP Lamination roll to load into Slitting.
+                      {slittingSelectedWo
+                        ? "Pick a roll from this work order to load into slitting."
+                        : "Pick a WIP Printing, Inspection, ECL, or Lamination roll to load into slitting."}
                     </CardDescription>
                   </div>
                   <Button variant="ghost" size="sm" onClick={closeFloorSlittingParentPicker} className="h-8 w-8 p-0">
@@ -1054,25 +966,6 @@ export function SlittingPanel(props: SlittingPanelProps) {
             </div>
           )}
 
-          {slittingLoading ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-          ) : slittingError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{slittingError}</p>
-          ) : slittingWorkOrders.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No work orders found.</p>
-          ) : (
-            <DataTable
-              columns={floorWorkOrderColumns}
-              data={slittingWorkOrders}
-              getRowId={(row) => String(row.id)}
-              onRowClick={(wo) => setSlittingSelectedWo(wo)}
-              scrollable
-              scrollHeight="65vh"
-              showSelectionSummary={false}
-            />
-          )}
-        </>
-      )}
       <Dialog
         open={Boolean(slittingEditRoll)}
         onOpenChange={(open) => {
@@ -1082,76 +975,22 @@ export function SlittingPanel(props: SlittingPanelProps) {
         <DialogContent className={producedRollEditDialogClassName}>
           <DialogHeader>
             <DialogTitle>Edit produced roll</DialogTitle>
-            <DialogDescription>Update slit wastage, coil, and job size fields.</DialogDescription>
+            <DialogDescription>Update width, output weight, trim wastage, and coil fields.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <ProducedRollEditField label="Trim wastage">
+            <ProducedRollEditField label="Output weight (kg)">
+              <NonNegativeDecimalInput
+                className={producedRollEditInputClassName}
+                value={slittingEditForm.netweight}
+                onValueChange={(netweight) => setSlittingEditForm((prev) => ({ ...prev, netweight }))}
+              />
+            </ProducedRollEditField>
+            <ProducedRollEditField label="Trim wastage (kg)">
               <NonNegativeDecimalInput
                 className={producedRollEditInputClassName}
                 value={slittingEditForm.trimWastage}
-                onValueChange={(trimWastage) =>
-                  setSlittingEditForm((prev) => ({
-                    ...prev,
-                    trimWastage,
-                    wastage: sumSlittingWastages({ ...prev, trimWastage }),
-                  }))
-                }
+                onValueChange={(trimWastage) => setSlittingEditForm((prev) => ({ ...prev, trimWastage }))}
               />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="ECL wastage">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.eclWastage}
-                onValueChange={(eclWastage) =>
-                  setSlittingEditForm((prev) => ({
-                    ...prev,
-                    eclWastage,
-                    wastage: sumSlittingWastages({ ...prev, eclWastage }),
-                  }))
-                }
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Print wastage">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.printedWastage}
-                onValueChange={(printedWastage) =>
-                  setSlittingEditForm((prev) => ({
-                    ...prev,
-                    printedWastage,
-                    wastage: sumSlittingWastages({ ...prev, printedWastage }),
-                  }))
-                }
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Lamination wastage">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.laminationWastage}
-                onValueChange={(laminationWastage) =>
-                  setSlittingEditForm((prev) => ({
-                    ...prev,
-                    laminationWastage,
-                    wastage: sumSlittingWastages({ ...prev, laminationWastage }),
-                  }))
-                }
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Slitter wastage">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.slitterWastage}
-                onValueChange={(slitterWastage) =>
-                  setSlittingEditForm((prev) => ({
-                    ...prev,
-                    slitterWastage,
-                    wastage: sumSlittingWastages({ ...prev, slitterWastage }),
-                  }))
-                }
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Total wastage">
-              <Input className={producedRollEditInputClassName} value={slittingEditForm.wastage} readOnly />
             </ProducedRollEditField>
             <ProducedRollEditField label="Coil rewinding">
               <NonNegativeDecimalInput
@@ -1218,27 +1057,15 @@ export function SlittingPanel(props: SlittingPanelProps) {
                 if (!roll?.id) return
                 try {
                   setSlittingEditSaving(true)
-                  const trimWastage = parseNonNegativeDecimal(slittingEditForm.trimWastage)
-                  const eclWastage = parseNonNegativeDecimal(slittingEditForm.eclWastage)
-                  const printedWastage = parseNonNegativeDecimal(slittingEditForm.printedWastage)
-                  const laminationWastage = parseNonNegativeDecimal(slittingEditForm.laminationWastage)
-                  const slitterWastage = parseNonNegativeDecimal(slittingEditForm.slitterWastage)
-                  const totalWastage =
-                    parseNonNegativeDecimal(slittingEditForm.wastage) ??
-                    (trimWastage ?? 0) +
-                      (eclWastage ?? 0) +
-                      (printedWastage ?? 0) +
-                      (laminationWastage ?? 0) +
-                      (slitterWastage ?? 0)
+                  const trimWastage = parseNonNegativeDecimal(slittingEditForm.trimWastage) ?? 0
+                  const netweight = parseNonNegativeDecimal(slittingEditForm.netweight)
                   await updateProducedRoll(roll.id, {
                     size: parseNonNegativeDecimal(slittingEditForm.size),
+                    netweight,
+                    grossweight: netweight,
                     jobRepeat: parseNonNegativeDecimal(slittingEditForm.jobRepeat),
-                    wastage: totalWastage,
+                    wastage: trimWastage,
                     trimWastage,
-                    eclWastage,
-                    printedWastage,
-                    laminationWastage,
-                    slitterWastage,
                     coilRewinding: parseNonNegativeDecimal(slittingEditForm.coilRewinding),
                     slitDirection: slittingEditForm.slitDirection.trim() || null,
                     coreSize: parseNonNegativeDecimal(slittingEditForm.coreSize),

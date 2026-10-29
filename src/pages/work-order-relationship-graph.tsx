@@ -228,21 +228,8 @@ function wastageLines(column: ColumnId, roll: ProducedRoll): string[] {
     return lines
   }
   if (column === "slitting") {
-    const lines: string[] = []
-    const parts: [string, unknown][] = [
-      ["Trim", roll.trimWastage],
-      ["ECL", roll.eclWastage],
-      ["Print", roll.printedWastage],
-      ["Lamination", roll.laminationWastage],
-      ["Slitter", roll.slitterWastage],
-    ]
-    for (const [label, value] of parts) {
-      const amount = positive(value)
-      if (amount) lines.push(`${label} ${kg(amount)}`)
-    }
-    const total = positive(roll.wastage)
-    if (total) lines.push(`Total ${kg(total)}`)
-    return lines
+    const trim = positive(roll.trimWastage)
+    return trim ? [`Trim ${kg(trim)}`] : []
   }
   if (column === "lamination") {
     const total = positive(roll.wastage)

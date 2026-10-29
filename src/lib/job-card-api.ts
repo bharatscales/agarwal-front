@@ -482,11 +482,7 @@ export const addSlittingRoll = async (
       netweight: payload.netweight,
       grossweight: payload.grossweight,
       wastage: payload.wastage,
-      printed_wastage: payload.printedWastage ?? undefined,
       trim_wastage: payload.trimWastage ?? undefined,
-      ecl_wastage: payload.eclWastage ?? undefined,
-      lamination_wastage: payload.laminationWastage ?? undefined,
-      slitter_wastage: payload.slitterWastage ?? undefined,
       coil_rewinding: payload.coilRewinding ?? undefined,
       slit_direction: payload.slitDirection || undefined,
       core_size: payload.coreSize ?? undefined,
@@ -495,6 +491,58 @@ export const addSlittingRoll = async (
       grade_id: payload.gradeId ?? undefined,
       parent_roll_ids: payload.parentRollIds?.length ? payload.parentRollIds : undefined,
       weight_at_time: payload.weightAtTime ?? undefined,
+    }
+  )
+  return response.data
+}
+
+export type SlittingChildPayload = {
+  size: number
+  netweight: number
+  meter?: number
+  coilRewinding?: number
+  slitDirection?: string
+  coreSize?: number
+  coilDia?: number
+  jobRepeat?: number
+}
+
+export type ConsumeSlittingRollPayload = {
+  parentRollId: number
+  itemId: number
+  micron?: number
+  gradeId?: number
+  trimWastage?: number
+  wastage?: number
+  balanceWeight?: number
+  children: SlittingChildPayload[]
+}
+
+/** Consume the loaded parent and create every finished slit roll in one request. */
+export const consumeSlittingRoll = async (
+  jobCardId: number,
+  payload: ConsumeSlittingRollPayload
+): Promise<{ rolls: AddPrintedRollResponse[] }> => {
+  const response = await api.post<{ rolls: AddPrintedRollResponse[] }>(
+    `/job-card/${jobCardId}/consume-slitting-roll`,
+    {
+      parent_roll_id: payload.parentRollId,
+      item_id: payload.itemId,
+      micron: payload.micron,
+      grade_id: payload.gradeId ?? undefined,
+      trim_wastage: payload.trimWastage ?? undefined,
+      wastage: payload.wastage,
+      balance_weight: payload.balanceWeight ?? 0,
+      children: payload.children.map((child) => ({
+        size: child.size,
+        netweight: child.netweight,
+        meter: child.meter ?? undefined,
+        coil_rewinding: child.coilRewinding ?? undefined,
+        slit_direction: child.slitDirection || undefined,
+        core_size: child.coreSize ?? undefined,
+        coil_dia: child.coilDia ?? undefined,
+        job_repeat: child.jobRepeat ?? undefined,
+      })),
     }
   )
   return response.data

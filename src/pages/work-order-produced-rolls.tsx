@@ -394,12 +394,8 @@ function slittingColumns(): ColumnDef<ProducedRoll>[] {
       header: () => <div>Barcode</div>,
       cell: ({ row }) => <div className="font-mono text-xs">{displayValue(row.original.barcode)}</div>,
     },
+    kgColumn("netweight", "Output weight"),
     kgColumn("trimWastage", "Trim wastage"),
-    kgColumn("eclWastage", "ECL wastage"),
-    kgColumn("printedWastage", "Print wastage"),
-    kgColumn("laminationWastage", "Lamination wastage"),
-    kgColumn("slitterWastage", "Slitter wastage"),
-    kgColumn("wastage", "Total wastage"),
     textColumn("coilRewinding", "Coil rewinding"),
     textColumn("slitDirection", "Direction"),
     textColumn("coreSize", "Core size"),
@@ -422,6 +418,7 @@ function rowWastageKg(operation: string, row: ProducedRoll): number {
   if (operation === "ECL" && row.wastage == null) {
     return Number(row.trimWastage || 0) + Number(row.lumpsWastage || 0) + Number(row.eclOutputWastage || 0)
   }
+  if (operation === "Slitting") return Number(row.trimWastage || 0)
   return Number(row.wastage || 0)
 }
 
@@ -454,13 +451,14 @@ function balanceTotal(rows: ProducedRoll[]): number | null {
 function ProducedRollTotals({ operation, rows }: { operation: string; rows: ProducedRoll[] }) {
   const output = rows.reduce((sum, row) => sum + Number(row.netweight || 0), 0)
   const wastage = rows.reduce((sum, row) => sum + rowWastageKg(operation, row), 0)
-  const balance = operation === "Slitting" ? null : balanceTotal(rows)
-  const showOutput = operation !== "Slitting"
+  const balance = balanceTotal(rows)
   return (
     <p className="text-xs text-gray-600 dark:text-gray-400">
       Rolls {rows.length}
-      {showOutput ? ` · Output ${output.toFixed(2)} kg` : ""}
-      {` · Wastage ${wastage.toFixed(2)} kg`}
+      {` · Output ${output.toFixed(2)} kg`}
+      {operation === "Slitting"
+        ? ` · Trim ${wastage.toFixed(2)} kg`
+        : ` · Wastage ${wastage.toFixed(2)} kg`}
       {balance != null ? ` · Balance ${balance.toFixed(2)} kg` : ""}
     </p>
   )

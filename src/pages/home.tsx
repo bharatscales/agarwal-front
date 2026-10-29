@@ -12,7 +12,7 @@ import {
   addInspectionRoll,
   addLaminationRoll,
   addPrintedRoll,
-  addSlittingRoll,
+  consumeSlittingRoll,
   createJobCard,
   deleteProducedRoll,
   getAllJobCards,
@@ -851,17 +851,18 @@ export default function Home() {
       parent: { gradeId?: number }
       micron: string
       trimWastage: string
-      eclWastage: string
-      printedWastage: string
-      laminationWastage: string
-      slitterWastage: string
       wastage: string
-      coilRewinding: string
-      slitDirection: string
-      coreSize: string
-      coilDia: string
-      size: string
-      jobRepeat: string
+      balanceweight: string
+      slits?: Array<{
+        key: string
+        size: string
+        netweight: string
+        coreSize: string
+        coilDia: string
+        slitDirection: string
+        jobRepeat: string
+        coilRewinding: string
+      }>
     }>("slitting")
   )
   const [slittingRollsRefreshKey, setSlittingRollsRefreshKey] = useState(0)
@@ -1396,7 +1397,6 @@ export default function Home() {
       setLaminationRollsRefreshKey((k) => k + 1)
     } else {
       setSlittingAddRollForm((prev) => (prev?.roll.id === rollId ? null : prev))
-      setSlittingChildRollsFromDb([])
       setSlittingRollsRefreshKey((k) => k + 1)
     }
   }
@@ -1882,6 +1882,10 @@ export default function Home() {
         setFloorSlittingBarcodeError("Work order not found for this roll.")
         return
       }
+      if (slittingSelectedWo && wo.id !== slittingSelectedWo.id) {
+        setFloorSlittingBarcodeError("This roll belongs to another work order.")
+        return
+      }
       if (isOperationSkipped(wo.skippedOperations, "Slitting")) {
         setFloorSlittingBarcodeError("Slitting was skipped for this work order.")
         return
@@ -1926,11 +1930,15 @@ export default function Home() {
       const stages = slittingSelectedWo
         ? allowedWipStagesForDept("Slitting", slittingSelectedWo.skippedOperations)
         : ["wip_lamination", "wip_ecl", "wip_inspection", "wip_printed"]
-      const filtered = await fetchAvailableWipRolls(stages)
+      const filtered = slittingSelectedWo
+        ? await fetchAvailableWipRollsForWorkOrder(slittingSelectedWo.id, stages)
+        : await fetchAvailableWipRolls(stages)
       setFloorSlittingParentRolls(filtered as RollsStockRow[])
       if (filtered.length === 0) {
         setFloorSlittingParentRollsError(
-          `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
+          slittingSelectedWo
+            ? `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found for this work order. Try scanning a barcode instead.`
+            : `No available ${stages.map((s) => wipStageLabel(s)).join(" or ")} rolls found. Try scanning a barcode instead.`
         )
       }
     } catch {
@@ -2607,17 +2615,20 @@ export default function Home() {
                     parent: { gradeId: parent.gradeId },
                     micron: first.roll.micron != null ? String(first.roll.micron) : "",
                     trimWastage: "0",
-                    eclWastage: "0",
-                    printedWastage: "0",
-                    laminationWastage: "0",
-                    slitterWastage: "0",
                     wastage: "0",
-                    coilRewinding: "",
-                    slitDirection: "",
-                    coreSize: "",
-                    coilDia: "",
-                    size: "",
-                    jobRepeat: "",
+                    balanceweight: "",
+                    slits: [
+                      {
+                        key: `slit-${first.roll.id}-1`,
+                        size: "",
+                        netweight: "",
+                        coreSize: "",
+                        coilDia: "",
+                        slitDirection: "",
+                        jobRepeat: "",
+                        coilRewinding: "",
+                      },
+                    ],
                   }
                 })
               }
@@ -2776,16 +2787,15 @@ export default function Home() {
     }
   }, [laminationSelectedWo?.id])
 
-  // Fetch child rolls (finished goods) for loaded parent in Slitting section
+  // Finished slit rolls stay on the work order after the parent is consumed.
   useEffect(() => {
-    if (slittingLoadedRolls.length === 0) {
+    if (!slittingSelectedWo) {
       setSlittingChildRollsFromDb([])
       return
     }
-    const parentIds = slittingLoadedRolls.map((r) => r.roll.id)
     let cancelled = false
     setSlittingChildRollsLoading(true)
-    getRollsStockByParentIds(parentIds, "finished_goods")
+    getRollsStockByWorkOrder(slittingSelectedWo.id, "finished_goods")
       .then((rows) => {
         if (!cancelled) setSlittingChildRollsFromDb(rows)
       })
@@ -2798,7 +2808,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [slittingLoadedRolls])
+  }, [slittingSelectedWo?.id, slittingRollsRefreshKey])
 
   // Fetch WIP printing template when on Floor Printing/Inspection/ECL/Lamination/Slitting view (for Print button)
   useEffect(() => {
@@ -3209,7 +3219,7 @@ export default function Home() {
                     createPrintJob={createPrintJob}
                     getPrintJob={getPrintJob}
                     setPrintingPrintStatus={setPrintingPrintStatus}
-                    addSlittingRoll={addSlittingRoll}
+                    consumeSlittingRoll={consumeSlittingRoll}
                     slittingCreateChildMessage={slittingCreateChildMessage}
                     floorSlittingBarcode={floorSlittingBarcode}
                     setFloorSlittingBarcode={setFloorSlittingBarcode}
