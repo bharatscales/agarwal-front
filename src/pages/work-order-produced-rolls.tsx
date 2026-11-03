@@ -394,17 +394,15 @@ function slittingColumns(): ColumnDef<ProducedRoll>[] {
       header: () => <div>Barcode</div>,
       cell: ({ row }) => <div className="font-mono text-xs">{displayValue(row.original.barcode)}</div>,
     },
-    kgColumn("netweight", "Output weight"),
-    kgColumn("trimWastage", "Trim wastage"),
-    textColumn("coilRewinding", "Coil rewinding"),
-    textColumn("slitDirection", "Direction"),
-    textColumn("coreSize", "Core size"),
-    textColumn("coilDia", "Coil dia"),
+    kgColumn("netweight", "Output"),
+    kgColumn("trimWastage", "Wastage"),
     {
-      id: "jobSize",
-      header: () => <div className="text-center w-full">Job size</div>,
-      columns: [textColumn("size", "Width"), textColumn("jobRepeat", "Repeat")],
+      id: "balance",
+      header: () => <div>Balance</div>,
+      cell: ({ row }) => <div className="text-xs">{balanceCell(row.original)}</div>,
     },
+    textColumn("operatorName", "Operator"),
+    textColumn("shift", "Shift"),
   ]
 }
 

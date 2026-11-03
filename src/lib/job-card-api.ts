@@ -515,6 +515,9 @@ export type ConsumeSlittingRollPayload = {
   trimWastage?: number
   wastage?: number
   balanceWeight?: number
+  operatorName?: string
+  shift?: string
+  machineId?: number
   children: SlittingChildPayload[]
 }
 
@@ -533,6 +536,9 @@ export const consumeSlittingRoll = async (
       trim_wastage: payload.trimWastage ?? undefined,
       wastage: payload.wastage,
       balance_weight: payload.balanceWeight ?? 0,
+      operator_name: payload.operatorName || undefined,
+      shift: payload.shift || undefined,
+      machine_id: payload.machineId ?? undefined,
       children: payload.children.map((child) => ({
         size: child.size,
         netweight: child.netweight,

@@ -853,16 +853,9 @@ export default function Home() {
       trimWastage: string
       wastage: string
       balanceweight: string
-      slits?: Array<{
-        key: string
-        size: string
-        netweight: string
-        coreSize: string
-        coilDia: string
-        slitDirection: string
-        jobRepeat: string
-        coilRewinding: string
-      }>
+      operatorName?: string
+      shift?: string
+      machineId?: string
     }>("slitting")
   )
   const [slittingRollsRefreshKey, setSlittingRollsRefreshKey] = useState(0)
@@ -2617,18 +2610,9 @@ export default function Home() {
                     trimWastage: "0",
                     wastage: "0",
                     balanceweight: "",
-                    slits: [
-                      {
-                        key: `slit-${first.roll.id}-1`,
-                        size: "",
-                        netweight: "",
-                        coreSize: "",
-                        coilDia: "",
-                        slitDirection: "",
-                        jobRepeat: "",
-                        coilRewinding: "",
-                      },
-                    ],
+                    operatorName: "",
+                    shift: "A",
+                    machineId: "",
                   }
                 })
               }

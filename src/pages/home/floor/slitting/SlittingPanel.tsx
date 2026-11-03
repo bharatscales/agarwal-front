@@ -1,4 +1,4 @@
-import { Plus, Printer, ScanBarcode, Trash2, X } from "lucide-react"
+import { Printer, ScanBarcode, X } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import { ColumnHeader } from "@/components/column-header"
@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/select"
 import { formatWeightWithMeter } from "@/lib/film-calc"
 import { deleteProducedRoll, jobCardApiErrorMessage, updateProducedRoll } from "@/lib/job-card-api"
+import { getAllMachines } from "@/lib/machine-api"
 import { NonNegativeDecimalInput, parseNonNegativeDecimal } from "@/lib/non-negative-decimal-input"
+import { getAllOperators } from "@/lib/operator-api"
 import { includesStringFilterFn } from "@/lib/table-filter-utils"
 import { getFloorWorkOrderColumns } from "../floor-work-order-columns"
 import {
@@ -38,7 +40,23 @@ import {
 
 type SlittingPanelProps = any
 
-const SLIT_DIRECTIONS = ["Readable", "Unreadable", "LHS", "RHS"] as const
+const SLITTING_SHIFTS = ["A", "B"] as const
+
+function slittingOutputKg(inputWeight: number, wastage: string, balance: string) {
+  const waste = parseNonNegativeDecimal(wastage || "") ?? 0
+  const leftover = parseNonNegativeDecimal(balance || "") ?? 0
+  return Math.round((inputWeight - waste - leftover) * 100) / 100
+}
+
+function producedInputWeight(roll: any) {
+  const parentNet = Number(roll?.parentNetweight)
+  if (parentNet > 0) return parentNet
+  return (
+    (Number(roll?.netweight) || 0) +
+    (Number(roll?.trimWastage) || 0) +
+    (Number(roll?.parentBalanceWeight ?? roll?.balanceWeight) || 0)
+  )
+}
 
 function stageLabel(stage: string | null | undefined) {
   const s = (stage ?? "").toLowerCase()
@@ -59,39 +77,6 @@ function displayKg(value: unknown) {
   if (value == null || value === "") return "-"
   const n = Number(value)
   return Number.isNaN(n) ? "-" : `${n.toFixed(2)} kg`
-}
-
-type SlitDraft = {
-  key: string
-  size: string
-  netweight: string
-  coreSize: string
-  coilDia: string
-  slitDirection: string
-  jobRepeat: string
-  coilRewinding: string
-}
-
-function newSlitKey() {
-  return `slit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function emptySlit(seed?: Partial<SlitDraft>): SlitDraft {
-  return {
-    key: seed?.key || newSlitKey(),
-    size: "",
-    netweight: "",
-    coreSize: seed?.coreSize ?? "",
-    coilDia: seed?.coilDia ?? "",
-    slitDirection: seed?.slitDirection ?? "",
-    jobRepeat: seed?.jobRepeat ?? "",
-    coilRewinding: seed?.coilRewinding ?? "",
-  }
-}
-
-function trimWastageTotal(value?: string) {
-  const amount = parseNonNegativeDecimal(value || "") ?? 0
-  return String(Number(amount.toFixed(2)))
 }
 
 export function SlittingPanel(props: SlittingPanelProps) {
@@ -140,18 +125,73 @@ export function SlittingPanel(props: SlittingPanelProps) {
     [onSkipWorkOrder]
   )
   const parent = slittingLoadedRolls[0] ?? null
+  const [slittingOperators, setSlittingOperators] = useState<string[]>([])
+  const [slittingMachines, setSlittingMachines] = useState<
+    Array<{ id: number; machineName: string; machineCode: string }>
+  >([])
   const [slittingEditRoll, setSlittingEditRoll] = useState<any>(null)
   const [slittingEditSaving, setSlittingEditSaving] = useState(false)
   const [slittingEditForm, setSlittingEditForm] = useState({
-    netweight: "",
     trimWastage: "",
-    coilRewinding: "",
-    slitDirection: "",
-    coreSize: "",
-    coilDia: "",
-    size: "",
-    jobRepeat: "",
+    balanceweight: "",
+    operatorName: "",
+    shift: "",
   })
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getAllOperators(0, 500), getAllMachines(0, 500)])
+      .then(([ops, machines]) => {
+        if (cancelled) return
+        const names = ops
+          .filter((op) => (op.operation ?? "").toLowerCase() === "slitting")
+          .map((op) => op.operatorName.trim())
+          .filter(Boolean)
+        setSlittingOperators(Array.from(new Set(names)))
+        setSlittingMachines(
+          machines
+            .filter((machine) => (machine.operation ?? "").toLowerCase() === "slitting")
+            .map((machine) => ({
+              id: machine.id,
+              machineName: machine.machineName,
+              machineCode: machine.machineCode,
+            }))
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSlittingOperators([])
+          setSlittingMachines([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!slittingAddRollForm) return
+    const current = slittingAddRollForm.operatorName?.trim() ?? ""
+    if (current && slittingOperators.includes(current)) return
+    const next = slittingOperators[0] ?? ""
+    if (current === next) return
+    setSlittingAddRollForm((prev: any) => (prev ? { ...prev, operatorName: next } : prev))
+  }, [slittingOperators, slittingAddRollForm?.roll?.id, setSlittingAddRollForm])
+
+  useEffect(() => {
+    if (!slittingAddRollForm) return
+    if (slittingAddRollForm.shift) return
+    setSlittingAddRollForm((prev: any) => (prev ? { ...prev, shift: "A" } : prev))
+  }, [slittingAddRollForm?.roll?.id, slittingAddRollForm?.shift, setSlittingAddRollForm])
+
+  useEffect(() => {
+    if (!slittingAddRollForm || slittingMachines.length === 0) return
+    const current = String(slittingAddRollForm.machineId || "")
+    if (current && slittingMachines.some((machine) => String(machine.id) === current)) return
+    setSlittingAddRollForm((prev: any) =>
+      prev ? { ...prev, machineId: String(slittingMachines[0].id) } : prev
+    )
+  }, [slittingMachines, slittingAddRollForm?.roll?.id, setSlittingAddRollForm])
 
   const slittingProducedTotals = useMemo(() => {
     const rollCount = slittingChildRollsFromDb.length
@@ -289,7 +329,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
       {
         accessorKey: "netweight",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Output weight" column={column} placeholder="Filter weight..." />
+          <ColumnHeader title="Output" column={column} placeholder="Filter output..." />
         ),
         cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.netweight)}</div>,
         filterFn: includesStringFilterFn,
@@ -297,76 +337,40 @@ export function SlittingPanel(props: SlittingPanelProps) {
       {
         accessorKey: "trimWastage",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Trim wastage" column={column} placeholder="Filter trim..." />
+          <ColumnHeader title="Wastage" column={column} placeholder="Filter wastage..." />
         ),
         cell: ({ row }: { row: any }) => <div className="text-xs">{displayKg(row.original.trimWastage)}</div>,
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "coilRewinding",
+        id: "balance",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Coil rewinding" column={column} placeholder="Filter rewinding..." />
+          <ColumnHeader title="Balance" column={column} placeholder="Filter balance..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayValue(row.original.coilRewinding)}</div>
+          <div className="text-xs">
+            {displayKg(row.original.parentBalanceWeight ?? row.original.balanceWeight)}
+          </div>
         ),
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "slitDirection",
+        accessorKey: "operatorName",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Direction" column={column} placeholder="Filter direction..." />
+          <ColumnHeader title="Operator" column={column} placeholder="Filter operator..." />
         ),
         cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayValue(row.original.slitDirection)}</div>
+          <div className="text-xs">{displayValue(row.original.operatorName)}</div>
         ),
         filterFn: includesStringFilterFn,
       },
       {
-        accessorKey: "coreSize",
+        accessorKey: "shift",
         header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Core size" column={column} placeholder="Filter core..." />
+          <ColumnHeader title="Shift" column={column} placeholder="Filter shift..." />
         ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayValue(row.original.coreSize)}</div>
-        ),
+        cell: ({ row }: { row: any }) => <div className="text-xs">{displayValue(row.original.shift)}</div>,
         filterFn: includesStringFilterFn,
-      },
-      {
-        accessorKey: "coilDia",
-        header: ({ column }: { column: any }) => (
-          <ColumnHeader title="Coil dia" column={column} placeholder="Filter coil dia..." />
-        ),
-        cell: ({ row }: { row: any }) => (
-          <div className="text-xs">{displayValue(row.original.coilDia)}</div>
-        ),
-        filterFn: includesStringFilterFn,
-      },
-      {
-        id: "jobSize",
-        header: () => <div className="text-center w-full">Job size</div>,
-        columns: [
-          {
-            accessorKey: "size",
-            header: ({ column }: { column: any }) => (
-              <ColumnHeader title="Width" column={column} placeholder="Filter width..." />
-            ),
-            cell: ({ row }: { row: any }) => (
-              <div className="text-xs">{displayValue(row.original.size)}</div>
-            ),
-            filterFn: includesStringFilterFn,
-          },
-          {
-            accessorKey: "jobRepeat",
-            header: ({ column }: { column: any }) => (
-              <ColumnHeader title="Repeat" column={column} placeholder="Filter repeat..." />
-            ),
-            cell: ({ row }: { row: any }) => (
-              <div className="text-xs">{displayValue(row.original.jobRepeat)}</div>
-            ),
-            filterFn: includesStringFilterFn,
-          },
-        ],
       },
       {
         id: "actions",
@@ -379,14 +383,15 @@ export function SlittingPanel(props: SlittingPanelProps) {
             onEdit={() => {
               const roll = row.original
               setSlittingEditForm({
-                netweight: roll.netweight != null ? String(roll.netweight) : "",
                 trimWastage: roll.trimWastage != null ? String(roll.trimWastage) : "",
-                coilRewinding: roll.coilRewinding != null ? String(roll.coilRewinding) : "",
-                slitDirection: roll.slitDirection ?? "",
-                coreSize: roll.coreSize != null ? String(roll.coreSize) : "",
-                coilDia: roll.coilDia != null ? String(roll.coilDia) : "",
-                size: roll.size != null ? String(roll.size) : "",
-                jobRepeat: roll.jobRepeat != null ? String(roll.jobRepeat) : "",
+                balanceweight:
+                  roll.parentBalanceWeight != null
+                    ? String(roll.parentBalanceWeight)
+                    : roll.balanceWeight != null
+                      ? String(roll.balanceWeight)
+                      : "",
+                operatorName: roll.operatorName ?? "",
+                shift: roll.shift ?? "",
               })
               setSlittingEditRoll(roll)
             }}
@@ -399,107 +404,45 @@ export function SlittingPanel(props: SlittingPanelProps) {
   )
 
 
-  const slitRows: SlitDraft[] =
-    Array.isArray(slittingAddRollForm?.slits) && slittingAddRollForm.slits.length > 0
-      ? slittingAddRollForm.slits
-      : []
-
-  useEffect(() => {
-    if (!slittingAddRollForm?.roll?.id) return
-    if (Array.isArray(slittingAddRollForm.slits) && slittingAddRollForm.slits.length > 0) return
-    setSlittingAddRollForm((prev: any) => {
-      if (!prev || (Array.isArray(prev.slits) && prev.slits.length > 0)) return prev
-      return {
-        ...prev,
-        slits: [emptySlit()],
-        balanceweight: prev.balanceweight ?? "",
-        trimWastage: prev.trimWastage ?? "0",
-        wastage: trimWastageTotal(prev.trimWastage ?? "0"),
-      }
-    })
-  }, [slittingAddRollForm, setSlittingAddRollForm])
-
-  const updateSlit = (key: string, patch: Partial<SlitDraft>) => {
-    setSlittingAddRollForm((prev: any) => {
-      if (!prev) return prev
-      const current: SlitDraft[] = Array.isArray(prev.slits) && prev.slits.length > 0 ? prev.slits : [emptySlit()]
-      return {
-        ...prev,
-        slits: current.map((row) => (row.key === key ? { ...row, ...patch } : row)),
-      }
-    })
-  }
-
-  const addSlitRow = () => {
-    setSlittingAddRollForm((prev: any) => {
-      if (!prev) return prev
-      const current: SlitDraft[] = Array.isArray(prev.slits) ? prev.slits : []
-      const last = current[current.length - 1]
-      return { ...prev, slits: [...current, emptySlit(last)] }
-    })
-  }
-
-  const removeSlitRow = (key: string) => {
-    setSlittingAddRollForm((prev: any) => {
-      if (!prev) return prev
-      const current: SlitDraft[] = Array.isArray(prev.slits) ? prev.slits : []
-      const slits = current.filter((row) => row.key !== key)
-      return { ...prev, slits: slits.length > 0 ? slits : [emptySlit()] }
-    })
-  }
+  const loadedWeight = Number(parent?.roll?.netweight) || 0
+  const outputKg = slittingOutputKg(
+    loadedWeight,
+    slittingAddRollForm?.trimWastage || "",
+    slittingAddRollForm?.balanceweight || ""
+  )
 
   const handleConsumeSlittingRoll = async () => {
     const form = slittingAddRollForm
     const wo = slittingSelectedWo
     if (!form || wo?.itemId == null) return
-    const rows: SlitDraft[] = Array.isArray(form.slits) ? form.slits : []
-    const children: Array<{
-      size: number
-      netweight: number
-      coilRewinding?: number
-      slitDirection?: string
-      coreSize?: number
-      coilDia?: number
-      jobRepeat?: number
-    }> = []
-    for (const row of rows) {
-      const touched = [row.size, row.netweight, row.coreSize, row.coilDia, row.slitDirection, row.jobRepeat, row.coilRewinding]
-        .some((value) => String(value || "").trim() !== "")
-      if (!touched) continue
-      const width = parseNonNegativeDecimal(row.size || "")
-      const weight = parseNonNegativeDecimal(row.netweight || "")
-      if (width == null || width <= 0 || weight == null || weight <= 0) {
-        setSlittingCreateChildMessage("Each slit needs a width and an output weight.")
-        return
-      }
-      children.push({
-        size: width,
-        netweight: weight,
-        coilRewinding: parseNonNegativeDecimal(row.coilRewinding || "") ?? undefined,
-        slitDirection: row.slitDirection.trim() || undefined,
-        coreSize: parseNonNegativeDecimal(row.coreSize || "") ?? undefined,
-        coilDia: parseNonNegativeDecimal(row.coilDia || "") ?? undefined,
-        jobRepeat: parseNonNegativeDecimal(row.jobRepeat || "") ?? undefined,
-      })
+    if (!form.operatorName?.trim()) {
+      setSlittingCreateChildMessage("Select an operator.")
+      return
     }
-    if (children.length === 0) {
-      setSlittingCreateChildMessage("Add at least one slit with a width and an output weight.")
+    if (!form.shift?.trim()) {
+      setSlittingCreateChildMessage("Select a shift.")
+      return
+    }
+    const machineId = Number(form.machineId)
+    if (!machineId) {
+      setSlittingCreateChildMessage("Select a machine.")
       return
     }
     const parentWidth = Number(form.roll?.size)
-    const widthTotal = children.reduce((sum, child) => sum + child.size, 0)
-    if (parentWidth > 0 && widthTotal > parentWidth + 0.5) {
-      setSlittingCreateChildMessage(
-        `Slit widths total ${widthTotal.toFixed(2)} mm, which is wider than the loaded roll (${parentWidth.toFixed(2)} mm).`
-      )
+    if (!(parentWidth > 0)) {
+      setSlittingCreateChildMessage("Loaded roll has no width.")
       return
     }
     const trim = parseNonNegativeDecimal(form.trimWastage || "") ?? 0
     const balance = parseNonNegativeDecimal(form.balanceweight || "") ?? 0
     const inputWeight = Number(form.roll?.netweight) || 0
-    const outputWeight = children.reduce((sum, child) => sum + child.netweight, 0)
-    if (inputWeight > 0 && outputWeight + trim + balance > inputWeight + 0.05) {
-      setSlittingCreateChildMessage("Output weight, trim wastage, and balance are more than the loaded roll weight.")
+    const outputWeight = slittingOutputKg(inputWeight, form.trimWastage || "", form.balanceweight || "")
+    if (!(inputWeight > 0)) {
+      setSlittingCreateChildMessage("Loaded roll has no weight.")
+      return
+    }
+    if (outputWeight <= 0) {
+      setSlittingCreateChildMessage("Output must be greater than zero. Wastage and balance are using the whole loaded roll.")
       return
     }
     try {
@@ -513,7 +456,10 @@ export function SlittingPanel(props: SlittingPanelProps) {
         trimWastage: trim,
         wastage: trim,
         balanceWeight: balance,
-        children,
+        operatorName: form.operatorName.trim(),
+        shift: form.shift.trim(),
+        machineId,
+        children: [{ size: parentWidth, netweight: outputWeight }],
       })
       const created = result.rolls ?? []
       if (wipPrintingTemplate && created.length > 0) {
@@ -548,6 +494,8 @@ export function SlittingPanel(props: SlittingPanelProps) {
                   micron: roll.micron,
                   wastage: roll.wastage,
                   trimWastage: trim,
+                  operatorName: form.operatorName.trim(),
+                  shift: form.shift.trim(),
                   itemName: wo.itemName ?? null,
                 },
               },
@@ -563,7 +511,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
           )
         }
       } else {
-        const count = created.length || children.length
+        const count = created.length || 1
         setSlittingCreateChildMessage(
           `Loaded roll consumed. ${count} finished roll${count === 1 ? "" : "s"} created.`
         )
@@ -630,7 +578,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
             <div>
               <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Loaded parent</h4>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Load one roll. Enter each slit, then consume the roll. That creates every finished roll and records trim wastage once.
+                Load one roll. Output is the loaded weight minus wastage and the balance roll.
               </p>
               {slittingRollsLoading ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
@@ -713,99 +661,114 @@ export function SlittingPanel(props: SlittingPanelProps) {
                   </div>
 
                   {slittingAddRollForm && (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-end gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-600 dark:text-gray-400">Trim wastage (kg)</Label>
-                          <NonNegativeDecimalInput
-                            className="h-8 w-28"
-                            value={slittingAddRollForm.trimWastage || ""}
-                            onValueChange={(trimWastage) =>
-                              setSlittingAddRollForm((prev: any) =>
-                                prev
-                                  ? { ...prev, trimWastage, wastage: trimWastageTotal(trimWastage) }
-                                  : prev
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-600 dark:text-gray-400">Balance weight (kg)</Label>
-                          <NonNegativeDecimalInput
-                            className="h-8 w-28"
-                            value={slittingAddRollForm.balanceweight || ""}
-                            onValueChange={(balanceweight) =>
-                              setSlittingAddRollForm((prev: any) => (prev ? { ...prev, balanceweight } : prev))
-                            }
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 pb-2">
-                          {slitRows.length} slit{slitRows.length === 1 ? "" : "s"}
-                          {parent?.roll?.size != null ? ` · parent width ${parent.roll.size} mm` : ""}
-                          {parent?.roll?.netweight != null ? ` · loaded ${Number(parent.roll.netweight).toFixed(2)} kg` : ""}
-                        </p>
-                      </div>
-                      <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                              <th className="text-left py-1.5 px-2 font-medium">Width (mm)</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Output weight (kg)</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Core size</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Coil dia</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Direction</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Repeat</th>
-                              <th className="text-left py-1.5 px-2 font-medium">Coil rewinding</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {slitRows.map((row, index) => (
-                              <tr key={row.key} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-20 px-1.5 text-xs" value={row.size} onValueChange={(size) => updateSlit(row.key, { size })} />
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-24 px-1.5 text-xs" value={row.netweight} onValueChange={(netweight) => updateSlit(row.key, { netweight })} />
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.coreSize} onValueChange={(coreSize) => updateSlit(row.key, { coreSize })} />
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.coilDia} onValueChange={(coilDia) => updateSlit(row.key, { coilDia })} />
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <Select value={row.slitDirection || undefined} onValueChange={(slitDirection) => updateSlit(row.key, { slitDirection })}>
-                                    <SelectTrigger size="sm" className="h-7 w-28 px-1.5 text-xs">
-                                      <SelectValue placeholder="Select" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SLIT_DIRECTIONS.map((dir) => (
-                                        <SelectItem key={dir} value={dir}>{dir}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-16 px-1.5 text-xs" value={row.jobRepeat} onValueChange={(jobRepeat) => updateSlit(row.key, { jobRepeat })} />
-                                </td>
-                                <td className="py-1.5 px-2">
-                                  <NonNegativeDecimalInput className="h-7 w-20 px-1.5 text-xs" value={row.coilRewinding} onValueChange={(coilRewinding) => updateSlit(row.key, { coilRewinding })} />
-                                </td>
-                                <td className="py-1.5 px-2 text-right">
-                                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={`Remove slit ${index + 1}`} onClick={() => removeSlitRow(row.key)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </td>
-                              </tr>
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Operator</Label>
+                        <Select
+                          value={
+                            slittingAddRollForm.operatorName &&
+                            slittingOperators.includes(slittingAddRollForm.operatorName)
+                              ? slittingAddRollForm.operatorName
+                              : undefined
+                          }
+                          onValueChange={(operatorName) =>
+                            setSlittingAddRollForm((prev: any) => (prev ? { ...prev, operatorName } : prev))
+                          }
+                        >
+                          <SelectTrigger size="sm" className="h-8 w-40">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {slittingOperators.map((name) => (
+                              <SelectItem key={name} value={name}>
+                                {name}
+                              </SelectItem>
                             ))}
-                          </tbody>
-                        </table>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addSlitRow}>
-                        <Plus className="h-4 w-4" />
-                        Add slit
-                      </Button>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Shift</Label>
+                        <Select
+                          value={slittingAddRollForm.shift || undefined}
+                          onValueChange={(shift) =>
+                            setSlittingAddRollForm((prev: any) => (prev ? { ...prev, shift } : prev))
+                          }
+                        >
+                          <SelectTrigger size="sm" className="h-8 w-20">
+                            <SelectValue placeholder="Shift" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SLITTING_SHIFTS.map((shiftOption) => (
+                              <SelectItem key={shiftOption} value={shiftOption}>
+                                {shiftOption}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Machine</Label>
+                        <Select
+                          value={
+                            slittingAddRollForm.machineId &&
+                            slittingMachines.some((machine) => String(machine.id) === String(slittingAddRollForm.machineId))
+                              ? String(slittingAddRollForm.machineId)
+                              : undefined
+                          }
+                          onValueChange={(machineId) =>
+                            setSlittingAddRollForm((prev: any) => (prev ? { ...prev, machineId } : prev))
+                          }
+                        >
+                          <SelectTrigger size="sm" className="h-8 w-44">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {slittingMachines.map((machine) => (
+                              <SelectItem key={machine.id} value={String(machine.id)}>
+                                {machine.machineName || machine.machineCode}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Wastage (kg)</Label>
+                        <NonNegativeDecimalInput
+                          className="h-8 w-28"
+                          value={slittingAddRollForm.trimWastage || ""}
+                          onValueChange={(trimWastage) =>
+                            setSlittingAddRollForm((prev: any) =>
+                              prev ? { ...prev, trimWastage, wastage: trimWastage } : prev
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Balance (kg)</Label>
+                        <NonNegativeDecimalInput
+                          className="h-8 w-28"
+                          value={slittingAddRollForm.balanceweight || ""}
+                          onValueChange={(balanceweight) =>
+                            setSlittingAddRollForm((prev: any) => (prev ? { ...prev, balanceweight } : prev))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400">Output (kg)</Label>
+                        <Input
+                          className="h-8 w-28"
+                          value={loadedWeight > 0 ? outputKg.toFixed(2) : ""}
+                          readOnly
+                          disabled
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 pb-2">
+                        Output = loaded weight − wastage − balance
+                        {parent?.roll?.netweight != null
+                          ? ` · loaded ${Number(parent.roll.netweight).toFixed(2)} kg`
+                          : ""}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -827,7 +790,7 @@ export function SlittingPanel(props: SlittingPanelProps) {
                             {slittingProducedTotals.rollCount}
                           </td>
                           <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-medium bg-sidebar border-r border-zinc-600">
-                            Trim wastage (kg)
+                            Wastage (kg)
                           </td>
                           <td className="py-2 px-3 text-gray-900 dark:text-zinc-300 font-semibold">
                             {slittingProducedTotals.totalWastage.toFixed(2)} kg
@@ -975,73 +938,73 @@ export function SlittingPanel(props: SlittingPanelProps) {
         <DialogContent className={producedRollEditDialogClassName}>
           <DialogHeader>
             <DialogTitle>Edit produced roll</DialogTitle>
-            <DialogDescription>Update width, output weight, trim wastage, and coil fields.</DialogDescription>
+            <DialogDescription>
+              Output is recalculated from the loaded weight, wastage, and balance.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <ProducedRollEditField label="Output weight (kg)">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.netweight}
-                onValueChange={(netweight) => setSlittingEditForm((prev) => ({ ...prev, netweight }))}
-              />
+            <ProducedRollEditField label="Operator">
+              <Select
+                value={
+                  slittingEditForm.operatorName && slittingOperators.includes(slittingEditForm.operatorName)
+                    ? slittingEditForm.operatorName
+                    : undefined
+                }
+                onValueChange={(operatorName) => setSlittingEditForm((prev) => ({ ...prev, operatorName }))}
+              >
+                <SelectTrigger size="sm" className="h-7 w-full px-1.5 text-xs">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {slittingOperators.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </ProducedRollEditField>
-            <ProducedRollEditField label="Trim wastage (kg)">
+            <ProducedRollEditField label="Shift">
+              <Select
+                value={slittingEditForm.shift || undefined}
+                onValueChange={(shift) => setSlittingEditForm((prev) => ({ ...prev, shift }))}
+              >
+                <SelectTrigger size="sm" className="h-7 w-full px-1.5 text-xs">
+                  <SelectValue placeholder="Shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SLITTING_SHIFTS.map((shiftOption) => (
+                    <SelectItem key={shiftOption} value={shiftOption}>
+                      {shiftOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ProducedRollEditField>
+            <ProducedRollEditField label="Wastage (kg)">
               <NonNegativeDecimalInput
                 className={producedRollEditInputClassName}
                 value={slittingEditForm.trimWastage}
                 onValueChange={(trimWastage) => setSlittingEditForm((prev) => ({ ...prev, trimWastage }))}
               />
             </ProducedRollEditField>
-            <ProducedRollEditField label="Coil rewinding">
+            <ProducedRollEditField label="Balance (kg)">
               <NonNegativeDecimalInput
                 className={producedRollEditInputClassName}
-                value={slittingEditForm.coilRewinding}
-                onValueChange={(coilRewinding) => setSlittingEditForm((prev) => ({ ...prev, coilRewinding }))}
+                value={slittingEditForm.balanceweight}
+                onValueChange={(balanceweight) => setSlittingEditForm((prev) => ({ ...prev, balanceweight }))}
               />
             </ProducedRollEditField>
-            <ProducedRollEditField label="Direction">
-              <Select
-                value={slittingEditForm.slitDirection || undefined}
-                onValueChange={(slitDirection) => setSlittingEditForm((prev) => ({ ...prev, slitDirection }))}
-              >
-                <SelectTrigger size="sm" className="h-7 w-full px-1.5 text-xs">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SLIT_DIRECTIONS.map((dir) => (
-                    <SelectItem key={dir} value={dir}>
-                      {dir}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Core size">
-              <NonNegativeDecimalInput
+            <ProducedRollEditField label="Output (kg)">
+              <Input
                 className={producedRollEditInputClassName}
-                value={slittingEditForm.coreSize}
-                onValueChange={(coreSize) => setSlittingEditForm((prev) => ({ ...prev, coreSize }))}
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Coil dia">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.coilDia}
-                onValueChange={(coilDia) => setSlittingEditForm((prev) => ({ ...prev, coilDia }))}
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Width">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.size}
-                onValueChange={(size) => setSlittingEditForm((prev) => ({ ...prev, size }))}
-              />
-            </ProducedRollEditField>
-            <ProducedRollEditField label="Repeat">
-              <NonNegativeDecimalInput
-                className={producedRollEditInputClassName}
-                value={slittingEditForm.jobRepeat}
-                onValueChange={(jobRepeat) => setSlittingEditForm((prev) => ({ ...prev, jobRepeat }))}
+                value={slittingOutputKg(
+                  producedInputWeight(slittingEditRoll),
+                  slittingEditForm.trimWastage,
+                  slittingEditForm.balanceweight
+                ).toFixed(2)}
+                readOnly
+                disabled
               />
             </ProducedRollEditField>
           </div>
@@ -1055,21 +1018,29 @@ export function SlittingPanel(props: SlittingPanelProps) {
               onClick={async () => {
                 const roll = slittingEditRoll
                 if (!roll?.id) return
+                const trimWastage = parseNonNegativeDecimal(slittingEditForm.trimWastage) ?? 0
+                const balance = parseNonNegativeDecimal(slittingEditForm.balanceweight) ?? 0
+                const netweight = slittingOutputKg(
+                  producedInputWeight(roll),
+                  slittingEditForm.trimWastage,
+                  slittingEditForm.balanceweight
+                )
+                if (netweight <= 0) {
+                  setSlittingCreateChildMessage(
+                    "Output must be greater than zero. Wastage and balance are using the whole loaded roll."
+                  )
+                  return
+                }
                 try {
                   setSlittingEditSaving(true)
-                  const trimWastage = parseNonNegativeDecimal(slittingEditForm.trimWastage) ?? 0
-                  const netweight = parseNonNegativeDecimal(slittingEditForm.netweight)
                   await updateProducedRoll(roll.id, {
-                    size: parseNonNegativeDecimal(slittingEditForm.size),
                     netweight,
                     grossweight: netweight,
-                    jobRepeat: parseNonNegativeDecimal(slittingEditForm.jobRepeat),
                     wastage: trimWastage,
                     trimWastage,
-                    coilRewinding: parseNonNegativeDecimal(slittingEditForm.coilRewinding),
-                    slitDirection: slittingEditForm.slitDirection.trim() || null,
-                    coreSize: parseNonNegativeDecimal(slittingEditForm.coreSize),
-                    coilDia: parseNonNegativeDecimal(slittingEditForm.coilDia),
+                    balanceWeight: balance,
+                    operatorName: slittingEditForm.operatorName.trim() || null,
+                    shift: slittingEditForm.shift.trim() || null,
                   })
                   setSlittingCreateChildMessage("Produced roll updated.")
                   setSlittingEditRoll(null)
